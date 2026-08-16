@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Onchain Data",
+    "slug": "onchain-data",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4A90D9"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.onchaindata.app"
+    },
+    "android": {
+
+      "package": "com.onchaindata.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
