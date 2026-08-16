@@ -1,0 +1,70 @@
+# System Files
+.DS_Store
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Editor Files
+*~
+*.swp
+*.swo
+.vscode/
+
+# Xcode
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+ios/.xcode.env.local
+
+# Agent/IDE
+.artifacts/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Android/IntelliJ
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+*.keystore
+*.jks
+!debug.keystore
+captures/
+.externalNativeBuild/
+cmake-build-debug/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Environment
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
