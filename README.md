@@ -2,7 +2,7 @@
 Onchain Attachment Message
 
 
-一款基于 React Native + TypeScript 的链上数据查看移动端应用。使用 Expo 构建，支持 iOS / Android 双平台。
+一款以太坊链上附件消息数据互操作的程序。
 
 ---
 
