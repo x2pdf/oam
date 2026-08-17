@@ -5,6 +5,7 @@ export type FetchMode = 'square' | 'self' | 'sent' | 'inbox';
 export interface DataSourceResult {
   items: InputDataItem[];
   next_page_params: any;
+  errors?: string[];
 }
 
 export interface IDataSource {

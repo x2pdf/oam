@@ -64,7 +64,7 @@ export class BlockscoutDataSource extends BaseDataSource {
           }
 
           return {
-            id: `bs-${tx.hash.slice(0, 10)}`,
+            id: tx.hash,
             name: displayName,
             address: displayAddr,
             description: decoded,

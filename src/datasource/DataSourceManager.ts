@@ -24,42 +24,30 @@ export class DataSourceManager {
   }
 
   /**
-   * Fetch from all sources and aggregate.
-   * Note: For simplicity in pagination, we might just use the primary source's pagination
-   * or a more complex strategy. Here we'll combine items and return the first available next_page_params.
+   * Fetch from sources one by one according to weight.
+   * If the primary source succeeds, return immediately.
+   * Fallback to the next source if the previous one fails.
    */
   async fetchAll(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
-    const results = await Promise.all(
-      this.sources.map(source =>
-        source.fetchMessages(address, mode, params).catch(err => {
-          console.warn(`Source ${source.name} failed:`, err);
-          return { items: [], next_page_params: null };
-        })
-      )
-    );
+    let lastError = null;
 
-    // Aggregate items
-    const allItems: InputDataItem[] = [];
-    results.forEach(res => {
-      allItems.push(...res.items);
-    });
+    for (const source of this.sources) {
+      try {
+        console.log(`Attempting to fetch from source: ${source.name}`);
+        const result = await source.fetchMessages(address, mode, params);
 
-    // Deduplicate by transaction hash (id in our case has source prefix, so maybe just keep all or use original hash)
-    // For now, let's just return them. In a real app we'd deduplicate by tx hash.
+        // If we got items or even an empty list (successful request),
+        // we consider this source's response as the final word.
+        return result;
+      } catch (err) {
+        console.warn(`Source ${source.name} failed, trying next source if available.`, err);
+        lastError = err;
+        // Continue to next source
+      }
+    }
 
-    // Sort by timestamp (lastActive) descending
-    allItems.sort((a, b) => {
-        return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
-    });
-
-    // Use the primary source's next_page_params for simplicity in this implementation
-    // Ideally we'd need a more robust pagination strategy for multiple sources.
-    const nextPageParams = results[0]?.next_page_params;
-
-    return {
-      items: allItems,
-      next_page_params: nextPageParams
-    };
+    // If we reached here, all sources failed
+    throw lastError || new Error('All data sources failed to fetch data');
   }
 }
 

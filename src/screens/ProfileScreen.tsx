@@ -87,10 +87,8 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* 顶部操作栏：右上角 语言切换 和 + 或 修改 */}
+      {/* 顶部操作栏：左上角 语言切换 和 右上角 + */}
       <View style={styles.topBar}>
-        <View style={styles.topBarSpacer} />
-
         <Menu
           visible={menuVisible}
           onDismiss={closeMenu}
@@ -110,6 +108,8 @@ export default function ProfileScreen() {
           <Divider />
           <Menu.Item onPress={() => changeLanguage('zh')} title="简体中文" />
         </Menu>
+
+        <View style={styles.topBarSpacer} />
 
         {!state.profile && (
           <IconButton

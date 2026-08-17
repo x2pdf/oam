@@ -91,7 +91,7 @@ export class EtherscanDataSource extends BaseDataSource {
           }
 
           return {
-            id: `es-${tx.hash.slice(0, 10)}`,
+            id: tx.hash,
             name: displayName,
             address: displayAddr,
             description: decoded,

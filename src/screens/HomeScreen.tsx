@@ -125,11 +125,6 @@ export default function HomeScreen() {
     // 如果是加载更多，但已经没有更多了，或者正在加载中，则返回
     if (isLoadMore && (!hasMoreRef.current[tabIndex] || loadingMoreRef.current[tabIndex])) return;
 
-    if (!apiKey) {
-      setSnackbarMessage(t('home.noApiKeyWarning'));
-      setSnackbarVisible(true);
-    }
-
     if (isRefreshing) {
       setRefreshing(true);
       // 下拉刷新重置分页
@@ -169,11 +164,26 @@ export default function HomeScreen() {
     try {
       const result = await dataSourceManager.fetchAll(targetAddr, mode, params);
 
+      // Check for Etherscan API key error in the results
+      if (result.errors?.includes('MISSING_ETHERSCAN_API_KEY')) {
+        setSnackbarMessage(t('home.noApiKeyWarning'));
+        setSnackbarVisible(true);
+      }
+
       if (isLoadMore) {
-        if (tabIndex === 0) setSquareData(prev => [...prev, ...result.items]);
-        else if (tabIndex === 1) setSelfData(prev => [...prev, ...result.items]);
-        else if (tabIndex === 2) setSentData(prev => [...prev, ...result.items]);
-        else if (tabIndex === 3) setInboxData(prev => [...prev, ...result.items]);
+        const updateData = (prev: InputDataItem[]) => {
+          const map = new Map<string, InputDataItem>();
+          prev.forEach(i => map.set(i.id, i));
+          result.items.forEach(i => map.set(i.id, i));
+          return Array.from(map.values()).sort((a, b) =>
+            new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+          );
+        };
+
+        if (tabIndex === 0) setSquareData(updateData);
+        else if (tabIndex === 1) setSelfData(updateData);
+        else if (tabIndex === 2) setSentData(updateData);
+        else if (tabIndex === 3) setInboxData(updateData);
       } else {
         if (tabIndex === 0) setSquareData(result.items);
         else if (tabIndex === 1) setSelfData(result.items);
