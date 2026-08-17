@@ -5,18 +5,16 @@ import {
   Wallet,
   getBytes,
   hexlify,
-  randomBytes
+  randomBytes,
+  concat
 } from "ethers";
 
 /**
  * Derives a symmetric key for personal notes (A -> A)
- * Uses the signature of a specific message to ensure the key is tied to the wallet
- * but not the private key itself.
  */
 export async function derivePersonalKey(wallet: Wallet): Promise<Uint8Array> {
   const message = "OAMP Personal Note Key Derivation";
   const signature = await wallet.signMessage(message);
-  // Hash the signature to get a 32-byte key
   return getBytes(keccak256(signature));
 }
 
@@ -29,18 +27,17 @@ export function deriveSharedSecret(
 ): Uint8Array {
   const senderKey = new SigningKey(senderPrivateKey);
   const sharedSecret = senderKey.computeSharedSecret(recipientPublicKey);
-  // Hash the shared secret to get a 32-byte key
   return getBytes(keccak256(sharedSecret));
 }
 
 /**
- * Simple AES-GCM implementation using Web Crypto API
- * Note: In React Native, you may need to polyfill crypto.subtle
+ * AES-GCM encryption with AAD support
  */
 export async function encrypt(
   key: Uint8Array,
   data: Uint8Array,
-  nonce: Uint8Array
+  nonce: Uint8Array,
+  aad?: Uint8Array
 ): Promise<Uint8Array> {
   if (typeof crypto === 'undefined' || !crypto.subtle) {
     throw new Error("Web Crypto API (crypto.subtle) is not available.");
@@ -55,7 +52,11 @@ export async function encrypt(
   );
 
   const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce },
+    {
+      name: "AES-GCM",
+      iv: nonce,
+      additionalData: aad
+    },
     cryptoKey,
     data
   );
@@ -63,10 +64,14 @@ export async function encrypt(
   return new Uint8Array(encrypted);
 }
 
+/**
+ * AES-GCM decryption with AAD support
+ */
 export async function decrypt(
   key: Uint8Array,
   ciphertext: Uint8Array,
-  nonce: Uint8Array
+  nonce: Uint8Array,
+  aad?: Uint8Array
 ): Promise<Uint8Array> {
   if (typeof crypto === 'undefined' || !crypto.subtle) {
     throw new Error("Web Crypto API (crypto.subtle) is not available.");
@@ -81,12 +86,34 @@ export async function decrypt(
   );
 
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: nonce },
+    {
+      name: "AES-GCM",
+      iv: nonce,
+      additionalData: aad
+    },
     cryptoKey,
     ciphertext
   );
 
   return new Uint8Array(decrypted);
+}
+
+/**
+ * Generates a deterministic nonce to prevent reuse.
+ * Formula: first 12 bytes of keccak256(wallet_nonce + recipient + timestamp + random_salt)
+ */
+export function generateDeterministicNonce(
+  walletNonce: number,
+  recipient: string,
+  extraSalt?: Uint8Array
+): Uint8Array {
+  const nonceBytes = toUtf8Bytes(walletNonce.toString());
+  const recipientBytes = getBytes(recipient);
+  const timestampBytes = getBytes(hexlify(toUtf8Bytes(Date.now().toString())));
+  const salt = extraSalt || randomBytes(8);
+
+  const hash = keccak256(concat([nonceBytes, recipientBytes, timestampBytes, salt]));
+  return getBytes(hash).slice(0, 12);
 }
 
 export function generateNonce(): Uint8Array {

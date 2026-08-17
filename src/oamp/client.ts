@@ -3,15 +3,17 @@ import {
   JsonRpcProvider,
   toUtf8Bytes,
   toUtf8String,
-  dataSlice
+  dataSlice,
+  Transaction
 } from "ethers";
 import { MessageType, CryptoScheme, OAMPMessage, DecryptedMessage } from "./types";
-import { serializeMessage, deserializeMessage, BLACK_HOLE } from "./protocol";
+import { serializeMessage, deserializeMessage, getMessageHeader, BLACK_HOLE } from "./protocol";
 import {
   derivePersonalKey,
   deriveSharedSecret,
   encrypt,
   decrypt,
+  generateDeterministicNonce,
   generateNonce
 } from "./crypto";
 
@@ -29,9 +31,9 @@ export class OAMPClient {
    */
   async sendBroadcast(text: string): Promise<string> {
     const payload = toUtf8Bytes(text);
+    // For broadcast, we can use a random nonce as it's unencrypted
     const nonce = generateNonce();
 
-    // Broadcast is usually unencrypted, but we follow the envelope
     const data = serializeMessage(
       MessageType.BROADCAST,
       CryptoScheme.NONE,
@@ -52,10 +54,13 @@ export class OAMPClient {
    */
   async sendPersonalNote(text: string): Promise<string> {
     const key = await derivePersonalKey(this.wallet);
-    const nonce = generateNonce();
+    const txCount = await this.wallet.getNonce();
+    const nonce = generateDeterministicNonce(txCount, this.wallet.address);
     const payload = toUtf8Bytes(text);
 
-    const ciphertext = await encrypt(key, payload, nonce);
+    // Apply AAD: Header (Magic + Version + Type + Crypto)
+    const aad = getMessageHeader(MessageType.PERSONAL, CryptoScheme.AES_256_GCM);
+    const ciphertext = await encrypt(key, payload, nonce, aad);
 
     const data = serializeMessage(
       MessageType.PERSONAL,
@@ -77,10 +82,13 @@ export class OAMPClient {
    */
   async sendP2PMessage(recipientAddress: string, recipientPublicKey: string, text: string): Promise<string> {
     const sharedKey = deriveSharedSecret(this.wallet.privateKey, recipientPublicKey);
-    const nonce = generateNonce();
+    const txCount = await this.wallet.getNonce();
+    const nonce = generateDeterministicNonce(txCount, recipientAddress);
     const payload = toUtf8Bytes(text);
 
-    const ciphertext = await encrypt(sharedKey, payload, nonce);
+    // Apply AAD: Header (Magic + Version + Type + Crypto)
+    const aad = getMessageHeader(MessageType.P2P, CryptoScheme.AES_256_GCM);
+    const ciphertext = await encrypt(sharedKey, payload, nonce, aad);
 
     const data = serializeMessage(
       MessageType.P2P,
@@ -105,21 +113,34 @@ export class OAMPClient {
   async decryptMessage(msg: OAMPMessage, senderPublicKey?: string): Promise<DecryptedMessage | null> {
     try {
       let decryptedPayload: Uint8Array;
+      const aad = getMessageHeader(msg.type, msg.crypto);
 
       if (msg.crypto === CryptoScheme.NONE) {
         decryptedPayload = msg.payload;
       } else if (msg.type === MessageType.PERSONAL) {
         const key = await derivePersonalKey(this.wallet);
-        decryptedPayload = await decrypt(key, msg.payload, msg.nonce);
+        decryptedPayload = await decrypt(key, msg.payload, msg.nonce, aad);
       } else if (msg.type === MessageType.P2P) {
         if (!senderPublicKey) {
           throw new Error("P2P decryption requires senderPublicKey.");
         }
         const sharedKey = deriveSharedSecret(this.wallet.privateKey, senderPublicKey);
-        decryptedPayload = await decrypt(sharedKey, msg.payload, msg.nonce);
+        decryptedPayload = await decrypt(sharedKey, msg.payload, msg.nonce, aad);
       } else {
         return null;
       }
+
+      return {
+        text: toUtf8String(decryptedPayload),
+        type: msg.type,
+        sender: msg.sender,
+        recipient: msg.recipient
+      };
+    } catch (e) {
+      console.error("Decryption failed", e);
+      return null;
+    }
+  }
 
       return {
         text: toUtf8String(decryptedPayload),

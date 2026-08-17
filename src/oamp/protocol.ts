@@ -6,14 +6,22 @@ const VERSION = 1;
 
 export const BLACK_HOLE = "0x0000000000000000000000000000000000000000";
 
+/**
+ * Returns the 7-byte OAMP header for a message.
+ * Used as AAD (Additional Authenticated Data) for AES-GCM.
+ */
+export function getMessageHeader(type: MessageType, crypto: CryptoScheme): Uint8Array {
+  return concat([MAGIC, new Uint8Array([VERSION, type, crypto])]);
+}
+
 export function serializeMessage(
   type: MessageType,
   crypto: CryptoScheme,
   nonce: Uint8Array,
   payload: Uint8Array
 ): string {
-  const header = new Uint8Array([VERSION, type, crypto]);
-  const packet = concat([MAGIC, header, nonce, payload]);
+  const header = getMessageHeader(type, crypto);
+  const packet = concat([header, nonce, payload]);
   return hexlify(packet);
 }
 
