@@ -11,12 +11,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, Text, useTheme, Button, Snackbar } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import PagerView from 'react-native-pager-view';
 import { mockInputDataList } from '../data/mockData';
-import { InputDataItem } from '../types';
+import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
-import { fetchIDMMessages } from '../utils/etherscan';
+import { dataSourceManager } from '../datasource/DataSourceManager';
+
+type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 /* ------------------------------------------------------------------ */
 /*  常量与类型                                                         */
@@ -80,6 +83,7 @@ const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth }) => {
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const { state } = useAppContext();
@@ -112,6 +116,11 @@ export default function HomeScreen() {
 
     // 如果是加载更多，但已经没有更多了，或者正在加载中，则返回
     if (isLoadMore && (!hasMoreRef.current[tabIndex] || loadingMoreRef.current[tabIndex])) return;
+
+    if (!apiKey) {
+      setSnackbarMessage('未设置 Etherscan API Key，部分数据可能无法获取');
+      setSnackbarVisible(true);
+    }
 
     if (isRefreshing) {
       setRefreshing(true);
@@ -150,7 +159,7 @@ export default function HomeScreen() {
     const params = nextPageParamsRef.current[tabIndex];
 
     try {
-      const result = await fetchIDMMessages(targetAddr, mode, params);
+      const result = await dataSourceManager.fetchAll(targetAddr, mode, params);
 
       if (isLoadMore) {
         if (tabIndex === 0) setSquareData(prev => [...prev, ...result.items]);
@@ -179,7 +188,12 @@ export default function HomeScreen() {
       });
     } catch (err: any) {
       console.error(err);
-      setError(err.message || '获取数据失败，请检查网络');
+      if (err.message === 'MISSING_ETHERSCAN_API_KEY') {
+        setSnackbarMessage('请在“我的”页面设置 Etherscan API Key');
+        setSnackbarVisible(true);
+      } else {
+        setError(err.message || '获取数据失败，请检查网络');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -367,8 +381,18 @@ export default function HomeScreen() {
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
-        duration={2000}
+        duration={3000}
         style={styles.snackbar}
+        action={
+          !apiKey
+            ? {
+                label: '去设置',
+                onPress: () => {
+                  navigation.navigate('Profile' as any);
+                },
+              }
+            : undefined
+        }
       >
         {snackbarMessage}
       </Snackbar>

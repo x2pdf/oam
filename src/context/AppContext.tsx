@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Subscription } from '../types';
-import { STORAGE_KEYS } from '../constants';
+import { STORAGE_KEYS, API_CONFIG } from '../constants';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                              */
@@ -122,6 +122,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
         }
         if (apiKeyValue !== null) {
           dispatch({ type: 'SET_API_KEY', payload: apiKeyValue });
+          API_CONFIG.ETHERSCAN_API_KEY = apiKeyValue;
         }
       } catch (error) {
         console.warn('Failed to load persisted data:', error);
@@ -171,6 +172,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
   /* ---------- API Key ---------- */
   const setApiKey = useCallback(async (key: string) => {
     dispatch({ type: 'SET_API_KEY', payload: key });
+    API_CONFIG.ETHERSCAN_API_KEY = key;
   }, []);
 
   /* ---------- 同步 Profile 到 AsyncStorage ---------- */

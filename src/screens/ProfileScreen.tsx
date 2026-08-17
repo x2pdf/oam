@@ -33,7 +33,10 @@ function shortenAddress(address: string): string {
 export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
-  const { state } = useAppContext();
+  const { state, setApiKey } = useAppContext();
+
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
 
   const handleAdd = useCallback(() => {
     navigation.navigate('SubscriptionForm', {
@@ -51,6 +54,20 @@ export default function ProfileScreen() {
       });
     }
   }, [navigation, state.profile]);
+
+  const showApiKeyModal = useCallback(() => {
+    setTempApiKey(state.apiKey || '');
+    setIsModalVisible(true);
+  }, [state.apiKey]);
+
+  const hideApiKeyModal = useCallback(() => {
+    setIsModalVisible(false);
+  }, []);
+
+  const handleSaveApiKey = useCallback(async () => {
+    await setApiKey(tempApiKey.trim());
+    hideApiKeyModal();
+  }, [tempApiKey, setApiKey, hideApiKeyModal]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -71,7 +88,7 @@ export default function ProfileScreen() {
       {/* 内容区 */}
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         {state.profile ? (
-          <>
+          <View style={styles.mainContent}>
             <Card
               style={[styles.card, { backgroundColor: theme.colors.surface }]}
               mode="elevated"
@@ -122,9 +139,9 @@ export default function ProfileScreen() {
             >
               修改
             </Button>
-          </>
+          </View>
         ) : (
-          <View style={styles.emptyContainer}>
+          <View style={[styles.emptyContainer, styles.mainContent]}>
             <Text
               variant="bodyLarge"
               style={{ color: theme.colors.onSurfaceVariant }}
@@ -139,7 +156,64 @@ export default function ProfileScreen() {
             </Text>
           </View>
         )}
+
+        {/* 底部操作区 */}
+        <View style={styles.bottomSection}>
+          <Button
+            mode="outlined"
+            onPress={showApiKeyModal}
+            style={styles.apiKeyButton}
+            textColor={theme.colors.primary}
+          >
+            {state.apiKey ? '更新 Etherscan API Key' : '添加 Etherscan API Key'}
+          </Button>
+          {state.apiKey ? (
+            <Text
+              variant="bodySmall"
+              style={[styles.apiKeyHint, { color: theme.colors.onSurfaceVariant }]}
+            >
+              已设置 Key: {state.apiKey.slice(0, 6)}...{state.apiKey.slice(-4)}
+            </Text>
+          ) : null}
+        </View>
       </ScrollView>
+
+      {/* API Key 输入弹窗 */}
+      <Portal>
+        <Modal
+          visible={isModalVisible}
+          onDismiss={hideApiKeyModal}
+          contentContainerStyle={[
+            styles.modalContent,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
+          <Text variant="titleMedium" style={styles.modalTitle}>
+            设置 Etherscan API Key
+          </Text>
+          <TextInput
+            label="API Key"
+            value={tempApiKey}
+            onChangeText={setTempApiKey}
+            mode="outlined"
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.input}
+          />
+          <View style={styles.modalButtons}>
+            <Button onPress={hideApiKeyModal} style={styles.modalButton}>
+              取消
+            </Button>
+            <Button
+              mode="contained"
+              onPress={handleSaveApiKey}
+              style={styles.modalButton}
+            >
+              保存
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
     </View>
   );
 }
@@ -204,5 +278,40 @@ const styles = StyleSheet.create({
   },
   editButtonContent: {
     paddingVertical: 4,
+  },
+  mainContent: {
+    flex: 1,
+  },
+  bottomSection: {
+    marginTop: 40,
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+  apiKeyButton: {
+    borderRadius: 8,
+    width: '100%',
+  },
+  apiKeyHint: {
+    marginTop: 8,
+    fontFamily: 'monospace',
+  },
+  modalContent: {
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+  },
+  modalTitle: {
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  input: {
+    marginBottom: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  modalButton: {
+    marginLeft: 8,
   },
 });
