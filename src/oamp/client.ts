@@ -106,6 +106,28 @@ export class OAMPClient {
   }
 
   /**
+   * Send an unencrypted message to a specific address (A -> B)
+   */
+  async sendUnencryptedMessage(recipientAddress: string, text: string): Promise<string> {
+    const payload = toUtf8Bytes(text);
+    const nonce = generateNonce();
+
+    const data = serializeMessage(
+      MessageType.P2P,
+      CryptoScheme.NONE,
+      nonce,
+      payload
+    );
+
+    const tx = await this.wallet.sendTransaction({
+      to: recipientAddress,
+      data: data
+    });
+
+    return tx.hash;
+  }
+
+  /**
    * Decrypt a message if possible
    * @param msg The deserialized OAMP message
    * @param senderPublicKey Required for P2P messages to derive the shared secret
@@ -129,18 +151,6 @@ export class OAMPClient {
       } else {
         return null;
       }
-
-      return {
-        text: toUtf8String(decryptedPayload),
-        type: msg.type,
-        sender: msg.sender,
-        recipient: msg.recipient
-      };
-    } catch (e) {
-      console.error("Decryption failed", e);
-      return null;
-    }
-  }
 
       return {
         text: toUtf8String(decryptedPayload),
