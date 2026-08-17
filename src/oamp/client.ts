@@ -8,6 +8,7 @@ import {
 } from "ethers";
 import { MessageType, CryptoScheme, OAMPMessage, DecryptedMessage } from "./types";
 import { serializeMessage, deserializeMessage, getMessageHeader, BLACK_HOLE } from "./protocol";
+import { ContentItem, payloadEncode, payloadDecode } from "../mypayload";
 import {
   derivePersonalKey,
   deriveSharedSecret,
@@ -27,10 +28,21 @@ export class OAMPClient {
   }
 
   /**
+   * 内部统一处理 Payload 编码
+   */
+  private preparePayload(content: string | ContentItem[]): Uint8Array {
+    if (typeof content === "string") {
+      // 如果是纯字符串，为了规范化，也包装成 ContentItem 进行编码
+      return payloadEncode([{ type: "text", content }]);
+    }
+    return payloadEncode(content);
+  }
+
+  /**
    * Send a public broadcast message (A -> BLACK_HOLE)
    */
-  async sendBroadcast(text: string): Promise<string> {
-    const payload = toUtf8Bytes(text);
+  async sendBroadcast(content: string | ContentItem[]): Promise<string> {
+    const payload = this.preparePayload(content);
     // For broadcast, we can use a random nonce as it's unencrypted
     const nonce = generateNonce();
 
@@ -52,11 +64,11 @@ export class OAMPClient {
   /**
    * Send an encrypted personal note (A -> A)
    */
-  async sendPersonalNote(text: string): Promise<string> {
+  async sendPersonalNote(content: string | ContentItem[]): Promise<string> {
     const key = await derivePersonalKey(this.wallet);
     const txCount = await this.wallet.getNonce();
     const nonce = generateDeterministicNonce(txCount, this.wallet.address);
-    const payload = toUtf8Bytes(text);
+    const payload = this.preparePayload(content);
 
     // Apply AAD: Header (Magic + Version + Type + Crypto)
     const aad = getMessageHeader(MessageType.PERSONAL, CryptoScheme.AES_256_GCM);
@@ -80,11 +92,11 @@ export class OAMPClient {
   /**
    * Send an end-to-end encrypted message (A -> B)
    */
-  async sendP2PMessage(recipientAddress: string, recipientPublicKey: string, text: string): Promise<string> {
+  async sendP2PMessage(recipientAddress: string, recipientPublicKey: string, content: string | ContentItem[]): Promise<string> {
     const sharedKey = deriveSharedSecret(this.wallet.privateKey, recipientPublicKey);
     const txCount = await this.wallet.getNonce();
     const nonce = generateDeterministicNonce(txCount, recipientAddress);
-    const payload = toUtf8Bytes(text);
+    const payload = this.preparePayload(content);
 
     // Apply AAD: Header (Magic + Version + Type + Crypto)
     const aad = getMessageHeader(MessageType.P2P, CryptoScheme.AES_256_GCM);
@@ -108,8 +120,8 @@ export class OAMPClient {
   /**
    * Send an unencrypted message to a specific address (A -> B)
    */
-  async sendUnencryptedMessage(recipientAddress: string, text: string): Promise<string> {
-    const payload = toUtf8Bytes(text);
+  async sendUnencryptedMessage(recipientAddress: string, content: string | ContentItem[]): Promise<string> {
+    const payload = this.preparePayload(content);
     const nonce = generateNonce();
 
     const data = serializeMessage(
@@ -152,8 +164,18 @@ export class OAMPClient {
         return null;
       }
 
+      // 使用规范化解码器还原内容
+      const items = payloadDecode(decryptedPayload);
+
+      // 为了保持向后兼容，text 字段存放第一个文本项或所有文本项的拼接
+      const textSummary = items
+        .filter(item => item.type === "text")
+        .map(item => (item as any).content)
+        .join("\n");
+
       return {
-        text: toUtf8String(decryptedPayload),
+        text: textSummary || "[Rich Content]",
+        items: items,
         type: msg.type,
         sender: msg.sender,
         recipient: msg.recipient

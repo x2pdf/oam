@@ -23,6 +23,7 @@ export interface OAMPMessage {
 
 export interface DecryptedMessage {
   text: string;
+  items?: any[]; // 这里为了避免循环引用或过早导入，暂时用 any，或者直接导入 ContentItem
   type: MessageType;
   sender: string;
   recipient: string;
