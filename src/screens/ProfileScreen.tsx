@@ -9,11 +9,16 @@ import {
   Modal,
   Portal,
   TextInput,
+  Menu,
+  Divider,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../context/AppContext';
 import { RootStackParamList } from '../types';
+import { LANGUAGE_KEY } from '../i18n';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -34,9 +39,20 @@ export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const { state, setApiKey } = useAppContext();
+  const { t, i18n } = useTranslation();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  const openMenu = () => setMenuVisible(true);
+  const closeMenu = () => setMenuVisible(false);
+
+  const changeLanguage = useCallback(async (lng: string) => {
+    await i18n.changeLanguage(lng);
+    await AsyncStorage.setItem(LANGUAGE_KEY, lng);
+    closeMenu();
+  }, [i18n]);
 
   const handleAdd = useCallback(() => {
     navigation.navigate('SubscriptionForm', {
@@ -71,16 +87,37 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* 顶部操作栏：右上角 + 或 修改 */}
+      {/* 顶部操作栏：右上角 语言切换 和 + 或 修改 */}
       <View style={styles.topBar}>
         <View style={styles.topBarSpacer} />
+
+        <Menu
+          visible={menuVisible}
+          onDismiss={closeMenu}
+          anchor={
+            <Button
+              onPress={openMenu}
+              mode="text"
+              compact
+              icon="translate"
+              textColor={theme.colors.primary}
+            >
+              {i18n.language === 'zh' ? '简体中文' : 'English'}
+            </Button>
+          }
+        >
+          <Menu.Item onPress={() => changeLanguage('en')} title="English" />
+          <Divider />
+          <Menu.Item onPress={() => changeLanguage('zh')} title="简体中文" />
+        </Menu>
+
         {!state.profile && (
           <IconButton
             icon="plus"
             size={24}
             iconColor={theme.colors.primary}
             onPress={handleAdd}
-            style={[styles.topButton, { backgroundColor: theme.colors.primaryContainer }]}
+            style={[styles.topButton, { backgroundColor: theme.colors.primaryContainer, marginLeft: 8 }]}
           />
         )}
       </View>
@@ -98,7 +135,7 @@ export default function ProfileScreen() {
                   variant="labelLarge"
                   style={[styles.fieldLabel, { color: theme.colors.primary }]}
                 >
-                  地址
+                  {t('common.address')}
                 </Text>
                 <Text
                   variant="bodyMedium"
@@ -119,7 +156,7 @@ export default function ProfileScreen() {
                   variant="labelLarge"
                   style={[styles.fieldLabel, { color: theme.colors.primary }]}
                 >
-                  描述
+                  {t('common.description')}
                 </Text>
                 <Text
                   variant="bodyMedium"
@@ -137,7 +174,7 @@ export default function ProfileScreen() {
               contentStyle={styles.editButtonContent}
               buttonColor={theme.colors.primary}
             >
-              修改
+              {t('common.edit')}
             </Button>
           </View>
         ) : (
@@ -146,13 +183,13 @@ export default function ProfileScreen() {
               variant="bodyLarge"
               style={{ color: theme.colors.onSurfaceVariant }}
             >
-              暂无信息
+              {t('common.noData')}
             </Text>
             <Text
               variant="bodySmall"
               style={[{ color: theme.colors.onSurfaceVariant }, styles.emptyHint]}
             >
-              点击右上角 + 添加个人信息
+              {t('profile.addHint')}
             </Text>
           </View>
         )}
@@ -165,14 +202,14 @@ export default function ProfileScreen() {
             style={styles.apiKeyButton}
             textColor={theme.colors.primary}
           >
-            {state.apiKey ? '更新 Etherscan API Key' : '添加 Etherscan API Key'}
+            {state.apiKey ? t('profile.updateApiKey') : t('profile.addApiKey')}
           </Button>
           {state.apiKey ? (
             <Text
               variant="bodySmall"
               style={[styles.apiKeyHint, { color: theme.colors.onSurfaceVariant }]}
             >
-              已设置 Key: {state.apiKey.slice(0, 6)}...{state.apiKey.slice(-4)}
+              {t('profile.apiKeySetLabel')}: {state.apiKey.slice(0, 6)}...{state.apiKey.slice(-4)}
             </Text>
           ) : null}
         </View>
@@ -189,7 +226,7 @@ export default function ProfileScreen() {
           ]}
         >
           <Text variant="titleMedium" style={styles.modalTitle}>
-            设置 Etherscan API Key
+            {t('profile.setApiKeyTitle')}
           </Text>
           <TextInput
             label="API Key"
@@ -202,14 +239,14 @@ export default function ProfileScreen() {
           />
           <View style={styles.modalButtons}>
             <Button onPress={hideApiKeyModal} style={styles.modalButton}>
-              取消
+              {t('common.cancel')}
             </Button>
             <Button
               mode="contained"
               onPress={handleSaveApiKey}
               style={styles.modalButton}
             >
-              保存
+              {t('common.save')}
             </Button>
           </View>
         </Modal>

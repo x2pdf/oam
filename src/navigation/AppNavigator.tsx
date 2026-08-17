@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import HomeScreen from '../screens/HomeScreen';
 import SubscriptionsScreen from '../screens/SubscriptionsScreen';
@@ -22,6 +23,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 function MainTabNavigator() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   return (
     <Tab.Navigator
@@ -49,7 +51,7 @@ function MainTabNavigator() {
         component={HomeScreen}
         options={{
           headerShown: false,
-          tabBarLabel: '主页',
+          tabBarLabel: t('nav.home'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -59,8 +61,8 @@ function MainTabNavigator() {
         name="Subscriptions"
         component={SubscriptionsScreen}
         options={{
-          title: '订阅列表',
-          tabBarLabel: '订阅列表',
+          title: t('nav.subscriptions'),
+          tabBarLabel: t('nav.subscriptions'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list-outline" size={size} color={color} />
           ),
@@ -70,8 +72,8 @@ function MainTabNavigator() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          title: '我的',
-          tabBarLabel: '我的',
+          title: t('nav.profile'),
+          tabBarLabel: t('nav.profile'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
@@ -87,6 +89,7 @@ function MainTabNavigator() {
 
 export default function AppNavigator() {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <NavigationContainer>
@@ -101,7 +104,9 @@ export default function AppNavigator() {
           component={SubscriptionFormScreen}
           options={({ route }) => ({
             title:
-              route.params?.mode === 'add' ? '添加订阅' : '编辑订阅',
+              route.params?.mode === 'add'
+                ? t('form.addSubscription')
+                : t('form.editSubscription'),
             headerStyle: { backgroundColor: theme.colors.primary },
             headerTintColor: '#FFFFFF',
             headerTitleStyle: { fontWeight: '600' },

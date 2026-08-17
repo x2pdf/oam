@@ -9,6 +9,7 @@ import {
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
 import { Subscription, RootStackParamList } from '../types';
 import { useNavigation } from '@react-navigation/native';
@@ -23,6 +24,7 @@ export default function SubscriptionsScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const { state } = useAppContext();
+  const { t } = useTranslation();
 
   // 每次聚焦时刷新列表（编辑返回后可看到最新数据）
   useFocusEffect(
@@ -97,13 +99,13 @@ export default function SubscriptionsScreen() {
               variant="titleMedium"
               style={{ color: theme.colors.onSurfaceVariant }}
             >
-              暂无订阅
+              {t('subscriptions.noSubscriptions')}
             </Text>
             <Text
               variant="bodySmall"
               style={{ color: theme.colors.onSurfaceVariant, marginTop: 8 }}
             >
-              点击右下角 + 按钮添加订阅
+              {t('subscriptions.addHint')}
             </Text>
           </View>
         }

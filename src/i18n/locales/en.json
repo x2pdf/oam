@@ -1,0 +1,60 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "edit": "Edit",
+    "add": "Add",
+    "delete": "Delete",
+    "confirmDelete": "Confirm Delete",
+    "confirmDeleteMsg": "Are you sure you want to delete this?",
+    "address": "Address",
+    "description": "Description",
+    "noData": "No Data",
+    "errorFetch": "Failed to fetch data, please check your network"
+  },
+  "nav": {
+    "home": "Home",
+    "subscriptions": "Subscriptions",
+    "profile": "Profile"
+  },
+  "home": {
+    "tabs": {
+      "square": "Square",
+      "home": "Home",
+      "sent": "Sent",
+      "messages": "Messages"
+    },
+    "noApiKeyWarning": "Etherscan API Key not set, some data may be unavailable",
+    "upToDate": "Data is up to date",
+    "setApiKeyHint": "Please set Etherscan API Key in the Profile page",
+    "noMessages": "No messages found",
+    "loadingData": "Fetching {{tab}} data...",
+    "noAddressError": "My address is not filled in, cannot fetch data.",
+    "noMoreData": "No more data",
+    "totalItems": "Total {{count}} items",
+    "sentTo": "Sent to",
+    "goToSettings": "Settings",
+    "retry": "Retry"
+  },
+  "profile": {
+    "addHint": "Tap + in the top right to add profile info",
+    "updateApiKey": "Update Etherscan API Key",
+    "addApiKey": "Add Etherscan API Key",
+    "setApiKeyTitle": "Set Etherscan API Key",
+    "apiKeySetLabel": "Key Set"
+  },
+  "form": {
+    "addSubscription": "Add Subscription",
+    "editSubscription": "Edit Subscription",
+    "addressRequired": "Address is required",
+    "descriptionRequired": "Description is required",
+    "addressPlaceholder": "Please enter address",
+    "descriptionPlaceholder": "Please enter description",
+    "addressMaxLength": "Address cannot exceed {{max}} characters",
+    "descriptionMaxLength": "Description cannot exceed {{max}} characters"
+  },
+  "subscriptions": {
+    "noSubscriptions": "No subscriptions",
+    "addHint": "Tap the + button in the bottom right to add a subscription"
+  }
+}

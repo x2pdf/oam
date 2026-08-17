@@ -8,6 +8,7 @@ import {
   HelperText,
 } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
 import { RootStackParamList, Subscription } from '../types';
 import { MAX_ADDRESS_LENGTH, MAX_DESCRIPTION_LENGTH } from '../constants';
@@ -21,6 +22,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'SubscriptionForm'>;
 export default function SubscriptionFormScreen({ route, navigation }: Props) {
   const { mode, source, subscription } = route.params;
   const theme = useTheme();
+  const { t } = useTranslation();
   const {
     addSubscription,
     updateSubscription,
@@ -42,20 +44,20 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
     const newErrors: typeof errors = {};
 
     if (!address.trim()) {
-      newErrors.address = '地址不能为空';
+      newErrors.address = t('form.addressRequired');
     } else if (address.length > MAX_ADDRESS_LENGTH) {
-      newErrors.address = `地址不能超过 ${MAX_ADDRESS_LENGTH} 个字符`;
+      newErrors.address = t('form.addressMaxLength', { max: MAX_ADDRESS_LENGTH });
     }
 
     if (!description.trim()) {
-      newErrors.description = '描述不能为空';
+      newErrors.description = t('form.descriptionRequired');
     } else if (description.length > MAX_DESCRIPTION_LENGTH) {
-      newErrors.description = `描述不能超过 ${MAX_DESCRIPTION_LENGTH} 个字符`;
+      newErrors.description = t('form.descriptionMaxLength', { max: MAX_DESCRIPTION_LENGTH });
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [address, description]);
+  }, [address, description, t]);
 
   /* ---------- 保存 ---------- */
   const handleSave = useCallback(async () => {
@@ -99,10 +101,10 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
 
   /* ---------- 删除（仅编辑模式 + profile 来源） ---------- */
   const handleDelete = useCallback(() => {
-    Alert.alert('确认删除', '确定要删除这条信息吗？', [
-      { text: '取消', style: 'cancel' },
+    Alert.alert(t('common.confirmDelete'), t('common.confirmDeleteMsg'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: '删除',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           if (source === 'profile') {
@@ -114,7 +116,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
         },
       },
     ]);
-  }, [source, subscription, deleteProfile, deleteSubscription, navigation]);
+  }, [source, subscription, deleteProfile, deleteSubscription, navigation, t]);
 
   /* ---------- 取消 ---------- */
   const handleCancel = useCallback(() => {
@@ -133,11 +135,11 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
         variant="labelLarge"
         style={[styles.fieldLabel, { color: theme.colors.onSurface }]}
       >
-        地址
+        {t('common.address')}
       </Text>
       <TextInput
         mode="outlined"
-        label="请输入地址"
+        label={t('form.addressPlaceholder')}
         value={address}
         onChangeText={(text) => {
           setAddress(text);
@@ -166,11 +168,11 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
         variant="labelLarge"
         style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
       >
-        描述
+        {t('common.description')}
       </Text>
       <TextInput
         mode="outlined"
-        label="请输入描述"
+        label={t('form.descriptionPlaceholder')}
         value={description}
         onChangeText={(text) => {
           setDescription(text);
@@ -204,7 +206,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
           buttonColor={theme.colors.primary}
           contentStyle={styles.buttonContent}
         >
-          保存
+          {t('common.save')}
         </Button>
 
         <Button
@@ -213,7 +215,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
           style={[styles.button, styles.outlinedButton]}
           contentStyle={styles.buttonContent}
         >
-          取消
+          {t('common.cancel')}
         </Button>
 
         {isEdit && (
@@ -224,7 +226,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
             textColor="#D32F2F"
             contentStyle={styles.buttonContent}
           >
-            删除
+            {t('common.delete')}
           </Button>
         )}
       </View>

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useState, useRef, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -14,6 +14,7 @@ import { Card, Text, useTheme, Button, Snackbar } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import PagerView from 'react-native-pager-view';
+import { useTranslation } from 'react-i18next';
 import { mockInputDataList } from '../data/mockData';
 import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
@@ -25,7 +26,6 @@ type NavProp = NativeStackNavigationProp<RootStackParamList>;
 /*  常量与类型                                                         */
 /* ------------------------------------------------------------------ */
 
-const TABS = ['广场', '主页', '已发送', '消息'];
 const BLACK_HOLE_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 /* ------------------------------------------------------------------ */
@@ -87,7 +87,15 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const { state } = useAppContext();
+  const { t } = useTranslation();
   const { apiKey, profile, subscriptions } = state;
+
+  const TABS = useMemo(() => [
+    t('home.tabs.square'),
+    t('home.tabs.home'),
+    t('home.tabs.sent'),
+    t('home.tabs.messages')
+  ], [t]);
 
   const [activeTab, setActiveTab] = useState(0);
   const pagerRef = useRef<PagerView>(null);
@@ -118,7 +126,7 @@ export default function HomeScreen() {
     if (isLoadMore && (!hasMoreRef.current[tabIndex] || loadingMoreRef.current[tabIndex])) return;
 
     if (!apiKey) {
-      setSnackbarMessage('未设置 Etherscan API Key，部分数据可能无法获取');
+      setSnackbarMessage(t('home.noApiKeyWarning'));
       setSnackbarVisible(true);
     }
 
@@ -173,7 +181,7 @@ export default function HomeScreen() {
         else if (tabIndex === 3) setInboxData(result.items);
 
         if (isRefreshing) {
-          setSnackbarMessage('已经是最新数据了');
+          setSnackbarMessage(t('home.upToDate'));
           setSnackbarVisible(true);
         }
       }
@@ -189,10 +197,10 @@ export default function HomeScreen() {
     } catch (err: any) {
       console.error(err);
       if (err.message === 'MISSING_ETHERSCAN_API_KEY') {
-        setSnackbarMessage('请在“我的”页面设置 Etherscan API Key');
+        setSnackbarMessage(t('home.setApiKeyHint'));
         setSnackbarVisible(true);
       } else {
-        setError(err.message || '获取数据失败，请检查网络');
+        setError(err.message || t('common.errorFetch'));
       }
     } finally {
       setLoading(false);
@@ -204,7 +212,7 @@ export default function HomeScreen() {
         return next;
       });
     }
-  }, [profile?.address]);
+  }, [profile?.address, apiKey, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -253,7 +261,7 @@ export default function HomeScreen() {
       return (
         <View style={styles.centerContainer}>
           <Text variant="bodyLarge" style={{ color: theme.colors.error, textAlign: 'center', padding: 20 }}>
-            我的地址还未填写，无法获取数据。
+            {t('home.noAddressError')}
           </Text>
         </View>
       );
@@ -263,7 +271,7 @@ export default function HomeScreen() {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={{ marginTop: 12 }}>正在获取 {TABS[tabIndex]} 数据...</Text>
+          <Text style={{ marginTop: 12 }}>{t('home.loadingData', { tab: TABS[tabIndex] })}</Text>
         </View>
       );
     }
@@ -293,7 +301,7 @@ export default function HomeScreen() {
                 <ActivityIndicator size="small" color={theme.colors.primary} />
               ) : !hasMore[tabIndex] ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  已经没有更多数据了
+                  {t('home.noMoreData')}
                 </Text>
               ) : null}
             </View>
@@ -301,7 +309,7 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text variant="bodyMedium">未发现消息</Text>
+            <Text variant="bodyMedium">{t('home.noMessages')}</Text>
           </View>
         }
         ListHeaderComponent={
@@ -314,7 +322,7 @@ export default function HomeScreen() {
               )}
               {isSquareList && (
                 <Text variant="labelSmall" style={{ color: theme.colors.secondary }}>
-                  发送至: {shortenAddress(BLACK_HOLE_ADDRESS)}
+                  {t('home.sentTo')}: {shortenAddress(BLACK_HOLE_ADDRESS)}
                 </Text>
               )}
             </View>
@@ -322,7 +330,7 @@ export default function HomeScreen() {
               variant="bodySmall"
               style={{ color: theme.colors.onSurfaceVariant }}
             >
-              共 {data.length} 条
+              {t('home.totalItems', { count: data.length })}
             </Text>
           </View>
         }
@@ -338,7 +346,7 @@ export default function HomeScreen() {
         <View style={[styles.tabBar, { backgroundColor: theme.colors.primary, borderBottomColor: theme.colors.outline + '20' }]}>
           {TABS.map((tab, index) => (
             <TouchableOpacity
-              key={tab}
+              key={index}
               onPress={() => onTabPress(index)}
               style={[
                 styles.tabItem,
@@ -374,7 +382,7 @@ export default function HomeScreen() {
       {error && (
         <View style={[styles.errorBar, { backgroundColor: theme.colors.errorContainer }]}>
           <Text style={{ color: theme.colors.onErrorContainer, flex: 1 }}>{error}</Text>
-          <Button onPress={() => loadData(activeTab)}>重试</Button>
+          <Button onPress={() => loadData(activeTab)}>{t('home.retry')}</Button>
         </View>
       )}
 
@@ -386,7 +394,7 @@ export default function HomeScreen() {
         action={
           !apiKey
             ? {
-                label: '去设置',
+                label: t('home.goToSettings'),
                 onPress: () => {
                   navigation.navigate('Profile' as any);
                 },
