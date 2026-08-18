@@ -94,10 +94,13 @@ export class EtherscanDataSource extends BaseDataSource {
             id: tx.hash,
             name: displayName,
             address: displayAddr,
+            from: tx.from,
+            to: tx.to,
             description: decoded,
             balance: `${(parseInt(tx.value || '0') / 1e18).toFixed(4)} ETH`,
             txCount: 1,
             lastActive: lastActive,
+            rawInput: tx.input,
           };
         })
         .filter((item: any) => item.description.trim().length > 0);

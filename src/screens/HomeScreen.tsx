@@ -10,7 +10,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card, Text, useTheme, Button, Snackbar } from 'react-native-paper';
+import { Card, Text, useTheme, Button, Snackbar, FAB, Portal, Dialog } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import PagerView from 'react-native-pager-view';
@@ -19,6 +19,11 @@ import { mockInputDataList } from '../data/mockData';
 import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { dataSourceManager } from '../datasource/DataSourceManager';
+import { isOAMP, parseOAMPContent } from '../utils/oampHelper';
+import { RichContentRenderer } from '../components/RichContentRenderer';
+import { getPrivateKeySecured } from '../wallet/walletManager';
+import { OAMPClient } from '../oamp/client';
+import { CryptoScheme, MessageType } from '../oamp/types';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -49,6 +54,11 @@ interface CardProps {
 const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth }) => {
   const theme = useTheme();
 
+  const oampContent = useMemo(() => {
+    if (item.oampItems) return item.oampItems;
+    return parseOAMPContent(item.rawInput, item.from || item.address, item.to);
+  }, [item.rawInput, item.address, item.from, item.to, item.oampItems]);
+
   return (
     <Card
       style={[styles.card, { width: cardWidth, backgroundColor: theme.colors.surface }]}
@@ -59,12 +69,16 @@ const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth }) => {
           {shortenAddress(item.address)} ({item.name})
         </Text>
 
-        <Text
-          variant="bodyMedium"
-          style={styles.inputDataText}
-        >
-          {item.description}
-        </Text>
+        {oampContent ? (
+          <RichContentRenderer items={oampContent} />
+        ) : (
+          <Text
+            variant="bodyMedium"
+            style={styles.inputDataText}
+          >
+            {item.description}
+          </Text>
+        )}
 
         <Text
           variant="labelSmall"
@@ -92,9 +106,9 @@ export default function HomeScreen() {
 
   const TABS = useMemo(() => [
     t('home.tabs.square'),
-    t('home.tabs.home'),
     t('home.tabs.sent'),
-    t('home.tabs.messages')
+    t('home.tabs.messages'),
+    t('home.tabs.home')
   ], [t]);
 
   const [activeTab, setActiveTab] = useState(0);
@@ -111,6 +125,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [dialogVisible, setDialogVisible] = useState(false);
 
   // 使用 Ref 存储分页参数和状态，避免 loadData 频繁变动导致 useFocusEffect 循环触发
   const nextPageParamsRef = useRef<any[]>([null, null, null, null]);
@@ -119,8 +134,58 @@ export default function HomeScreen() {
 
   const cardWidth = screenWidth - 32;
 
+  const processOAMPItems = useCallback(async (items: InputDataItem[]) => {
+    if (!profile?.address) return items;
+
+    const privateKey = await getPrivateKeySecured();
+    if (!privateKey) return items;
+
+    // We use a dummy provider for decryption-only client
+    const client = new OAMPClient(privateKey, 'https://eth.llamarpc.com');
+
+    return await Promise.all(items.map(async (item) => {
+      if (item.rawInput && isOAMP(item.rawInput)) {
+        try {
+          const from = item.from?.toLowerCase();
+          const to = item.to?.toLowerCase();
+          const userAddr = profile.address.toLowerCase();
+
+          const msg = client.parseTransaction(item.rawInput, from || '', to || '');
+          if (msg) {
+            // Case 1: Unencrypted (NONE) - Parse directly
+            if (msg.crypto === CryptoScheme.NONE) {
+              const decodedItems = parseOAMPContent(item.rawInput, from, to);
+              if (decodedItems) {
+                return { ...item, oampItems: decodedItems };
+              }
+            }
+
+            // Case 2: Personal Note (Encrypted A -> A)
+            if (from === to && from === userAddr && msg.type === MessageType.PERSONAL) {
+              const decrypted = await client.decryptMessage(msg);
+              if (decrypted && decrypted.items) {
+                return { ...item, oampItems: decrypted.items };
+              }
+            }
+
+            // Case 3: P2P Encrypted (A -> B or B -> A)
+            // Note: Currently we don't have senderPublicKey/recipientPublicKey easily available
+            // for every transaction here without extra API calls to recover them from v,r,s.
+            // For now, if we can't decrypt, we just leave it as is, or maybe add a placeholder.
+          }
+        } catch (e) {
+          console.log('OAMP processing failed for item:', item.id, e);
+        }
+      }
+      return item;
+    }));
+  }, [profile?.address]);
+
   const loadData = useCallback(async (tabIndex: number, isRefreshing = false, isLoadMore = false) => {
-    if (!profile?.address) return;
+    const modeMap: ('square' | 'sent' | 'inbox' | 'self')[] = ['square', 'sent', 'inbox', 'self'];
+    const mode = modeMap[tabIndex];
+
+    if (mode !== 'square' && !profile?.address) return;
 
     // 如果是加载更多，但已经没有更多了，或者正在加载中，则返回
     if (isLoadMore && (!hasMoreRef.current[tabIndex] || loadingMoreRef.current[tabIndex])) return;
@@ -156,39 +221,74 @@ export default function HomeScreen() {
 
     setError(null);
 
-    const modeMap: ('square' | 'self' | 'sent' | 'inbox')[] = ['square', 'self', 'sent', 'inbox'];
-    const mode = modeMap[tabIndex];
-    const targetAddr = mode === 'square' ? BLACK_HOLE_ADDRESS : profile.address;
     const params = nextPageParamsRef.current[tabIndex];
 
     try {
-      const result = await dataSourceManager.fetchAll(targetAddr, mode, params);
+      let resultItems: InputDataItem[] = [];
+      let nextParams: any = null;
+      let allErrors: string[] = [];
+
+      if (mode === 'square') {
+        // Square mode: fetch Black Hole + all subscriptions
+        const targetAddresses = [BLACK_HOLE_ADDRESS, ...subscriptions.map(s => s.address)];
+
+        // Concurrent fetch
+        const results = await Promise.all(
+          targetAddresses.map(addr => dataSourceManager.fetchAll(addr, mode, params).catch(e => {
+            console.warn(`Failed to fetch for ${addr}:`, e);
+            return { items: [], next_page_params: null, errors: [e.message] };
+          }))
+        );
+
+        // Merge and deduplicate by ID (tx hash)
+        const map = new Map<string, InputDataItem>();
+        results.forEach(res => {
+          res.items.forEach(item => map.set(item.id, item));
+          // Take the first available pagination params
+          if (res.next_page_params && !nextParams) nextParams = res.next_page_params;
+          if (res.errors) allErrors = [...allErrors, ...res.errors];
+        });
+
+        // Sort by time desc
+        resultItems = Array.from(map.values()).sort((a, b) =>
+          new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+        );
+      } else {
+        // Other modes: single address fetch
+        const result = await dataSourceManager.fetchAll(profile!.address, mode, params);
+        resultItems = result.items;
+        nextParams = result.next_page_params;
+        if (result.errors) allErrors = result.errors;
+      }
 
       // Check for Etherscan API key error in the results
-      if (result.errors?.includes('MISSING_ETHERSCAN_API_KEY')) {
+      if (allErrors.includes('MISSING_ETHERSCAN_API_KEY')) {
         setSnackbarMessage(t('home.noApiKeyWarning'));
         setSnackbarVisible(true);
       }
 
-      if (isLoadMore) {
-        const updateData = (prev: InputDataItem[]) => {
-          const map = new Map<string, InputDataItem>();
-          prev.forEach(i => map.set(i.id, i));
-          result.items.forEach(i => map.set(i.id, i));
-          return Array.from(map.values()).sort((a, b) =>
-            new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
-          );
-        };
+      // Apply OAMP Decryption Filter
+      const processedItems = await processOAMPItems(resultItems);
 
+      const updateData = (prev: InputDataItem[]) => {
+        const map = new Map<string, InputDataItem>();
+        prev.forEach(i => map.set(i.id, i));
+        processedItems.forEach(i => map.set(i.id, i));
+        return Array.from(map.values()).sort((a, b) =>
+          new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+        );
+      };
+
+      if (isLoadMore) {
         if (tabIndex === 0) setSquareData(updateData);
-        else if (tabIndex === 1) setSelfData(updateData);
-        else if (tabIndex === 2) setSentData(updateData);
-        else if (tabIndex === 3) setInboxData(updateData);
+        else if (tabIndex === 1) setSentData(updateData);
+        else if (tabIndex === 2) setInboxData(updateData);
+        else if (tabIndex === 3) setSelfData(updateData);
       } else {
-        if (tabIndex === 0) setSquareData(result.items);
-        else if (tabIndex === 1) setSelfData(result.items);
-        else if (tabIndex === 2) setSentData(result.items);
-        else if (tabIndex === 3) setInboxData(result.items);
+        if (tabIndex === 0) setSquareData(processedItems);
+        else if (tabIndex === 1) setSentData(processedItems);
+        else if (tabIndex === 2) setInboxData(processedItems);
+        else if (tabIndex === 3) setSelfData(processedItems);
 
         if (isRefreshing) {
           setSnackbarMessage(t('home.upToDate'));
@@ -196,12 +296,12 @@ export default function HomeScreen() {
         }
       }
 
-      nextPageParamsRef.current[tabIndex] = result.next_page_params;
-      hasMoreRef.current[tabIndex] = !!result.next_page_params;
+      nextPageParamsRef.current[tabIndex] = nextParams;
+      hasMoreRef.current[tabIndex] = !!nextParams;
 
       setHasMore(prev => {
         const next = [...prev];
-        next[tabIndex] = !!result.next_page_params;
+        next[tabIndex] = !!nextParams;
         return next;
       });
     } catch (err: any) {
@@ -222,7 +322,7 @@ export default function HomeScreen() {
         return next;
       });
     }
-  }, [profile?.address, apiKey, t]);
+  }, [profile?.address, apiKey, subscriptions, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -263,11 +363,11 @@ export default function HomeScreen() {
 
   const renderList = (data: InputDataItem[], tabIndex: number) => {
     const isSquareList = tabIndex === 0;
-    const isSelfList = tabIndex === 1;
-    const isSentList = tabIndex === 2;
-    const isInboxList = tabIndex === 3;
+    const isSentList = tabIndex === 1;
+    const isInboxList = tabIndex === 2;
+    const isSelfList = tabIndex === 3;
 
-    if (!profile?.address) {
+    if (!isSquareList && !profile?.address) {
       return (
         <View style={styles.centerContainer}>
           <Text variant="bodyLarge" style={{ color: theme.colors.error, textAlign: 'center', padding: 20 }}>
@@ -332,7 +432,7 @@ export default function HomeScreen() {
               )}
               {isSquareList && (
                 <Text variant="labelSmall" style={{ color: theme.colors.secondary }}>
-                  {t('home.sentTo')}: {shortenAddress(BLACK_HOLE_ADDRESS)}
+                  {t('home.sentTo')}: {shortenAddress(BLACK_HOLE_ADDRESS)} {subscriptions.length > 0 ? `+ ${subscriptions.length} ${t('nav.subscriptions')}` : ''}
                 </Text>
               )}
             </View>
@@ -346,6 +446,20 @@ export default function HomeScreen() {
         }
       />
     );
+  };
+
+  const onFabPress = () => {
+    if (!profile) {
+      setSnackbarMessage(t('home.noAddressError'));
+      setSnackbarVisible(true);
+      return;
+    }
+
+    if (profile.walletType === 'read') {
+      setDialogVisible(true);
+    } else {
+      navigation.navigate('SendData');
+    }
   };
 
   return (
@@ -384,9 +498,9 @@ export default function HomeScreen() {
         onPageSelected={onPageSelected}
       >
         <View key="1">{renderList(squareData, 0)}</View>
-        <View key="2">{renderList(selfData, 1)}</View>
-        <View key="3">{renderList(sentData, 2)}</View>
-        <View key="4">{renderList(inboxData, 3)}</View>
+        <View key="2">{renderList(sentData, 1)}</View>
+        <View key="3">{renderList(inboxData, 2)}</View>
+        <View key="4">{renderList(selfData, 3)}</View>
       </PagerView>
 
       {error && (
@@ -414,6 +528,28 @@ export default function HomeScreen() {
       >
         {snackbarMessage}
       </Snackbar>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
+          <Dialog.Title>{t('common.tip')}</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">
+              {t('home.readOnlyWalletTip')}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setDialogVisible(false)}>{t('common.ok')}</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <FAB
+        icon="plus"
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        onPress={onFabPress}
+        color="white"
+        small
+      />
     </View>
   );
 }
@@ -484,6 +620,12 @@ const styles = StyleSheet.create({
   },
   snackbar: {
     bottom: 20,
+  },
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
   },
   card: {
     borderRadius: 12,

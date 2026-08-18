@@ -67,10 +67,13 @@ export class BlockscoutDataSource extends BaseDataSource {
             id: tx.hash,
             name: displayName,
             address: displayAddr,
+            from: tx.from?.hash,
+            to: tx.to?.hash,
             description: decoded,
             balance: `${(parseInt(tx.value || '0') / 1e18).toFixed(4)} ETH`,
             txCount: 1,
             lastActive: lastActive,
+            rawInput: tx.raw_input,
           };
         })
         .filter((item: any) => item.description.trim().length > 0);

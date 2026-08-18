@@ -10,7 +10,20 @@ import { useTranslation } from 'react-i18next';
 import HomeScreen from '../screens/HomeScreen';
 import SubscriptionsScreen from '../screens/SubscriptionsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SendDataScreen from '../screens/SendDataScreen';
 import SubscriptionFormScreen from '../screens/SubscriptionFormScreen';
+import AddInfoSelectScreen from '../screens/AddInfoSelectScreen';
+import AddAddressFormScreen from '../screens/AddAddressFormScreen';
+import WalletDisclaimerScreen from '../screens/WalletDisclaimerScreen';
+import RecoverDisclaimerScreen from '../screens/RecoverDisclaimerScreen';
+import MnemonicBackupScreen from '../screens/MnemonicBackupScreen';
+import MnemonicInputScreen from '../screens/MnemonicInputScreen';
+import WalletVerifyScreen from '../screens/WalletVerifyScreen';
+import WalletSetupScreen from '../screens/WalletSetupScreen';
+import PrivateKeyDisclaimerScreen from '../screens/PrivateKeyDisclaimerScreen';
+import PrivateKeyInputScreen from '../screens/PrivateKeyInputScreen';
+import PrivateKeyVerifyScreen from '../screens/PrivateKeyVerifyScreen';
+import PrivateKeySetupScreen from '../screens/PrivateKeySetupScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -112,6 +125,126 @@ export default function AppNavigator() {
             headerTitleStyle: { fontWeight: '600' },
             presentation: 'modal',
           })}
+        />
+        <Stack.Screen
+          name="AddInfoSelect"
+          component={AddInfoSelectScreen}
+          options={{
+            title: t('nav.addInfoSelect'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+            headerTitleStyle: { fontWeight: '600' },
+          }}
+        />
+        <Stack.Screen
+          name="AddAddressForm"
+          component={AddAddressFormScreen}
+          options={({ route }) => ({
+            title: route.params?.mode === 'add' ? t('nav.addAddressForm') : t('nav.editAddressForm'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+            headerTitleStyle: { fontWeight: '600' },
+            presentation: 'modal',
+          })}
+        />
+        <Stack.Screen
+          name="WalletDisclaimer"
+          component={WalletDisclaimerScreen}
+          options={{
+            title: t('nav.walletDisclaimer'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="RecoverDisclaimer"
+          component={RecoverDisclaimerScreen}
+          options={{
+            title: t('nav.recoverDisclaimer'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="MnemonicBackup"
+          component={MnemonicBackupScreen}
+          options={{
+            title: t('nav.mnemonicBackup'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="MnemonicInput"
+          component={MnemonicInputScreen}
+          options={{
+            title: t('nav.mnemonicInput'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="WalletVerify"
+          component={WalletVerifyScreen}
+          options={{
+            title: t('nav.walletVerify'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="WalletSetup"
+          component={WalletSetupScreen}
+          options={{
+            title: t('nav.walletSetup'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="PrivateKeyDisclaimer"
+          component={PrivateKeyDisclaimerScreen}
+          options={{
+            title: t('nav.privateKeyDisclaimer'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="PrivateKeyInput"
+          component={PrivateKeyInputScreen}
+          options={{
+            title: t('nav.privateKeyInput'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="PrivateKeyVerify"
+          component={PrivateKeyVerifyScreen}
+          options={{
+            title: t('nav.privateKeyVerify'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="PrivateKeySetup"
+          component={PrivateKeySetupScreen}
+          options={{
+            title: t('nav.privateKeySetup'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
+        />
+        <Stack.Screen
+          name="SendData"
+          component={SendDataScreen}
+          options={{
+            title: t('nav.sendData'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>

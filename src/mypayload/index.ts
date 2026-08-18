@@ -35,6 +35,21 @@ export function createJpegItem(rawBase64: string, filename?: string): ContentIte
 }
 
 /**
+ * 创建 GIF 图片内容项
+ * 自动为原始 base64 编码添加 data:image/gif;base64, 前缀
+ *
+ * @param rawBase64 不带前缀的原始 base64 字符串
+ * @param filename 可选的图片名称，将作为 <img> 的 alt 属性存储
+ */
+export function createGifItem(rawBase64: string, filename?: string): ContentItem {
+  return {
+    type: "image",
+    data: `data:image/gif;base64,${rawBase64}`,
+    alt: filename
+  };
+}
+
+/**
  * 规范化 Payload 编码器
  *
  * 按照 HTML 语法对内容进行封装，支持文本和多张图片的混合编排。

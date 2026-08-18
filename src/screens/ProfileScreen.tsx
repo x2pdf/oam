@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import {
   Text,
   Card,
@@ -11,7 +11,10 @@ import {
   TextInput,
   Menu,
   Divider,
+  Avatar,
+  Dialog,
 } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -31,22 +34,37 @@ function shortenAddress(address: string): string {
   return `${address.slice(0, 10)}...${address.slice(-8)}`;
 }
 
+function formatHeaderAddress(address: string): string {
+  if (address.length <= 16) return address;
+  return `${address.slice(0, 8)}....${address.slice(-6)}`;
+}
+
 /* ------------------------------------------------------------------ */
 /*  "我的" 屏幕                                                        */
 /* ------------------------------------------------------------------ */
 
 export default function ProfileScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const { state, setApiKey } = useAppContext();
   const { t, i18n } = useTranslation();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isAddressDetailVisible, setIsAddressDetailVisible] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
+
+  const showAddressDetail = useCallback(() => {
+    setIsAddressDetailVisible(true);
+  }, []);
+
+  const hideAddressDetail = useCallback(() => {
+    setIsAddressDetailVisible(false);
+  }, []);
 
   const changeLanguage = useCallback(async (lng: string) => {
     await i18n.changeLanguage(lng);
@@ -55,15 +73,12 @@ export default function ProfileScreen() {
   }, [i18n]);
 
   const handleAdd = useCallback(() => {
-    navigation.navigate('SubscriptionForm', {
-      mode: 'add',
-      source: 'profile',
-    });
+    navigation.navigate('AddInfoSelect');
   }, [navigation]);
 
   const handleEdit = useCallback(() => {
     if (state.profile) {
-      navigation.navigate('SubscriptionForm', {
+      navigation.navigate('AddAddressForm', {
         mode: 'edit',
         source: 'profile',
         subscription: state.profile,
@@ -86,22 +101,139 @@ export default function ProfileScreen() {
   }, [tempApiKey, setApiKey, hideApiKeyModal]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* 顶部操作栏：左上角 语言切换 和 右上角 + */}
-      <View style={styles.topBar}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
+      {/* 内容区 */}
+      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+        {/* 顶部地址展示 (非列表数据) */}
+        {state.profile && (
+          <View style={styles.headerInfo}>
+            <Pressable onPress={showAddressDetail}>
+              <Text variant="bodySmall" style={[styles.headerInfoText, { color: theme.colors.onSurfaceVariant }]}>
+                {`${state.profile.description} (${formatHeaderAddress(state.profile.address)})`}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* 1. 我的地址信息 */}
+        {state.profile ? (
+          <Card
+            style={[styles.card, { backgroundColor: theme.colors.surface }]}
+            mode="elevated"
+            onPress={handleEdit}
+          >
+            <Card.Content style={styles.cardContent}>
+              <View style={styles.row}>
+                <Avatar.Icon
+                  size={48}
+                  icon="account"
+                  style={{ backgroundColor: theme.colors.primaryContainer }}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.cardTextContainer}>
+                  <View style={styles.row}>
+                    <Text
+                      variant="labelMedium"
+                      style={{ color: theme.colors.onSurfaceVariant }}
+                    >
+                      {t('common.address')}
+                    </Text>
+                    {state.profile.walletType && (
+                      <View style={[
+                        styles.typeTag,
+                        { backgroundColor: state.profile.walletType === 'write' ? theme.colors.primaryContainer : theme.colors.secondaryContainer }
+                      ]}>
+                        <Text style={[
+                          styles.typeTagText,
+                          { color: state.profile.walletType === 'write' ? theme.colors.primary : theme.colors.secondary }
+                        ]}>
+                          {state.profile.walletType === 'write' ? t('profile.fullFunction') : t('profile.readOnly')}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text
+                    variant="titleMedium"
+                    style={[styles.addressText, { color: theme.colors.primary }]}
+                  >
+                    {shortenAddress(state.profile.address)}
+                  </Text>
+                  {state.profile.description ? (
+                    <Text
+                      variant="bodySmall"
+                      style={{ color: theme.colors.onSurfaceVariant }}
+                      numberOfLines={1}
+                    >
+                      {state.profile.description}
+                    </Text>
+                  ) : null}
+                </View>
+                <IconButton icon="pencil" onPress={handleEdit} />
+              </View>
+            </Card.Content>
+          </Card>
+        ) : (
+          <Card
+            style={[styles.card, { backgroundColor: theme.colors.surface }]}
+            mode="elevated"
+            onPress={handleAdd}
+          >
+            <Card.Content style={styles.cardContent}>
+              <View style={styles.row}>
+                <Avatar.Icon
+                  size={48}
+                  icon="account-plus"
+                  style={{ backgroundColor: theme.colors.primaryContainer }}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.cardTextContainer}>
+                  <Text variant="titleMedium" style={{ color: theme.colors.onSurface }}>
+                    {t('common.noData')}
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    {t('profile.addHint')}
+                  </Text>
+                </View>
+                <IconButton icon="plus" onPress={handleAdd} />
+              </View>
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* 2. 语言选择 */}
+        <View style={styles.sectionSpacer} />
         <Menu
           visible={menuVisible}
           onDismiss={closeMenu}
           anchor={
-            <Button
+            <Card
+              style={[styles.card, { backgroundColor: theme.colors.surface }]}
+              mode="elevated"
               onPress={openMenu}
-              mode="text"
-              compact
-              icon="translate"
-              textColor={theme.colors.primary}
             >
-              {i18n.language === 'zh' ? '简体中文' : 'English'}
-            </Button>
+              <Card.Content style={styles.cardContent}>
+                <View style={styles.row}>
+                  <Avatar.Icon
+                    size={48}
+                    icon="translate"
+                    style={{ backgroundColor: theme.colors.secondaryContainer }}
+                    color={theme.colors.secondary}
+                  />
+                  <View style={styles.cardTextContainer}>
+                    <Text
+                      variant="labelMedium"
+                      style={{ color: theme.colors.onSurfaceVariant }}
+                    >
+                      {t('profile.language')}
+                    </Text>
+                    <Text variant="titleMedium">
+                      {i18n.language === 'zh' ? '简体中文' : 'English'}
+                    </Text>
+                  </View>
+                  <IconButton icon="menu-down" onPress={openMenu} />
+                </View>
+              </Card.Content>
+            </Card>
           }
         >
           <Menu.Item onPress={() => changeLanguage('en')} title="English" />
@@ -109,110 +241,38 @@ export default function ProfileScreen() {
           <Menu.Item onPress={() => changeLanguage('zh')} title="简体中文" />
         </Menu>
 
-        <View style={styles.topBarSpacer} />
-
-        {!state.profile && (
-          <IconButton
-            icon="plus"
-            size={24}
-            iconColor={theme.colors.primary}
-            onPress={handleAdd}
-            style={[styles.topButton, { backgroundColor: theme.colors.primaryContainer, marginLeft: 8 }]}
-          />
-        )}
-      </View>
-
-      {/* 内容区 */}
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        {state.profile ? (
-          <View style={styles.mainContent}>
-            <Card
-              style={[styles.card, { backgroundColor: theme.colors.surface }]}
-              mode="elevated"
-            >
-              <Card.Content style={styles.cardContent}>
+        {/* 3. API Key */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={showApiKeyModal}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="key-variant"
+                style={{ backgroundColor: theme.colors.tertiaryContainer }}
+                color={theme.colors.tertiary}
+              />
+              <View style={styles.cardTextContainer}>
                 <Text
-                  variant="labelLarge"
-                  style={[styles.fieldLabel, { color: theme.colors.primary }]}
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
                 >
-                  {t('common.address')}
+                  Etherscan API Key
                 </Text>
-                <Text
-                  variant="bodyMedium"
-                  style={[styles.addressText, { color: theme.colors.onSurface }]}
-                  selectable
-                >
-                  {shortenAddress(state.profile.address)}
+                <Text variant="titleMedium">
+                  {state.apiKey
+                    ? `${state.apiKey.slice(0, 6)}...${state.apiKey.slice(-4)}`
+                    : t('profile.addApiKey')}
                 </Text>
-
-                <View
-                  style={[
-                    styles.divider,
-                    { backgroundColor: theme.colors.outline + '30' },
-                  ]}
-                />
-
-                <Text
-                  variant="labelLarge"
-                  style={[styles.fieldLabel, { color: theme.colors.primary }]}
-                >
-                  {t('common.description')}
-                </Text>
-                <Text
-                  variant="bodyMedium"
-                  style={{ color: theme.colors.onSurface }}
-                >
-                  {state.profile.description}
-                </Text>
-              </Card.Content>
-            </Card>
-
-            <Button
-              mode="contained"
-              onPress={handleEdit}
-              style={[styles.editButton, { marginTop: 24 }]}
-              contentStyle={styles.editButtonContent}
-              buttonColor={theme.colors.primary}
-            >
-              {t('common.edit')}
-            </Button>
-          </View>
-        ) : (
-          <View style={[styles.emptyContainer, styles.mainContent]}>
-            <Text
-              variant="bodyLarge"
-              style={{ color: theme.colors.onSurfaceVariant }}
-            >
-              {t('common.noData')}
-            </Text>
-            <Text
-              variant="bodySmall"
-              style={[{ color: theme.colors.onSurfaceVariant }, styles.emptyHint]}
-            >
-              {t('profile.addHint')}
-            </Text>
-          </View>
-        )}
-
-        {/* 底部操作区 */}
-        <View style={styles.bottomSection}>
-          <Button
-            mode="outlined"
-            onPress={showApiKeyModal}
-            style={styles.apiKeyButton}
-            textColor={theme.colors.primary}
-          >
-            {state.apiKey ? t('profile.updateApiKey') : t('profile.addApiKey')}
-          </Button>
-          {state.apiKey ? (
-            <Text
-              variant="bodySmall"
-              style={[styles.apiKeyHint, { color: theme.colors.onSurfaceVariant }]}
-            >
-              {t('profile.apiKeySetLabel')}: {state.apiKey.slice(0, 6)}...{state.apiKey.slice(-4)}
-            </Text>
-          ) : null}
-        </View>
+              </View>
+              <IconButton icon="chevron-right" onPress={showApiKeyModal} />
+            </View>
+          </Card.Content>
+        </Card>
       </ScrollView>
 
       {/* API Key 输入弹窗 */}
@@ -250,6 +310,26 @@ export default function ProfileScreen() {
             </Button>
           </View>
         </Modal>
+
+        {/* 地址详情弹窗 */}
+        <Dialog visible={isAddressDetailVisible} onDismiss={hideAddressDetail}>
+          <Dialog.Title>{t('common.address')}</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium" style={{ marginBottom: 8 }}>
+              {state.profile?.description}
+            </Text>
+            <Text
+              variant="bodySmall"
+              style={[styles.addressText, { color: theme.colors.primary }]}
+              selectable
+            >
+              {state.profile?.address}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideAddressDetail}>{t('common.close')}</Button>
+          </Dialog.Actions>
+        </Dialog>
       </Portal>
     </View>
   );
@@ -263,74 +343,56 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  topBarSpacer: {
-    flex: 1,
-  },
-  topButton: {
-    borderRadius: 20,
-  },
   content: {
     flex: 1,
     paddingHorizontal: 16,
+    paddingTop: 16,
   },
   scrollContent: {
     flexGrow: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyHint: {
-    marginTop: 8,
+    paddingBottom: 40,
   },
   card: {
     borderRadius: 12,
     elevation: 2,
   },
   cardContent: {
-    paddingVertical: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
-  fieldLabel: {
-    marginBottom: 4,
-    fontWeight: '600',
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardTextContainer: {
+    flex: 1,
+    marginLeft: 16,
   },
   addressText: {
     fontFamily: 'monospace',
-    marginBottom: 12,
+    fontWeight: '700',
   },
-  divider: {
-    height: 1,
-    marginBottom: 12,
-  },
-  editButton: {
-    borderRadius: 8,
-    elevation: 2,
-  },
-  editButtonContent: {
+  headerInfo: {
+    marginBottom: 16,
+    alignItems: 'center',
     paddingVertical: 4,
   },
-  mainContent: {
-    flex: 1,
+  headerInfoText: {
+    textAlign: 'center',
+    opacity: 0.8,
   },
-  bottomSection: {
-    marginTop: 40,
-    marginBottom: 32,
-    alignItems: 'center',
+  sectionSpacer: {
+    height: 12,
   },
-  apiKeyButton: {
-    borderRadius: 8,
-    width: '100%',
+  typeTag: {
+    marginLeft: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
   },
-  apiKeyHint: {
-    marginTop: 8,
-    fontFamily: 'monospace',
+  typeTagText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   modalContent: {
     margin: 20,
