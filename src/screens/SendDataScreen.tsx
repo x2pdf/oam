@@ -398,11 +398,11 @@ export default function SendDataScreen() {
       : t('send.feeEstimateValue', { fee: feeEstimate });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Card style={styles.inputCard}>
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { color: theme.colors.onSurface }]}
             multiline
             placeholder={t('send.inputPlaceholder')}
             value={text}
@@ -431,7 +431,7 @@ export default function SendDataScreen() {
         ))}
 
         <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
-          <Card style={styles.addImageCard}>
+          <Card style={[styles.addImageCard, { borderColor: theme.colors.outline }]}>
             <View style={styles.addImageContent}>
               <IconButton icon="image-plus" size={24} />
               <Text>{t('send.addImage')}</Text>
@@ -687,7 +687,6 @@ export default function SendDataScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   scrollContent: {
     padding: 16,
@@ -702,7 +701,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     textAlignVertical: 'top',
-    color: '#000',
   },
   addImageButton: {
     marginBottom: 16,
@@ -710,7 +708,6 @@ const styles = StyleSheet.create({
   addImageCard: {
     borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: '#ccc',
     backgroundColor: 'transparent',
     elevation: 0,
   },
@@ -748,7 +745,6 @@ const styles = StyleSheet.create({
   },
   addressInput: {
     marginBottom: 8,
-    backgroundColor: '#fff',
   },
   shortcutRow: {
     flexDirection: 'row',
@@ -780,7 +776,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pubkeyInput: {
-    backgroundColor: '#fff',
     marginBottom: 4,
   },
   dialogError: {

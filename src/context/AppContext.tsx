@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Subscription } from '../types';
+import { Subscription, normalizeSubscription } from '../types';
 import { STORAGE_KEYS, API_CONFIG } from '../constants';
 
 /* ------------------------------------------------------------------ */
@@ -115,10 +115,17 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
         const profileValue = results[1]?.[1];
         const apiKeyValue = results[2]?.[1];
         if (subsValue) {
-          dispatch({ type: 'SET_SUBSCRIPTIONS', payload: JSON.parse(subsValue) });
+          const subs: Subscription[] = JSON.parse(subsValue);
+          dispatch({
+            type: 'SET_SUBSCRIPTIONS',
+            payload: subs.map(normalizeSubscription),
+          });
         }
         if (profileValue) {
-          dispatch({ type: 'SET_PROFILE', payload: JSON.parse(profileValue) });
+          dispatch({
+            type: 'SET_PROFILE',
+            payload: normalizeSubscription(JSON.parse(profileValue)),
+          });
         }
         if (apiKeyValue !== null) {
           dispatch({ type: 'SET_API_KEY', payload: apiKeyValue });

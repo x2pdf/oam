@@ -20,6 +20,7 @@ import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { dataSourceManager } from '../datasource/DataSourceManager';
 import { RichContentRenderer } from '../components/RichContentRenderer';
+import { CopyableAddress } from '../components/CopyableAddress';
 import { OAMPClient } from '../oamp/client';
 import { applyDisplayPipeline, markAllRaw, CONTENT_KIND_I18N_KEY } from '../display';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
@@ -71,9 +72,10 @@ function shortenAddress(address: string): string {
 interface CardProps {
   item: InputDataItem;
   cardWidth: number;
+  onAddressCopied?: () => void;
 }
 
-const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth }) => {
+const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth, onAddressCopied }) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const kind = item.contentKind ?? 'RAW';
@@ -116,12 +118,14 @@ const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth }) => {
     >
       <Card.Content style={styles.cardContent}>
         <View style={styles.cardHeader}>
-          <Text
+          <CopyableAddress
+            address={item.address}
             variant="titleMedium"
             style={[styles.addressLabel, { color: theme.colors.primary, flex: 1 }]}
+            onCopied={onAddressCopied}
           >
             {shortenAddress(item.address)} ({item.name})
-          </Text>
+          </CopyableAddress>
           <Text
             variant="labelSmall"
             style={[
@@ -282,7 +286,15 @@ export default function HomeScreen() {
         if (result.errors) allErrors = result.errors;
       }
 
-      // Check for Etherscan API key error in the results
+      if (mode === 'square' && resultItems.length === 0 && allErrors.length > 0) {
+        if (allErrors.includes('MISSING_ETHERSCAN_API_KEY')) {
+          setSnackbarMessage(t('home.noApiKeyWarning'));
+          setSnackbarVisible(true);
+        } else {
+          setError(allErrors[0] || t('common.errorFetch'));
+        }
+        return;
+      }
       if (allErrors.includes('MISSING_ETHERSCAN_API_KEY')) {
         setSnackbarMessage(t('home.noApiKeyWarning'));
         setSnackbarVisible(true);
@@ -522,6 +534,11 @@ export default function HomeScreen() {
     applyTabIndex(e.nativeEvent.position);
   };
 
+  const showCopiedSnackbar = useCallback(() => {
+    setSnackbarMessage(t('common.copied'));
+    setSnackbarVisible(true);
+  }, [t]);
+
   const renderItem = useCallback(
     ({ item }: { item: InputDataItem }) => {
       const sub = subscriptions.find(
@@ -533,10 +550,11 @@ export default function HomeScreen() {
         <InputDataCard
           item={{ ...item, name: displayDesc }}
           cardWidth={cardWidth}
+          onAddressCopied={showCopiedSnackbar}
         />
       );
     },
-    [cardWidth, subscriptions],
+    [cardWidth, subscriptions, showCopiedSnackbar],
   );
 
   const keyExtractor = useCallback((item: InputDataItem) => item.id, []);
@@ -633,14 +651,24 @@ export default function HomeScreen() {
           <View style={styles.headerRow}>
             <View>
               {(isSelfList || isSentList || isInboxList) && profile?.address && (
-                <Text variant="labelSmall" style={{ color: theme.colors.primary }}>
+                <CopyableAddress
+                  address={profile.address}
+                  variant="labelSmall"
+                  style={{ color: theme.colors.primary }}
+                  onCopied={showCopiedSnackbar}
+                >
                   {shortenAddress(profile.address)}
-                </Text>
+                </CopyableAddress>
               )}
               {isSquareList && (
-                <Text variant="labelSmall" style={{ color: theme.colors.secondary }}>
+                <CopyableAddress
+                  address={BLACK_HOLE_ADDRESS}
+                  variant="labelSmall"
+                  style={{ color: theme.colors.secondary }}
+                  onCopied={showCopiedSnackbar}
+                >
                   {t('home.sentTo')}: {shortenAddress(BLACK_HOLE_ADDRESS)} {subscriptions.length > 0 ? `+ ${subscriptions.length} ${t('nav.subscriptions')}` : ''}
-                </Text>
+                </CopyableAddress>
               )}
             </View>
             <Text

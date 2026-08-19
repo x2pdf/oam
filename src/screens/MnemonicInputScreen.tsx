@@ -85,7 +85,7 @@ export default function MnemonicInputScreen() {
 
         {/* 单词预览与校验区域 */}
         {words.length > 0 && (
-          <View style={styles.validationArea}>
+          <View style={[styles.validationArea, { backgroundColor: theme.colors.surfaceVariant }]}>
             <Text variant="labelMedium" style={{ marginBottom: 8 }}>
               {t('wallet.inputMnemonicDetection', { count: words.length })}
             </Text>
@@ -174,7 +174,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#f5f5f5',
   },
   wordCloud: {
     flexDirection: 'row',

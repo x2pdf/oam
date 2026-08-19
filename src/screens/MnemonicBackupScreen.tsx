@@ -47,9 +47,20 @@ export default function MnemonicBackupScreen() {
           </Card.Content>
         </Card>
 
-        <View style={styles.warningBox}>
+        <View
+          style={[
+            styles.warningBox,
+            {
+              backgroundColor: theme.colors.errorContainer,
+              borderColor: theme.colors.error,
+            },
+          ]}
+        >
           <Text style={[styles.warningText, { color: theme.colors.error }]}>
             {t('wallet.mnemonicWarning')}
+          </Text>
+          <Text style={[styles.warningText, styles.noExportWarning, { color: theme.colors.error }]}>
+            {t('wallet.mnemonicNoExportWarning')}
           </Text>
         </View>
 
@@ -126,16 +137,17 @@ const styles = StyleSheet.create({
   },
   warningBox: {
     padding: 12,
-    backgroundColor: '#fff1f0',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ffa39e',
     marginBottom: 24,
   },
   warningText: {
     fontSize: 13,
     lineHeight: 18,
     fontWeight: 'bold',
+  },
+  noExportWarning: {
+    marginTop: 8,
   },
   checkboxContainer: {
     flexDirection: 'row',

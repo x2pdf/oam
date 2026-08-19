@@ -17,20 +17,17 @@ export default function WalletDisclaimerScreen() {
   const [checked, setChecked] = useState(false);
 
   const disclaimers = [
-    t('wallet.privateKeyDisclaimer5'), // Reusing some strings or mapping new ones
-    '我理解如果我丢失了助记词，我将无法找回我的资产。',
-    '我理解任何人如果获得了我的助记词，就可以完全控制并转移我的资产。',
-    '我知晓应用不会在任何服务器上存储我的助记词或私钥，它们仅安全地存储在我的设备本地。',
-    '我明白如果卸载应用且没有备份助记词，我的钱包数据将会永久丢失。',
+    t('wallet.createDisclaimer1'),
+    t('wallet.createDisclaimer2'),
+    t('wallet.createDisclaimer3'),
+    t('wallet.createDisclaimer4'),
+    t('wallet.createDisclaimer5'),
   ];
-
-  // Actually, I defined these in en.json/zh.json but I should use them.
-  // Let's re-read the json to be sure.
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
-        <Text variant="headlineSmall" style={styles.title}>{t('wallet.privateKeyDisclaimerTitle')}</Text>
+        <Text variant="headlineSmall" style={styles.title}>{t('wallet.createDisclaimerTitle')}</Text>
 
         <Card style={styles.card} mode="outlined">
           <Card.Content>
@@ -53,7 +50,7 @@ export default function WalletDisclaimerScreen() {
             style={styles.checkboxLabel}
             onPress={() => setChecked(!checked)}
           >
-            {t('wallet.privateKeyDisclaimerCheckbox')}
+            {t('wallet.createDisclaimerCheckbox')}
           </Text>
         </View>
 
@@ -63,7 +60,7 @@ export default function WalletDisclaimerScreen() {
           disabled={!checked}
           style={styles.button}
         >
-          {t('wallet.privateKeyDisclaimerButton')}
+          {t('wallet.createDisclaimerButton')}
         </Button>
       </ScrollView>
     </View>

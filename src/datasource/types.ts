@@ -8,10 +8,9 @@ export interface DataSourceResult {
   errors?: string[];
 }
 
-/** 最小公约数：只要求发出交易 hash。各源多余字段不要映射进来。 */
+/** 发出交易索引：只需 hash，完整签名通过 RPC 获取。 */
 export interface OutgoingTx {
   hash: string;
-  from?: string;
 }
 
 export interface OutgoingTxResult {

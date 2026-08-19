@@ -31,7 +31,7 @@ export const RichContentRenderer: React.FC<Props> = ({ items }) => {
             <PlatformImage
               key={index}
               uri={item.data}
-              style={styles.image}
+              style={[styles.image, { backgroundColor: theme.colors.surfaceVariant }]}
               resizeMode="contain"
             />
           );
@@ -56,6 +56,5 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8,
     marginVertical: 8,
-    backgroundColor: '#f0f0f0',
   },
 });

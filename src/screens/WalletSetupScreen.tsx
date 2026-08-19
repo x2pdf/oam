@@ -8,6 +8,7 @@ import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { deriveWalletFromMnemonic, encryptWallet, saveEncryptedKeystore } from '../wallet/walletManager';
 import { useAppContext } from '../context/AppContext';
+import { DEFAULT_CHAIN } from '../constants';
 
 type RoutePropType = RouteProp<RootStackParamList, 'WalletSetup'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -59,6 +60,7 @@ export default function WalletSetupScreen() {
         id: Date.now().toString(),
         address: wallet.address,
         description: name.trim(),
+        chain: DEFAULT_CHAIN,
         walletType: 'write',
       });
 
@@ -122,6 +124,9 @@ export default function WalletSetupScreen() {
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
             {t('wallet.setupHint')}
           </Text>
+          <Text variant="bodySmall" style={[styles.noExportHint, { color: theme.colors.error }]}>
+            {t('wallet.setupNoExportHint')}
+          </Text>
         </View>
 
         <Button
@@ -156,6 +161,11 @@ const styles = StyleSheet.create({
   hintBox: {
     marginBottom: 32,
     paddingHorizontal: 4,
+  },
+  noExportHint: {
+    marginTop: 12,
+    lineHeight: 20,
+    fontWeight: '600',
   },
   button: {
     marginTop: 8,

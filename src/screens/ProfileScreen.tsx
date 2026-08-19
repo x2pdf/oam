@@ -1,5 +1,5 @@
-import React, { useCallback, useLayoutEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
 import {
   Text,
   Card,
@@ -12,6 +12,7 @@ import {
   Avatar,
   Dialog,
   RadioButton,
+  Snackbar,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -19,10 +20,16 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../context/AppContext';
+import { useThemePreference, ThemeMode } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
 import { LANGUAGE_KEY } from '../i18n';
+import { CopyableAddress, copyAddress } from '../components/CopyableAddress';
+import appConfig from '../../app.json';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
+
+const APP_NAME = appConfig.expo.name;
+const APP_VERSION = appConfig.expo.version;
 
 /* ------------------------------------------------------------------ */
 /*  工具函数                                                           */
@@ -38,6 +45,19 @@ function formatHeaderAddress(address: string): string {
   return `${address.slice(0, 8)}....${address.slice(-6)}`;
 }
 
+function getPlatformLabel(t: (key: string) => string): string {
+  switch (Platform.OS) {
+    case 'ios':
+      return t('profile.platformIos');
+    case 'android':
+      return t('profile.platformAndroid');
+    case 'web':
+      return t('profile.platformWeb');
+    default:
+      return t('profile.platformOther');
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  "我的" 屏幕                                                        */
 /* ------------------------------------------------------------------ */
@@ -47,14 +67,18 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const { state, setApiKey } = useAppContext();
+  const { themeMode, setThemeMode } = useThemePreference();
   const { t, i18n } = useTranslation();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isAddressDetailVisible, setIsAddressDetailVisible] = useState(false);
   const [isLanguageDialogVisible, setIsLanguageDialogVisible] = useState(false);
+  const [isThemeDialogVisible, setIsThemeDialogVisible] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
 
   const currentLanguage = i18n.language?.startsWith('zh') ? 'zh' : 'en';
+  const platformLabel = useMemo(() => getPlatformLabel(t), [t]);
 
   const showLanguageDialog = useCallback(() => {
     setIsLanguageDialogVisible(true);
@@ -62,6 +86,14 @@ export default function ProfileScreen() {
 
   const hideLanguageDialog = useCallback(() => {
     setIsLanguageDialogVisible(false);
+  }, []);
+
+  const showThemeDialog = useCallback(() => {
+    setIsThemeDialogVisible(true);
+  }, []);
+
+  const hideThemeDialog = useCallback(() => {
+    setIsThemeDialogVisible(false);
   }, []);
 
   const showAddressDetail = useCallback(() => {
@@ -77,6 +109,11 @@ export default function ProfileScreen() {
     await AsyncStorage.setItem(LANGUAGE_KEY, lng);
     hideLanguageDialog();
   }, [i18n, hideLanguageDialog]);
+
+  const changeTheme = useCallback(async (mode: ThemeMode) => {
+    await setThemeMode(mode);
+    hideThemeDialog();
+  }, [setThemeMode, hideThemeDialog]);
 
   const handleAdd = useCallback(() => {
     navigation.navigate('AddInfoSelect');
@@ -119,6 +156,15 @@ export default function ProfileScreen() {
     hideApiKeyModal();
   }, [tempApiKey, setApiKey, hideApiKeyModal]);
 
+  const showCopiedSnackbar = useCallback(() => {
+    setSnackbarVisible(true);
+  }, []);
+
+  const handleCopyAddress = useCallback(async (address: string) => {
+    await copyAddress(address);
+    showCopiedSnackbar();
+  }, [showCopiedSnackbar]);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
       {/* 内容区 */}
@@ -126,7 +172,11 @@ export default function ProfileScreen() {
         {/* 顶部地址展示 (非列表数据) */}
         {state.profile && (
           <View style={styles.headerInfo}>
-            <Pressable onPress={showAddressDetail}>
+            <Pressable
+              onPress={showAddressDetail}
+              onLongPress={() => handleCopyAddress(state.profile.address)}
+              delayLongPress={400}
+            >
               <Text variant="bodySmall" style={[styles.headerInfoText, { color: theme.colors.onSurfaceVariant }]}>
                 {`${state.profile.description} (${formatHeaderAddress(state.profile.address)})`}
               </Text>
@@ -172,12 +222,14 @@ export default function ProfileScreen() {
                         </View>
                       )}
                     </View>
-                    <Text
+                    <CopyableAddress
+                      address={state.profile.address}
                       variant="titleMedium"
                       style={[styles.addressText, { color: theme.colors.primary }]}
+                      onCopied={showCopiedSnackbar}
                     >
                       {shortenAddress(state.profile.address)}
-                    </Text>
+                    </CopyableAddress>
                     {state.profile.description ? (
                       <Text
                         variant="bodySmall"
@@ -260,7 +312,38 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 3. API Key */}
+        {/* 3. 外观 / 主题 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={showThemeDialog}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="theme-light-dark"
+                style={{ backgroundColor: theme.colors.primaryContainer }}
+                color={theme.colors.primary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.appearance')}
+                </Text>
+                <Text variant="titleMedium">
+                  {themeMode === 'dark' ? t('profile.themeDark') : t('profile.themeLight')}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={showThemeDialog} />
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* 4. API Key */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -289,6 +372,41 @@ export default function ProfileScreen() {
                 </Text>
               </View>
               <IconButton icon="chevron-right" onPress={showApiKeyModal} />
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* 5. 应用信息 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="information-outline"
+                style={{ backgroundColor: theme.colors.surfaceVariant }}
+                color={theme.colors.onSurfaceVariant}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.appInfo')}
+                </Text>
+                <Text variant="titleMedium">{APP_NAME}</Text>
+                <View style={styles.appInfoRows}>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    {t('profile.appVersion')}: {APP_VERSION}
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    {t('profile.platform')}: {platformLabel}
+                  </Text>
+                </View>
+              </View>
             </View>
           </Card.Content>
         </Card>
@@ -355,6 +473,31 @@ export default function ProfileScreen() {
           </Dialog.Actions>
         </Dialog>
 
+        {/* 主题选择弹窗 */}
+        <Dialog visible={isThemeDialogVisible} onDismiss={hideThemeDialog}>
+          <Dialog.Title>{t('profile.selectAppearance')}</Dialog.Title>
+          <Dialog.Content style={styles.languageDialogContent}>
+            <RadioButton.Group
+              onValueChange={(value) => changeTheme(value as ThemeMode)}
+              value={themeMode}
+            >
+              <RadioButton.Item
+                label={t('profile.themeLight')}
+                value="light"
+                style={styles.radioItem}
+              />
+              <RadioButton.Item
+                label={t('profile.themeDark')}
+                value="dark"
+                style={styles.radioItem}
+              />
+            </RadioButton.Group>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideThemeDialog}>{t('common.cancel')}</Button>
+          </Dialog.Actions>
+        </Dialog>
+
         {/* 地址详情弹窗 */}
         <Dialog visible={isAddressDetailVisible} onDismiss={hideAddressDetail}>
           <Dialog.Title>{t('common.address')}</Dialog.Title>
@@ -362,19 +505,32 @@ export default function ProfileScreen() {
             <Text variant="bodyMedium" style={{ marginBottom: 8 }}>
               {state.profile?.description}
             </Text>
-            <Text
-              variant="bodySmall"
-              style={[styles.addressText, { color: theme.colors.primary }]}
-              selectable
+            <Pressable
+              onLongPress={() => state.profile && handleCopyAddress(state.profile.address)}
+              delayLongPress={400}
             >
-              {state.profile?.address}
-            </Text>
+              <Text
+                variant="bodySmall"
+                style={[styles.addressText, { color: theme.colors.primary }]}
+                selectable
+              >
+                {state.profile?.address}
+              </Text>
+            </Pressable>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={hideAddressDetail}>{t('common.close')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <Snackbar
+        visible={snackbarVisible}
+        onDismiss={() => setSnackbarVisible(false)}
+        duration={2000}
+      >
+        {t('common.copied')}
+      </Snackbar>
     </View>
   );
 }
@@ -441,6 +597,10 @@ const styles = StyleSheet.create({
   typeTagText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  appInfoRows: {
+    marginTop: 4,
+    gap: 2,
   },
   modalContent: {
     margin: 20,

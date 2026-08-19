@@ -3,13 +3,28 @@
  */
 
 import { ContentItem } from '../mypayload';
+import { DEFAULT_CHAIN } from '../constants';
+
+/** 链标识 slug，便于后续扩展多链 */
+export type ChainSlug = 'ethereum';
 
 /** 订阅/地址记录 */
 export interface Subscription {
   id: string;
   address: string;
   description: string;
+  chain: ChainSlug;
   walletType?: 'read' | 'write';
+}
+
+/** 补全旧数据缺失的 chain 字段 */
+export function normalizeSubscription(
+  item: Omit<Subscription, 'chain'> & Partial<Pick<Subscription, 'chain'>>,
+): Subscription {
+  return {
+    ...item,
+    chain: item.chain ?? DEFAULT_CHAIN,
+  };
 }
 
 /** 列表条目的展示类型（过滤器链写入） */

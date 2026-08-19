@@ -11,7 +11,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
 import { RootStackParamList, Subscription } from '../types';
-import { MAX_ADDRESS_LENGTH, MAX_DESCRIPTION_LENGTH } from '../constants';
+import { MAX_ADDRESS_LENGTH, MAX_DESCRIPTION_LENGTH, DEFAULT_CHAIN } from '../constants';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddAddressForm'>;
 
@@ -64,6 +64,7 @@ export default function AddAddressFormScreen({ route, navigation }: Props) {
       id: subscription?.id ?? Date.now().toString(),
       address: address.trim(),
       description: description.trim(),
+      chain: subscription?.chain ?? DEFAULT_CHAIN,
       walletType: isEdit ? subscription?.walletType : 'read',
     };
 

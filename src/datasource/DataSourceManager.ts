@@ -1,14 +1,18 @@
 import { IDataSource, FetchMode, DataSourceResult, OutgoingTxResult } from './types';
 import { BlockscoutDataSource } from './BlockscoutDataSource';
+import { RoutescanDataSource } from './RoutescanDataSource';
 import { EtherscanDataSource } from './EtherscanDataSource';
-import { API_CONFIG } from '../constants';
+import { API_CONFIG, MAX_DATA_SOURCE_CYCLES } from '../constants';
 
 export class DataSourceManager {
   private static instance: DataSourceManager;
   private sources: IDataSource[] = [];
+  /** 本会话内已失败的源，后续请求跳过，避免每个页签都再等一轮 Blockscout。 */
+  private skipped = new Set<string>();
 
   private constructor() {
     this.sources.push(new BlockscoutDataSource());
+    this.sources.push(new RoutescanDataSource());
     this.sources.push(new EtherscanDataSource());
   }
 
@@ -20,44 +24,61 @@ export class DataSourceManager {
   }
 
   /**
-   * 按 weight 从高到低。未配置 Key 时跳过 Etherscan；
-   * 已配置时优先走 Etherscan，避免部分 Android 网络上 Blockscout TLS 失败。
+   * 顺序：Blockscout → Routescan → Etherscan（无 Key 则跳过 Etherscan）。
    */
   private getOrderedSources(): IDataSource[] {
-    const etherscanReady = !!API_CONFIG.ETHERSCAN_API_KEY;
-    return this.sources
-      .filter((source) => !(source instanceof EtherscanDataSource) || etherscanReady)
-      .sort((a, b) => {
-        const boost = (source: IDataSource) =>
-          source instanceof EtherscanDataSource && etherscanReady ? 1000 : 0;
-        return b.weight + boost(b) - (a.weight + boost(a));
-      });
+    return [...this.sources]
+      .filter((source) => {
+        if (this.skipped.has(source.name)) return false;
+        if (source instanceof EtherscanDataSource && !API_CONFIG.ETHERSCAN_API_KEY) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.weight - a.weight);
   }
 
   /**
    * 按 weight 从高到低依次查询；只有抛错才换下一个源。
    * 某源成功（含空列表）即视为最终结果。
+   * 若一轮内全部失败，最多再循环所有源 MAX_DATA_SOURCE_CYCLES 次，以便短暂故障恢复后自动重试。
    */
   private async queryByWeight<T>(run: (source: IDataSource) => Promise<T>): Promise<T> {
     const sources = this.getOrderedSources();
     if (sources.length === 0) {
-      throw new Error('MISSING_ETHERSCAN_API_KEY');
+      throw new Error('No data sources available');
     }
 
     let lastError: unknown = null;
 
-    for (const source of sources) {
-      try {
-        console.log(`Attempting to fetch from source: ${source.name}`);
-        return await run(source);
-      } catch (err) {
-        console.log(`Source ${source.name} failed, trying next source if available.`);
-        lastError = err;
-      }
-    }
+    for (let cycle = 1; cycle <= MAX_DATA_SOURCE_CYCLES; cycle++) {
+      const isLastCycle = cycle === MAX_DATA_SOURCE_CYCLES;
 
-    if (!API_CONFIG.ETHERSCAN_API_KEY) {
-      throw new Error('MISSING_ETHERSCAN_API_KEY');
+      for (let i = 0; i < sources.length; i++) {
+        const source = sources[i];
+        const next = sources[i + 1];
+        try {
+          console.log(
+            `Attempting to fetch from source: ${source.name} (cycle ${cycle}/${MAX_DATA_SOURCE_CYCLES})`,
+          );
+          return await run(source);
+        } catch (err) {
+          if (isLastCycle) {
+            this.skipped.add(source.name);
+          }
+          const reason = err instanceof Error ? err.message : String(err);
+          if (next) {
+            console.log(`Source ${source.name} failed (${reason}), trying next source: ${next.name}`);
+          } else if (!isLastCycle) {
+            console.log(
+              `All sources failed in cycle ${cycle}/${MAX_DATA_SOURCE_CYCLES}, retrying...`,
+            );
+          } else {
+            console.log(`Source ${source.name} failed (${reason}), no more sources.`);
+          }
+          lastError = err;
+        }
+      }
     }
 
     throw lastError || new Error('All data sources failed to fetch data');

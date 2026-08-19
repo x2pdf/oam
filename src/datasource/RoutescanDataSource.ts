@@ -8,17 +8,13 @@ import {
   toOutgoingResult,
 } from './etherscanStyle';
 
-export class EtherscanDataSource extends BaseDataSource {
-  name = 'Etherscan';
-  weight = DATA_SOURCE_WEIGHTS.ETHERSCAN;
+export class RoutescanDataSource extends BaseDataSource {
+  name = 'Routescan';
+  weight = DATA_SOURCE_WEIGHTS.ROUTESCAN;
 
   private buildUrl(address: string, params: any, defaultOffset: string): string {
-    if (!API_CONFIG.ETHERSCAN_API_KEY) {
-      throw new Error('MISSING_ETHERSCAN_API_KEY');
-    }
     const { page, offset } = getPageOffset(params, defaultOffset);
     const urlParams = new URLSearchParams({
-      chainid: '1',
       module: 'account',
       action: 'txlist',
       address,
@@ -27,9 +23,8 @@ export class EtherscanDataSource extends BaseDataSource {
       sort: 'desc',
       page,
       offset,
-      apikey: API_CONFIG.ETHERSCAN_API_KEY,
     });
-    return `${API_CONFIG.ETHERSCAN_BASE_URL}?${urlParams.toString()}`;
+    return `${API_CONFIG.ROUTESCAN_ETHERSCAN_BASE_URL}?${urlParams.toString()}`;
   }
 
   async fetchMessages(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {

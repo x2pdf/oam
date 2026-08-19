@@ -8,6 +8,7 @@ import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EthereumWalletManager, encryptWallet, saveEncryptedKeystore } from '../wallet/walletManager';
 import { useAppContext } from '../context/AppContext';
+import { DEFAULT_CHAIN } from '../constants';
 
 type RoutePropType = RouteProp<RootStackParamList, 'PrivateKeySetup'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -59,6 +60,7 @@ export default function PrivateKeySetupScreen() {
         id: Date.now().toString(),
         address: walletInfo.address,
         description: name.trim(),
+        chain: DEFAULT_CHAIN,
         walletType: 'write',
       });
 
