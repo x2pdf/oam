@@ -24,6 +24,8 @@ import PrivateKeyDisclaimerScreen from '../screens/PrivateKeyDisclaimerScreen';
 import PrivateKeyInputScreen from '../screens/PrivateKeyInputScreen';
 import PrivateKeyVerifyScreen from '../screens/PrivateKeyVerifyScreen';
 import PrivateKeySetupScreen from '../screens/PrivateKeySetupScreen';
+import InputDataDetailScreen from '../screens/InputDataDetailScreen';
+import AddressDataListScreen from '../screens/AddressDataListScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -257,6 +259,26 @@ export default function AppNavigator() {
             headerStyle: { backgroundColor: theme.colors.primary },
             headerTintColor: '#FFFFFF',
           }}
+        />
+        <Stack.Screen
+          name="InputDataDetail"
+          component={InputDataDetailScreen}
+          options={{
+            title: t('nav.inputDataDetail'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+            headerTitleStyle: { fontWeight: '600' },
+          }}
+        />
+        <Stack.Screen
+          name="AddressDataList"
+          component={AddressDataListScreen}
+          options={({ route }) => ({
+            title: route.params?.title || t('nav.addressDataList'),
+            headerStyle: { backgroundColor: theme.colors.primary },
+            headerTintColor: '#FFFFFF',
+            headerTitleStyle: { fontWeight: '600' },
+          })}
         />
       </Stack.Navigator>
     </NavigationContainer>

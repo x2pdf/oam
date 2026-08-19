@@ -8,10 +8,9 @@ import {
   RefreshControl,
   TouchableOpacity,
   StatusBar,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card, Text, useTheme, Button, Snackbar, FAB, Portal, Dialog, TextInput as PaperTextInput } from 'react-native-paper';
+import { Text, useTheme, Button, Snackbar, FAB, Portal, Dialog, TextInput as PaperTextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import PagerView from 'react-native-pager-view';
@@ -19,10 +18,11 @@ import { useTranslation } from 'react-i18next';
 import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { dataSourceManager } from '../datasource/DataSourceManager';
-import { RichContentRenderer } from '../components/RichContentRenderer';
+import { InputDataCard } from '../components/InputDataCard';
 import { CopyableAddress } from '../components/CopyableAddress';
+import { shortenAddress } from '../utils/address';
 import { OAMPClient } from '../oamp/client';
-import { applyDisplayPipeline, markAllRaw, CONTENT_KIND_I18N_KEY } from '../display';
+import { applyDisplayPipeline, markAllRaw } from '../display';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
 import {
   isDesktopLockPolicy,
@@ -55,100 +55,6 @@ function wipeDecryptedItems(items: InputDataItem[]): InputDataItem[] {
     };
   });
 }
-
-/* ------------------------------------------------------------------ */
-/*  工具函数                                                           */
-/* ------------------------------------------------------------------ */
-
-function shortenAddress(address: string): string {
-  if (!address || address.length <= 12) return address || '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-/* ------------------------------------------------------------------ */
-/*  卡片组件                                                           */
-/* ------------------------------------------------------------------ */
-
-interface CardProps {
-  item: InputDataItem;
-  cardWidth: number;
-  onAddressCopied?: () => void;
-}
-
-const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth, onAddressCopied }) => {
-  const theme = useTheme();
-  const { t } = useTranslation();
-  const kind = item.contentKind ?? 'RAW';
-  const rawHex = item.rawInput || item.description || '';
-
-  const renderBody = () => {
-    if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-      return <RichContentRenderer items={item.oampItems} />;
-    }
-
-    if (kind === 'UTF-8' && item.textContent) {
-      return (
-        <Text variant="bodyMedium" style={styles.inputDataText}>
-          {item.textContent}
-        </Text>
-      );
-    }
-
-    return (
-      <View>
-        {kind === 'OAMP_ENCRYPTED' ? (
-          <Text
-            variant="bodySmall"
-            style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}
-          >
-            {t('home.encryptedHint')}
-          </Text>
-        ) : null}
-        <Text variant="bodyMedium" style={styles.rawHexText} numberOfLines={8}>
-          {rawHex}
-        </Text>
-      </View>
-    );
-  };
-
-  return (
-    <Card
-      style={[styles.card, { width: cardWidth, backgroundColor: theme.colors.surface }]}
-      mode="elevated"
-    >
-      <Card.Content style={styles.cardContent}>
-        <View style={styles.cardHeader}>
-          <CopyableAddress
-            address={item.address}
-            variant="titleMedium"
-            style={[styles.addressLabel, { color: theme.colors.primary, flex: 1 }]}
-            onCopied={onAddressCopied}
-          >
-            {shortenAddress(item.address)} ({item.name})
-          </CopyableAddress>
-          <Text
-            variant="labelSmall"
-            style={[
-              styles.kindBadge,
-              { color: theme.colors.primary, borderColor: theme.colors.outline },
-            ]}
-          >
-            {t(CONTENT_KIND_I18N_KEY[kind])}
-          </Text>
-        </View>
-
-        {renderBody()}
-
-        <Text
-          variant="labelSmall"
-          style={[styles.timeText, { color: theme.colors.onSurfaceVariant }]}
-        >
-          {item.lastActive}
-        </Text>
-      </Card.Content>
-    </Card>
-  );
-});
 
 /* ------------------------------------------------------------------ */
 /*  主页屏幕                                                           */
@@ -539,6 +445,13 @@ export default function HomeScreen() {
     setSnackbarVisible(true);
   }, [t]);
 
+  const handleItemPress = useCallback(
+    (item: InputDataItem) => {
+      navigation.navigate('InputDataDetail', { item });
+    },
+    [navigation],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: InputDataItem }) => {
       const sub = subscriptions.find(
@@ -551,10 +464,11 @@ export default function HomeScreen() {
           item={{ ...item, name: displayDesc }}
           cardWidth={cardWidth}
           onAddressCopied={showCopiedSnackbar}
+          onPress={() => handleItemPress({ ...item, name: displayDesc })}
         />
       );
     },
-    [cardWidth, subscriptions, showCopiedSnackbar],
+    [cardWidth, subscriptions, showCopiedSnackbar, handleItemPress],
   );
 
   const keyExtractor = useCallback((item: InputDataItem) => item.id, []);
@@ -892,49 +806,6 @@ const styles = StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
-  },
-  card: {
-    borderRadius: 12,
-    elevation: 2,
-  },
-  cardContent: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-  },
-  addressLabel: {
-    fontWeight: '700',
-    marginBottom: 0,
-    marginRight: 8,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  kindBadge: {
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    overflow: 'hidden',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  inputDataText: {
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  rawHexText: {
-    lineHeight: 18,
-    marginBottom: 4,
-    fontSize: 12,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  timeText: {
-    textAlign: 'right',
-    fontSize: 11,
-    marginTop: 4,
   },
 });
 

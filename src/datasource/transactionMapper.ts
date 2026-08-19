@@ -19,6 +19,9 @@ export function filterTransactionsByMode(
     if (mode === 'sent') {
       return tx.fromLower === cleanAddress;
     }
+    if (mode === 'all') {
+      return tx.fromLower === cleanAddress || tx.toLower === cleanAddress;
+    }
     return tx.toLower === cleanAddress;
   });
 }
@@ -41,6 +44,14 @@ export function mapToInputDataItem(
   } else if (mode === 'square' || mode === 'inbox') {
     displayAddr = tx.from || 'Unknown';
     displayName = `From: ${shortenAddress(displayAddr)}`;
+  } else if (mode === 'all') {
+    if (tx.fromLower === cleanAddress) {
+      displayAddr = tx.to || 'Unknown';
+      displayName = `To: ${shortenAddress(displayAddr)}`;
+    } else {
+      displayAddr = tx.from || 'Unknown';
+      displayName = `From: ${shortenAddress(displayAddr)}`;
+    }
   } else {
     displayAddr = tx.to || 'Unknown';
     displayName = `To: ${shortenAddress(displayAddr)}`;

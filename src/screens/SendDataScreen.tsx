@@ -24,7 +24,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR } from '../wallet/session';
-import { isAddress } from 'ethers';
+import { isAddress, JsonRpcProvider, parseEther, formatEther } from 'ethers';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
@@ -50,6 +50,7 @@ interface ImageItem {
 }
 
 const DATA_PREVIEW_MAX = 80;
+const MAX_SEND_ATTEMPTS = 3;
 
 export default function SendDataScreen() {
   const theme = useTheme();
@@ -120,6 +121,10 @@ export default function SendDataScreen() {
   const [feeEstimate, setFeeEstimate] = useState<string | null>(null);
   const [feeLoading, setFeeLoading] = useState(false);
   const [feeError, setFeeError] = useState(false);
+  const [feeEstimatePubKey, setFeeEstimatePubKey] = useState<string | null | undefined>(undefined);
+  const [balanceEth, setBalanceEth] = useState<string | null>(null);
+  const [insufficientBalance, setInsufficientBalance] = useState(false);
+  const [sendAttemptCount, setSendAttemptCount] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -157,7 +162,15 @@ export default function SendDataScreen() {
     setFeeEstimate(null);
     setFeeLoading(false);
     setFeeError(false);
+    setFeeEstimatePubKey(undefined);
+    setBalanceEth(null);
+    setInsufficientBalance(false);
   };
+
+  const canConfirmSend = useMemo(
+    () => !feeLoading && !feeError && !!feeEstimate && !insufficientBalance,
+    [feeLoading, feeError, feeEstimate, insufficientBalance],
+  );
 
   const disableEncryptionAndReturn = () => {
     setEncryptUnavailableVisible(false);
@@ -177,6 +190,8 @@ export default function SendDataScreen() {
     setFeeLoading(true);
     setFeeEstimate(null);
     setFeeError(false);
+    setBalanceEth(null);
+    setInsufficientBalance(false);
     try {
       const fromAddress = profile?.address;
       if (!fromAddress) {
@@ -185,18 +200,24 @@ export default function SendDataScreen() {
       const items = buildContentItems();
       const target = recipientAddress.trim() || BLACK_HOLE;
       const resolvedKey = pubKey ?? recipientPublicKey;
-      const { feeEth } = await estimateSendFeeFromAddress(
-        fromAddress,
-        DEFAULT_RPC_NODE,
-        target,
-        items,
-        isSelf,
-        {
-          encrypt: encryptEnabled && !!resolvedKey,
-          recipientPublicKey: resolvedKey || undefined,
-        },
-      );
+      const provider = new JsonRpcProvider(DEFAULT_RPC_NODE);
+      const [{ feeEth }, balanceWei] = await Promise.all([
+        estimateSendFeeFromAddress(
+          fromAddress,
+          DEFAULT_RPC_NODE,
+          target,
+          items,
+          isSelf,
+          {
+            encrypt: encryptEnabled && !!resolvedKey,
+            recipientPublicKey: resolvedKey || undefined,
+          },
+        ),
+        provider.getBalance(fromAddress),
+      ]);
       setFeeEstimate(feeEth);
+      setBalanceEth(formatEther(balanceWei));
+      setInsufficientBalance(balanceWei < parseEther(feeEth));
     } catch (error) {
       console.error('Fee estimate error:', error);
       setFeeError(true);
@@ -206,8 +227,13 @@ export default function SendDataScreen() {
   };
 
   const openConfirmAndEstimate = (pubKey?: string | null) => {
+    setFeeEstimatePubKey(pubKey);
     setConfirmSendVisible(true);
     estimateFee(pubKey);
+  };
+
+  const retryFeeEstimate = () => {
+    estimateFee(feeEstimatePubKey);
   };
 
   const handleEncryptChange = (enabled: boolean) => {
@@ -336,7 +362,9 @@ export default function SendDataScreen() {
   };
 
   const startPasswordInput = () => {
+    if (!canConfirmSend) return;
     closeConfirmDialog();
+    setSendAttemptCount(0);
     setPasswordVisible(true);
   };
 
@@ -371,6 +399,7 @@ export default function SendDataScreen() {
 
       setLoading(false);
       setPasswordVisible(false);
+      setSendAttemptCount(0);
       Alert.alert(t('send.sendSuccess'), t('send.txHash', { hash: txHash }), [
         { text: t('common.ok'), onPress: () => navigation.goBack() }
       ]);
@@ -386,7 +415,34 @@ export default function SendDataScreen() {
           : error?.name === INVALID_PASSWORD_ERROR
             ? t('home.passwordIncorrect')
             : error.message;
-      setSnackbarMessage(t('send.sendFailed', { error: message }));
+
+      const isRetryableFailure =
+        error?.name !== NO_KEYSTORE_ERROR && error?.name !== INVALID_PASSWORD_ERROR;
+
+      if (isRetryableFailure) {
+        const nextAttempt = sendAttemptCount + 1;
+        setSendAttemptCount(nextAttempt);
+        if (nextAttempt >= MAX_SEND_ATTEMPTS) {
+          Alert.alert(t('send.networkFaultTitle'), t('send.networkFaultMsg'), [
+            {
+              text: t('common.ok'),
+              onPress: () => {
+                setPasswordVisible(false);
+                setSendAttemptCount(0);
+              },
+            },
+          ]);
+          return;
+        }
+        setSnackbarMessage(
+          t('send.sendFailedRetry', {
+            error: message,
+            remaining: MAX_SEND_ATTEMPTS - nextAttempt,
+          }),
+        );
+      } else {
+        setSnackbarMessage(t('send.sendFailed', { error: message }));
+      }
       setSnackbarVisible(true);
     }
   };
@@ -396,6 +452,12 @@ export default function SendDataScreen() {
     : feeError || !feeEstimate
       ? t('send.feeEstimateFailed')
       : t('send.feeEstimateValue', { fee: feeEstimate });
+
+  const balanceDisplay = feeLoading
+    ? t('send.feeEstimating')
+    : balanceEth
+      ? t('send.balanceValue', { balance: balanceEth })
+      : '—';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -557,6 +619,16 @@ export default function SendDataScreen() {
               </View>
 
               <View style={styles.confirmRow}>
+                <Text style={styles.confirmLabel}>{t('send.confirmBalance')}</Text>
+                <View style={styles.feeRow}>
+                  {feeLoading && (
+                    <ActivityIndicator size="small" style={styles.feeSpinner} />
+                  )}
+                  <Text style={styles.confirmValue}>{balanceDisplay}</Text>
+                </View>
+              </View>
+
+              <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>{t('send.confirmFee')}</Text>
                 <View style={styles.feeRow}>
                   {feeLoading && (
@@ -565,6 +637,28 @@ export default function SendDataScreen() {
                   <Text style={styles.confirmValue}>{feeDisplay}</Text>
                 </View>
               </View>
+
+              {insufficientBalance && (
+                <Text style={[styles.confirmWarning, { color: theme.colors.error }]}>
+                  {t('send.insufficientBalance')}
+                </Text>
+              )}
+
+              {feeError && !feeLoading && (
+                <>
+                  <Text style={[styles.confirmWarning, { color: theme.colors.error }]}>
+                    {t('send.feeEstimateFailedHint')}
+                  </Text>
+                  <Button
+                    mode="outlined"
+                    compact
+                    onPress={retryFeeEstimate}
+                    style={styles.feeRetryButton}
+                  >
+                    {t('send.feeRetry')}
+                  </Button>
+                </>
+              )}
 
               <Text style={[styles.feeDisclaimer, { color: theme.colors.error }]}>
                 {t('send.feeDisclaimer')}
@@ -577,12 +671,22 @@ export default function SendDataScreen() {
           </Dialog.ScrollArea>
           <Dialog.Actions>
             <Button onPress={closeConfirmDialog}>{t('common.cancel')}</Button>
-            <Button onPress={startPasswordInput}>{t('wallet.verifyButtonConfirm')}</Button>
+            <Button onPress={startPasswordInput} disabled={!canConfirmSend}>
+              {t('wallet.verifyButtonConfirm')}
+            </Button>
           </Dialog.Actions>
         </Dialog>
 
         {/* 支付密码输入 */}
-        <Dialog visible={passwordVisible} onDismiss={() => !loading && setPasswordVisible(false)}>
+        <Dialog
+          visible={passwordVisible}
+          onDismiss={() => {
+            if (!loading) {
+              setPasswordVisible(false);
+              setSendAttemptCount(0);
+            }
+          }}
+        >
           <Dialog.Title>{t('send.passwordTitle')}</Dialog.Title>
           <Dialog.Content>
             <PaperTextInput
@@ -595,7 +699,15 @@ export default function SendDataScreen() {
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button disabled={loading} onPress={() => setPasswordVisible(false)}>{t('common.cancel')}</Button>
+            <Button
+              disabled={loading}
+              onPress={() => {
+                setPasswordVisible(false);
+                setSendAttemptCount(0);
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
             <Button loading={loading} disabled={loading} onPress={executeSend}>{t('common.ok')}</Button>
           </Dialog.Actions>
         </Dialog>
@@ -820,6 +932,15 @@ const styles = StyleSheet.create({
   },
   feeSpinner: {
     marginRight: 8,
+  },
+  confirmWarning: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  feeRetryButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 8,
   },
   feeDisclaimer: {
     fontSize: 13,

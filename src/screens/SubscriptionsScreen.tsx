@@ -40,6 +40,16 @@ export default function SubscriptionsScreen() {
     });
   }, [navigation]);
 
+  const handleViewData = useCallback(
+    (item: Subscription) => {
+      navigation.navigate('AddressDataList', {
+        address: item.address,
+        title: item.description,
+      });
+    },
+    [navigation],
+  );
+
   const handleEdit = useCallback(
     (item: Subscription) => {
       navigation.navigate('SubscriptionForm', {
@@ -58,7 +68,7 @@ export default function SubscriptionsScreen() {
         titleNumberOfLines={2}
         description={item.address.length > 20 ? `${item.address.slice(0, 20)}...` : item.address}
         descriptionNumberOfLines={1}
-        onPress={() => handleEdit(item)}
+        onPress={() => handleViewData(item)}
         style={styles.listItem}
         left={(props) => (
           <List.Icon
@@ -70,14 +80,15 @@ export default function SubscriptionsScreen() {
         right={(props) => (
           <IconButton
             {...props}
-            icon="chevron-right"
+            icon="pencil-outline"
             size={20}
             iconColor={theme.colors.onSurfaceVariant}
+            onPress={() => handleEdit(item)}
           />
         )}
       />
     ),
-    [handleEdit, theme],
+    [handleViewData, handleEdit, theme],
   );
 
   const keyExtractor = useCallback((item: Subscription) => item.id, []);

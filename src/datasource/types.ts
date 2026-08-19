@@ -1,6 +1,6 @@
 import { InputDataItem } from '../types';
 
-export type FetchMode = 'square' | 'self' | 'sent' | 'inbox';
+export type FetchMode = 'square' | 'self' | 'sent' | 'inbox' | 'all';
 
 export interface DataSourceResult {
   items: InputDataItem[];

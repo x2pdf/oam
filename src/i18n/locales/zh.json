@@ -44,7 +44,9 @@
     "privateKeyInput": "输入私钥",
     "privateKeyVerify": "验证地址",
     "privateKeySetup": "钱包设定",
-    "sendData": "发送数据"
+    "sendData": "发送数据",
+    "inputDataDetail": "数据详情",
+    "addressDataList": "地址数据"
   },
   "home": {
     "tabs": {
@@ -76,6 +78,20 @@
     "unlockButton": "输入支付密码",
     "passwordIncorrect": "支付密码不正确",
     "readOnlyCannotDecrypt": "当前为仅查询钱包，无法解密仅自己的加密内容"
+  },
+  "subscriptions": {
+    "noSubscriptions": "暂无订阅",
+    "addHint": "点击右下角 + 添加订阅地址"
+  },
+  "detail": {
+    "txHash": "交易哈希",
+    "time": "时间",
+    "type": "类型",
+    "value": "金额",
+    "addresses": "地址",
+    "from": "发送方",
+    "to": "接收方",
+    "content": "内容"
   },
   "profile": {
     "addHint": "点击右上角 + 添加个人信息",
@@ -253,13 +269,21 @@
     "confirmDataImages": "图片：{{count}} 张",
     "confirmDataEmpty": "（无文本内容）",
     "feeEstimating": "正在估算手续费…",
-    "feeEstimateFailed": "无法估算，以网络实际扣费为准",
+    "feeEstimateFailed": "无法估算手续费",
+    "feeEstimateFailedHint": "无法估算手续费，无法确认发送成本。请检查网络连接后重新估算，或稍后再试。",
+    "feeRetry": "重新估算",
     "feeEstimateValue": "约 {{fee}} ETH",
+    "confirmBalance": "账户余额",
+    "balanceValue": "约 {{balance}} ETH",
+    "insufficientBalance": "余额不足，无法支付预估手续费。请先充值后再试。",
     "feeDisclaimer": "应用本身不收取任何费用。发送数据可能产生额外且可能超高的区块链网络手续费，金额随网络拥堵与数据量变化。建议使用小资金账户以控制意外风险。",
     "passwordTitle": "输入支付密码",
     "passwordLabel": "支付密码",
     "sendSuccess": "发送成功",
     "sendFailed": "发送失败: {{error}}",
+    "sendFailedRetry": "发送失败: {{error}}（还可重试 {{remaining}} 次）",
+    "networkFaultTitle": "网络异常",
+    "networkFaultMsg": "已连续多次发送失败，可能是网络故障。请检查网络连接后稍后再试。",
     "txHash": "交易哈希: {{hash}}",
     "confirmCancelTitle": "确认取消",
     "confirmCancelMsg": "确定要取消吗？这将会清空已输入的数据。",

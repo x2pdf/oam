@@ -72,6 +72,8 @@ export type RootStackParamList = {
   PrivateKeyVerify: { privateKey: string };
   PrivateKeySetup: { privateKey: string };
   SendData: undefined;
+  InputDataDetail: { item: InputDataItem };
+  AddressDataList: { address: string; title?: string };
 };
 
 export type MainTabParamList = {
