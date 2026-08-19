@@ -86,40 +86,56 @@ export function payloadEncode(items: ContentItem[]): Uint8Array {
  * 解析 <html> 封装的规范数据，提取 <pre> 中的文本和 <img> 中的图片。
  * 能够正确处理包含或不包含 alt 属性的 <img> 标签。
  *
- * 兼容性：如果数据不以 <html> 开头，则自动退化为普通纯文本处理。
+ * 兼容性：如果数据不以 <html> 开头，则作为普通纯文本项返回。
+ * 非法 UTF-8、空数据、或 <html> 中解析不出任何内容时返回空数组（由上层过滤器决定降级）。
  *
  * @param data 原始字节数据或字符串
  * @returns 解析后的内容项数组
  */
 export function payloadDecode(data: Uint8Array | string): ContentItem[] {
-  const html = typeof data === "string" ? data : toUtf8String(data);
+  try {
+    const html = bytesToUtf8(data);
+    if (html == null || html.length === 0) return [];
 
-  if (!html.startsWith("<html>")) {
-    return [{ type: "text", content: html }];
-  }
+    if (!html.startsWith("<html>")) {
+      return [{ type: "text", content: html }];
+    }
 
-  const items: ContentItem[] = [];
-  const tagRegex = /<pre>(.*?)<\/pre>|<img\s+([^>]*?)>/gs;
-  let match;
+    const items: ContentItem[] = [];
+    const tagRegex = /<pre>(.*?)<\/pre>|<img\s+([^>]*?)>/gs;
+    let match;
 
-  while ((match = tagRegex.exec(html)) !== null) {
-    const [_, textContent, imgTagBody] = match;
+    while ((match = tagRegex.exec(html)) !== null) {
+      const [_, textContent, imgTagBody] = match;
 
-    if (textContent !== undefined) {
-      items.push({ type: "text", content: textContent });
-    } else if (imgTagBody !== undefined) {
-      const srcMatch = imgTagBody.match(/src="([^"]+)"/);
-      const altMatch = imgTagBody.match(/alt="([^"]+)"/);
+      if (textContent !== undefined) {
+        items.push({ type: "text", content: textContent });
+      } else if (imgTagBody !== undefined) {
+        const srcMatch = imgTagBody.match(/src="([^"]+)"/);
+        const altMatch = imgTagBody.match(/alt="([^"]+)"/);
 
-      if (srcMatch) {
-        items.push({
-          type: "image",
-          data: srcMatch[1],
-          alt: altMatch ? altMatch[1] : undefined
-        });
+        if (srcMatch) {
+          items.push({
+            type: "image",
+            data: srcMatch[1],
+            alt: altMatch ? altMatch[1] : undefined
+          });
+        }
       }
     }
-  }
 
-  return items;
+    return items;
+  } catch (e) {
+    console.warn("payloadDecode failed:", e);
+    return [];
+  }
+}
+
+function bytesToUtf8(data: Uint8Array | string): string | null {
+  try {
+    if (typeof data === "string") return data;
+    return toUtf8String(data);
+  } catch {
+    return null;
+  }
 }

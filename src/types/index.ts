@@ -12,6 +12,9 @@ export interface Subscription {
   walletType?: 'read' | 'write';
 }
 
+/** 列表条目的展示类型（过滤器链写入） */
+export type ContentKind = 'OAMP' | 'OAMP_ENCRYPTED' | 'UTF-8' | 'RAW';
+
 /** 主页卡片数据 */
 export interface InputDataItem {
   id: string;
@@ -24,7 +27,9 @@ export interface InputDataItem {
   txCount: number;
   lastActive: string;
   rawInput?: string;
+  contentKind?: ContentKind;
   oampItems?: ContentItem[];
+  textContent?: string;
 }
 
 /** 导航路由参数 */

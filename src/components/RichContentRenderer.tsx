@@ -1,7 +1,10 @@
 import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { ContentItem } from '../mypayload';
+import { getImageRendererAdapter } from '../adapter';
+
+const PlatformImage = getImageRendererAdapter().Image;
 
 interface Props {
   items: ContentItem[];
@@ -24,11 +27,10 @@ export const RichContentRenderer: React.FC<Props> = ({ items }) => {
             </Text>
           );
         } else if (item.type === 'image') {
-          // Use data URI for the image
           return (
-            <Image
+            <PlatformImage
               key={index}
-              source={{ uri: item.data }}
+              uri={item.data}
               style={styles.image}
               resizeMode="contain"
             />

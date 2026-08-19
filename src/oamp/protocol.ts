@@ -11,7 +11,7 @@ export const BLACK_HOLE = "0x0000000000000000000000000000000000000000";
  * Used as AAD (Additional Authenticated Data) for AES-GCM.
  */
 export function getMessageHeader(type: MessageType, crypto: CryptoScheme): Uint8Array {
-  return concat([MAGIC, new Uint8Array([VERSION, type, crypto])]);
+  return getBytes(concat([MAGIC, new Uint8Array([VERSION, type, crypto])]));
 }
 
 export function serializeMessage(
@@ -33,13 +33,12 @@ export function deserializeMessage(
   try {
     const bytes = getBytes(data);
 
-    // Check magic
-    if (bytes.length < 4) return null;
+    // Magic (4) + version + type + crypto
+    if (bytes.length < 7) return null;
     for (let i = 0; i < 4; i++) {
       if (bytes[i] !== MAGIC[i]) return null;
     }
 
-    // Check version
     const version = bytes[4];
     if (version !== VERSION) return null;
 

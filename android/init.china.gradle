@@ -1,0 +1,41 @@
+// Force mainland China Maven mirrors for all projects (including included builds).
+allprojects {
+  buildscript {
+    repositories {
+      def aliyunPublic = maven { url 'https://maven.aliyun.com/repository/public' }
+      def aliyunGoogle = maven { url 'https://maven.aliyun.com/repository/google' }
+      def aliyunGradle = maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+      remove(aliyunPublic)
+      remove(aliyunGoogle)
+      remove(aliyunGradle)
+      addFirst(aliyunGradle)
+      addFirst(aliyunGoogle)
+      addFirst(aliyunPublic)
+    }
+  }
+
+  repositories {
+    def aliyunPublic = maven { url 'https://maven.aliyun.com/repository/public' }
+    def aliyunGoogle = maven { url 'https://maven.aliyun.com/repository/google' }
+    remove(aliyunPublic)
+    remove(aliyunGoogle)
+    addFirst(aliyunGoogle)
+    addFirst(aliyunPublic)
+  }
+}
+
+settingsEvaluated { settings ->
+  settings.pluginManagement {
+    repositories {
+      def aliyunPublic = maven { url 'https://maven.aliyun.com/repository/public' }
+      def aliyunGoogle = maven { url 'https://maven.aliyun.com/repository/google' }
+      def aliyunGradle = maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+      remove(aliyunPublic)
+      remove(aliyunGoogle)
+      remove(aliyunGradle)
+      addFirst(aliyunGradle)
+      addFirst(aliyunGoogle)
+      addFirst(aliyunPublic)
+    }
+  }
+}

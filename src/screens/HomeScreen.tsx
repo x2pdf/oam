@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useState, useRef, useMemo, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -8,22 +8,31 @@ import {
   RefreshControl,
   TouchableOpacity,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card, Text, useTheme, Button, Snackbar, FAB, Portal, Dialog } from 'react-native-paper';
+import { Card, Text, useTheme, Button, Snackbar, FAB, Portal, Dialog, TextInput as PaperTextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import PagerView from 'react-native-pager-view';
 import { useTranslation } from 'react-i18next';
-import { mockInputDataList } from '../data/mockData';
 import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { dataSourceManager } from '../datasource/DataSourceManager';
-import { isOAMP, parseOAMPContent } from '../utils/oampHelper';
 import { RichContentRenderer } from '../components/RichContentRenderer';
-import { getPrivateKeySecured } from '../wallet/walletManager';
 import { OAMPClient } from '../oamp/client';
-import { CryptoScheme, MessageType } from '../oamp/types';
+import { applyDisplayPipeline, markAllRaw, CONTENT_KIND_I18N_KEY } from '../display';
+import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
+import {
+  isDesktopLockPolicy,
+  useWalletSession,
+} from '../wallet/WalletSessionContext';
+import {
+  getUnlockedWallet,
+  isSessionUnlocked,
+  INVALID_PASSWORD_ERROR,
+  NO_KEYSTORE_ERROR,
+} from '../wallet/session';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -32,13 +41,26 @@ type NavProp = NativeStackNavigationProp<RootStackParamList>;
 /* ------------------------------------------------------------------ */
 
 const BLACK_HOLE_ADDRESS = '0x0000000000000000000000000000000000000000';
+const SELF_TAB_INDEX = 3;
+
+function wipeDecryptedItems(items: InputDataItem[]): InputDataItem[] {
+  return items.map((item) => {
+    if (item.contentKind !== 'OAMP' || !item.oampItems) return item;
+    return {
+      ...item,
+      contentKind: 'OAMP_ENCRYPTED',
+      oampItems: undefined,
+      textContent: undefined,
+    };
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /*  工具函数                                                           */
 /* ------------------------------------------------------------------ */
 
 function shortenAddress(address: string): string {
-  if (address.length <= 12) return address;
+  if (!address || address.length <= 12) return address || '';
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
@@ -53,11 +75,39 @@ interface CardProps {
 
 const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const kind = item.contentKind ?? 'RAW';
+  const rawHex = item.rawInput || item.description || '';
 
-  const oampContent = useMemo(() => {
-    if (item.oampItems) return item.oampItems;
-    return parseOAMPContent(item.rawInput, item.from || item.address, item.to);
-  }, [item.rawInput, item.address, item.from, item.to, item.oampItems]);
+  const renderBody = () => {
+    if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
+      return <RichContentRenderer items={item.oampItems} />;
+    }
+
+    if (kind === 'UTF-8' && item.textContent) {
+      return (
+        <Text variant="bodyMedium" style={styles.inputDataText}>
+          {item.textContent}
+        </Text>
+      );
+    }
+
+    return (
+      <View>
+        {kind === 'OAMP_ENCRYPTED' ? (
+          <Text
+            variant="bodySmall"
+            style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}
+          >
+            {t('home.encryptedHint')}
+          </Text>
+        ) : null}
+        <Text variant="bodyMedium" style={styles.rawHexText} numberOfLines={8}>
+          {rawHex}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <Card
@@ -65,20 +115,25 @@ const InputDataCard: React.FC<CardProps> = React.memo(({ item, cardWidth }) => {
       mode="elevated"
     >
       <Card.Content style={styles.cardContent}>
-        <Text variant="titleMedium" style={[styles.addressLabel, { color: theme.colors.primary }]}>
-          {shortenAddress(item.address)} ({item.name})
-        </Text>
-
-        {oampContent ? (
-          <RichContentRenderer items={oampContent} />
-        ) : (
+        <View style={styles.cardHeader}>
           <Text
-            variant="bodyMedium"
-            style={styles.inputDataText}
+            variant="titleMedium"
+            style={[styles.addressLabel, { color: theme.colors.primary, flex: 1 }]}
           >
-            {item.description}
+            {shortenAddress(item.address)} ({item.name})
           </Text>
-        )}
+          <Text
+            variant="labelSmall"
+            style={[
+              styles.kindBadge,
+              { color: theme.colors.primary, borderColor: theme.colors.outline },
+            ]}
+          >
+            {t(CONTENT_KIND_I18N_KEY[kind])}
+          </Text>
+        </View>
+
+        {renderBody()}
 
         <Text
           variant="labelSmall"
@@ -103,6 +158,8 @@ export default function HomeScreen() {
   const { state } = useAppContext();
   const { t } = useTranslation();
   const { apiKey, profile, subscriptions } = state;
+  const { unlocked, unlock, lock } = useWalletSession();
+  const isWriteWallet = profile?.walletType === 'write';
 
   const TABS = useMemo(() => [
     t('home.tabs.square'),
@@ -113,6 +170,13 @@ export default function HomeScreen() {
 
   const [activeTab, setActiveTab] = useState(0);
   const pagerRef = useRef<PagerView>(null);
+  const activeTabRef = useRef(0);
+  const isWriteWalletRef = useRef(isWriteWallet);
+  const skipAutoPromptRef = useRef(false);
+  const selfDataRef = useRef<InputDataItem[]>([]);
+  const homeFocusedRef = useRef(true);
+  const prevUnlockedRef = useRef(unlocked);
+  const classifyGenRef = useRef(0);
 
   const [selfData, setSelfData] = useState<InputDataItem[]>([]);
   const [squareData, setSquareData] = useState<InputDataItem[]>([]);
@@ -126,6 +190,10 @@ export default function HomeScreen() {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [dialogVisible, setDialogVisible] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   // 使用 Ref 存储分页参数和状态，避免 loadData 频繁变动导致 useFocusEffect 循环触发
   const nextPageParamsRef = useRef<any[]>([null, null, null, null]);
@@ -133,53 +201,6 @@ export default function HomeScreen() {
   const loadingMoreRef = useRef<boolean[]>([false, false, false, false]);
 
   const cardWidth = screenWidth - 32;
-
-  const processOAMPItems = useCallback(async (items: InputDataItem[]) => {
-    if (!profile?.address) return items;
-
-    const privateKey = await getPrivateKeySecured();
-    if (!privateKey) return items;
-
-    // We use a dummy provider for decryption-only client
-    const client = new OAMPClient(privateKey, 'https://eth.llamarpc.com');
-
-    return await Promise.all(items.map(async (item) => {
-      if (item.rawInput && isOAMP(item.rawInput)) {
-        try {
-          const from = item.from?.toLowerCase();
-          const to = item.to?.toLowerCase();
-          const userAddr = profile.address.toLowerCase();
-
-          const msg = client.parseTransaction(item.rawInput, from || '', to || '');
-          if (msg) {
-            // Case 1: Unencrypted (NONE) - Parse directly
-            if (msg.crypto === CryptoScheme.NONE) {
-              const decodedItems = parseOAMPContent(item.rawInput, from, to);
-              if (decodedItems) {
-                return { ...item, oampItems: decodedItems };
-              }
-            }
-
-            // Case 2: Personal Note (Encrypted A -> A)
-            if (from === to && from === userAddr && msg.type === MessageType.PERSONAL) {
-              const decrypted = await client.decryptMessage(msg);
-              if (decrypted && decrypted.items) {
-                return { ...item, oampItems: decrypted.items };
-              }
-            }
-
-            // Case 3: P2P Encrypted (A -> B or B -> A)
-            // Note: Currently we don't have senderPublicKey/recipientPublicKey easily available
-            // for every transaction here without extra API calls to recover them from v,r,s.
-            // For now, if we can't decrypt, we just leave it as is, or maybe add a placeholder.
-          }
-        } catch (e) {
-          console.log('OAMP processing failed for item:', item.id, e);
-        }
-      }
-      return item;
-    }));
-  }, [profile?.address]);
 
   const loadData = useCallback(async (tabIndex: number, isRefreshing = false, isLoadMore = false) => {
     const modeMap: ('square' | 'sent' | 'inbox' | 'self')[] = ['square', 'sent', 'inbox', 'self'];
@@ -235,8 +256,8 @@ export default function HomeScreen() {
         // Concurrent fetch
         const results = await Promise.all(
           targetAddresses.map(addr => dataSourceManager.fetchAll(addr, mode, params).catch(e => {
-            console.warn(`Failed to fetch for ${addr}:`, e);
-            return { items: [], next_page_params: null, errors: [e.message] };
+            const message = e instanceof Error ? e.message : String(e);
+            return { items: [], next_page_params: null, errors: [message] };
           }))
         );
 
@@ -267,8 +288,37 @@ export default function HomeScreen() {
         setSnackbarVisible(true);
       }
 
-      // Apply OAMP Decryption Filter
-      const processedItems = await processOAMPItems(resultItems);
+      // Apply display pipeline: OAMP → UTF-8 → RAW (encrypted OAMP stops at OAMP_ENCRYPTED)
+      let processedItems: InputDataItem[];
+      try {
+        let client: OAMPClient | null = null;
+        if (tabIndex === SELF_TAB_INDEX) {
+          const wallet = getUnlockedWallet();
+          if (wallet) {
+            client = new OAMPClient(wallet.privateKey, DEFAULT_RPC_NODE);
+          }
+        }
+
+        processedItems = await applyDisplayPipeline(resultItems, {
+          userAddress: profile?.address,
+          client,
+        });
+
+        if (tabIndex === SELF_TAB_INDEX) {
+          const latestWallet = getUnlockedWallet();
+          if (!!latestWallet !== !!client) {
+            processedItems = await applyDisplayPipeline(resultItems, {
+              userAddress: profile?.address,
+              client: latestWallet
+                ? new OAMPClient(latestWallet.privateKey, DEFAULT_RPC_NODE)
+                : null,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Display pipeline failed, falling back to RAW:', e);
+        processedItems = markAllRaw(resultItems);
+      }
 
       const updateData = (prev: InputDataItem[]) => {
         const map = new Map<string, InputDataItem>();
@@ -305,7 +355,6 @@ export default function HomeScreen() {
         return next;
       });
     } catch (err: any) {
-      console.error(err);
       if (err.message === 'MISSING_ETHERSCAN_API_KEY') {
         setSnackbarMessage(t('home.setApiKeyHint'));
         setSnackbarVisible(true);
@@ -324,22 +373,153 @@ export default function HomeScreen() {
     }
   }, [profile?.address, apiKey, subscriptions, t]);
 
+  const reclassifySelfData = useCallback(async (withClient: boolean) => {
+    const gen = ++classifyGenRef.current;
+    const items = selfDataRef.current;
+    if (items.length === 0) return;
+    try {
+      let client: OAMPClient | null = null;
+      if (withClient) {
+        const wallet = getUnlockedWallet();
+        if (wallet) {
+          client = new OAMPClient(wallet.privateKey, DEFAULT_RPC_NODE);
+        }
+      }
+      const processed = await applyDisplayPipeline(items, {
+        userAddress: profile?.address,
+        client,
+      });
+      if (gen !== classifyGenRef.current) return;
+      setSelfData(processed);
+    } catch (e) {
+      console.warn('Failed to reclassify self list:', e);
+    }
+  }, [profile?.address]);
+
+  useEffect(() => {
+    isWriteWalletRef.current = isWriteWallet;
+  }, [isWriteWallet]);
+
+  useEffect(() => {
+    selfDataRef.current = selfData;
+  }, [selfData]);
+
+  useEffect(() => {
+    const wasUnlocked = prevUnlockedRef.current;
+    prevUnlockedRef.current = unlocked;
+
+    if (wasUnlocked && !unlocked) {
+      classifyGenRef.current += 1;
+      setSelfData((prev) => {
+        const wiped = wipeDecryptedItems(prev);
+        selfDataRef.current = wiped;
+        return wiped;
+      });
+      reclassifySelfData(false);
+      if (
+        homeFocusedRef.current &&
+        activeTabRef.current === SELF_TAB_INDEX &&
+        isWriteWalletRef.current &&
+        !skipAutoPromptRef.current
+      ) {
+        setPasswordVisible(true);
+      }
+      return;
+    }
+
+    if (!wasUnlocked && unlocked) {
+      reclassifySelfData(true);
+    }
+  }, [unlocked, reclassifySelfData]);
+
+  const applyTabIndex = useCallback((next: number) => {
+    const from = activeTabRef.current;
+    if (from === next) return;
+    activeTabRef.current = next;
+    setActiveTab(next);
+
+    if (next === SELF_TAB_INDEX) {
+      skipAutoPromptRef.current = false;
+      if (isWriteWalletRef.current && !isSessionUnlocked()) {
+        setPasswordVisible(true);
+      }
+    } else if (from === SELF_TAB_INDEX && isDesktopLockPolicy()) {
+      skipAutoPromptRef.current = false;
+      setPasswordVisible(false);
+      setPassword('');
+      setPasswordError(null);
+      lock();
+    }
+  }, [lock]);
+
+  const handleUnlock = async () => {
+    if (!password) {
+      setPasswordError(t('send.passwordLabel'));
+      return;
+    }
+    setUnlocking(true);
+    setPasswordError(null);
+    try {
+      await unlock(password);
+      skipAutoPromptRef.current = false;
+      setPasswordVisible(false);
+      setPassword('');
+    } catch (e: any) {
+      if (e?.name === NO_KEYSTORE_ERROR) {
+        setPasswordError(t('send.noPrivateKey'));
+      } else if (e?.name === INVALID_PASSWORD_ERROR) {
+        setPasswordError(t('home.passwordIncorrect'));
+      } else {
+        setPasswordError(t('home.passwordIncorrect'));
+      }
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const dismissPasswordDialog = () => {
+    if (unlocking) return;
+    skipAutoPromptRef.current = true;
+    setPasswordVisible(false);
+    setPassword('');
+    setPasswordError(null);
+  };
+
   useFocusEffect(
     useCallback(() => {
+      homeFocusedRef.current = true;
       loadData(0);
       loadData(1);
       loadData(2);
       loadData(3);
-    }, [loadData]),
+      if (
+        activeTabRef.current === SELF_TAB_INDEX &&
+        isWriteWalletRef.current &&
+        !isSessionUnlocked()
+      ) {
+        skipAutoPromptRef.current = false;
+        setPasswordVisible(true);
+      }
+      return () => {
+        homeFocusedRef.current = false;
+        if (isDesktopLockPolicy()) {
+          skipAutoPromptRef.current = false;
+          setPasswordVisible(false);
+          setPassword('');
+          setPasswordError(null);
+          lock();
+        }
+      };
+    }, [loadData, lock]),
   );
 
   const onTabPress = (index: number) => {
-    setActiveTab(index);
+    applyTabIndex(index);
     pagerRef.current?.setPage(index);
   };
 
   const onPageSelected = (e: any) => {
-    setActiveTab(e.nativeEvent.position);
+    applyTabIndex(e.nativeEvent.position);
   };
 
   const renderItem = useCallback(
@@ -373,6 +553,33 @@ export default function HomeScreen() {
           <Text variant="bodyLarge" style={{ color: theme.colors.error, textAlign: 'center', padding: 20 }}>
             {t('home.noAddressError')}
           </Text>
+        </View>
+      );
+    }
+
+    if (isSelfList && profile?.address && !isWriteWallet) {
+      return (
+        <View style={styles.centerContainer}>
+          <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', padding: 20 }}>
+            {t('home.readOnlyCannotDecrypt')}
+          </Text>
+        </View>
+      );
+    }
+
+    if (isSelfList && isWriteWallet && !unlocked) {
+      return (
+        <View style={styles.centerContainer}>
+          <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', padding: 20 }}>
+            {t('home.unlockHint')}
+          </Text>
+          <Button mode="contained" onPress={() => {
+            skipAutoPromptRef.current = false;
+            setPasswordError(null);
+            setPasswordVisible(true);
+          }}>
+            {t('home.unlockButton')}
+          </Button>
         </View>
       );
     }
@@ -541,6 +748,37 @@ export default function HomeScreen() {
             <Button onPress={() => setDialogVisible(false)}>{t('common.ok')}</Button>
           </Dialog.Actions>
         </Dialog>
+
+        <Dialog visible={passwordVisible} onDismiss={dismissPasswordDialog} dismissable={!unlocking}>
+          <Dialog.Title>{t('send.passwordTitle')}</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium" style={{ marginBottom: 12 }}>
+              {t('home.unlockHint')}
+            </Text>
+            <PaperTextInput
+              label={t('send.passwordLabel')}
+              secureTextEntry
+              maxLength={16}
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value);
+                if (passwordError) setPasswordError(null);
+              }}
+              autoFocus
+              error={!!passwordError}
+              disabled={unlocking}
+            />
+            {passwordError ? (
+              <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 8 }}>
+                {passwordError}
+              </Text>
+            ) : null}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button disabled={unlocking} onPress={dismissPasswordDialog}>{t('common.cancel')}</Button>
+            <Button loading={unlocking} disabled={unlocking} onPress={handleUnlock}>{t('common.ok')}</Button>
+          </Dialog.Actions>
+        </Dialog>
       </Portal>
 
       <FAB
@@ -637,11 +875,33 @@ const styles = StyleSheet.create({
   },
   addressLabel: {
     fontWeight: '700',
+    marginBottom: 0,
+    marginRight: 8,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 6,
+  },
+  kindBadge: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    overflow: 'hidden',
+    fontSize: 10,
+    fontWeight: '700',
   },
   inputDataText: {
     lineHeight: 20,
     marginBottom: 4,
+  },
+  rawHexText: {
+    lineHeight: 18,
+    marginBottom: 4,
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   timeText: {
     textAlign: 'right',

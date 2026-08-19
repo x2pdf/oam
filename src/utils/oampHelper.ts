@@ -7,7 +7,7 @@ import { CryptoScheme } from '../oamp/types';
  * OAMP magic bytes: 0x4f414d50 ("OAMP")
  */
 export function isOAMP(hex: string | undefined): boolean {
-  if (!hex || hex === '0x') return false;
+  if (typeof hex !== 'string' || !hex || hex === '0x') return false;
   const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
   // "OAMP" in hex is 4f414d50
   return cleanHex.toLowerCase().startsWith('4f414d50');
@@ -27,14 +27,14 @@ export function parseOAMPContent(hex: string | undefined, sender: string = '', r
 
     // If it's unencrypted, we can decode the payload directly
     if (msg.crypto === CryptoScheme.NONE) {
-      return payloadDecode(msg.payload);
+      const items = payloadDecode(msg.payload);
+      return items.length > 0 ? items : null;
     }
 
-    // For encrypted messages, we return null here.
-    // They should be handled by the decryption flow (e.g. in HomeScreen's processOAMPItems)
+    // Encrypted messages are handled by the display pipeline (decrypt / OAMP_ENCRYPTED).
     return null;
   } catch (e) {
-    console.error('Failed to parse OAMP content:', e);
+    console.warn('Failed to parse OAMP content:', e);
     return null;
   }
 }

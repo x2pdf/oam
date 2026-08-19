@@ -1,13 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Image,
   Alert,
-  Platform,
 } from 'react-native';
 import {
   Text,
@@ -19,20 +17,30 @@ import {
   Dialog,
   TextInput as PaperTextInput,
   Snackbar,
+  ActivityIndicator,
+  RadioButton,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
-import * as SecureStore from 'expo-secure-store';
+import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR } from '../wallet/session';
+import { isAddress } from 'ethers';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
-import { getImagePickerAdapter } from '../adapter';
-import { ContentItem, createJpegItem, createPngItem, createGifItem, payloadEncode } from '../mypayload';
-import { OAMPClient } from '../oamp/client';
+import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
+import { ContentItem, createJpegItem, createPngItem, createGifItem } from '../mypayload';
+import { estimateSendFeeFromAddress, OAMPClient } from '../oamp/client';
 import { BLACK_HOLE } from '../oamp/protocol';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
+import {
+  lookupRecipientPublicKey,
+  normalizePublicKeyInput,
+  publicKeyMatchesAddress,
+} from '../oamp/recoverPublicKey';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
+
+const PlatformImage = getImageRendererAdapter().Image;
 
 interface ImageItem {
   uri: string;
@@ -40,6 +48,8 @@ interface ImageItem {
   name?: string;
   type: 'image/jpeg' | 'image/png' | 'image/gif';
 }
+
+const DATA_PREVIEW_MAX = 80;
 
 export default function SendDataScreen() {
   const theme = useTheme();
@@ -51,11 +61,53 @@ export default function SendDataScreen() {
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageItem[]>([]);
   const [recipientAddress, setRecipientAddress] = useState(BLACK_HOLE);
+  const [encryptEnabled, setEncryptEnabled] = useState(false);
+  const [recipientPublicKey, setRecipientPublicKey] = useState<string | null>(null);
+  const [pubkeyLookupVisible, setPubkeyLookupVisible] = useState(false);
+  const [noPubkeyDialogVisible, setNoPubkeyDialogVisible] = useState(false);
+  const [noPubkeyReason, setNoPubkeyReason] = useState<'no-history' | 'recover-failed'>('no-history');
+  const [manualPubkey, setManualPubkey] = useState('');
+  const [manualPubkeyError, setManualPubkeyError] = useState('');
+  const [encryptUnavailableVisible, setEncryptUnavailableVisible] = useState(false);
 
   const isSelf = useMemo(() => {
     if (!profile?.address || !recipientAddress) return false;
     return recipientAddress.toLowerCase() === profile.address.toLowerCase();
   }, [profile?.address, recipientAddress]);
+
+  const canChooseEncrypt = useMemo(() => {
+    const target = recipientAddress.trim();
+    if (!target || !isAddress(target)) return false;
+    if (target.toLowerCase() === BLACK_HOLE.toLowerCase()) return false;
+    if (isSelf) return false;
+    return true;
+  }, [recipientAddress, isSelf]);
+
+  const sendModeLabel = useMemo(() => {
+    const target = recipientAddress.trim() || BLACK_HOLE;
+    if (isSelf) return t('send.confirmModePersonal');
+    if (target.toLowerCase() === BLACK_HOLE.toLowerCase()) return t('send.confirmModeBroadcast');
+    if (encryptEnabled) return t('send.confirmModeEncrypted');
+    return t('send.confirmModeUnencrypted');
+  }, [isSelf, recipientAddress, encryptEnabled, t]);
+
+  const dataSummary = useMemo(() => {
+    const lines: string[] = [];
+    const trimmed = text.trim();
+    if (trimmed) {
+      const preview =
+        trimmed.length > DATA_PREVIEW_MAX
+          ? `${trimmed.slice(0, DATA_PREVIEW_MAX)}…`
+          : trimmed;
+      lines.push(t('send.confirmDataText', { text: preview }));
+    } else {
+      lines.push(t('send.confirmDataEmpty'));
+    }
+    if (images.length > 0) {
+      lines.push(t('send.confirmDataImages', { count: images.length }));
+    }
+    return lines.join('\n');
+  }, [text, images.length, t]);
 
   // Dialog states
   const [confirmSendVisible, setConfirmSendVisible] = useState(false);
@@ -65,9 +117,130 @@ export default function SendDataScreen() {
   const [imageNameDialogVisible, setImageNameDialogVisible] = useState(false);
   const [currentPickingImage, setCurrentPickingImage] = useState<ImageItem | null>(null);
 
+  const [feeEstimate, setFeeEstimate] = useState<string | null>(null);
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [feeError, setFeeError] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  const buildContentItems = useCallback((): ContentItem[] => {
+    const items: ContentItem[] = [];
+    if (text) {
+      items.push({ type: 'text', content: text });
+    }
+    for (const img of images) {
+      if (img.type === 'image/png') {
+        items.push(createPngItem(img.base64, img.name));
+      } else if (img.type === 'image/gif') {
+        items.push(createGifItem(img.base64, img.name));
+      } else {
+        items.push(createJpegItem(img.base64, img.name));
+      }
+    }
+    return items;
+  }, [text, images]);
+
+  useEffect(() => {
+    setRecipientPublicKey(null);
+  }, [recipientAddress]);
+
+  useEffect(() => {
+    if (!canChooseEncrypt && encryptEnabled) {
+      setEncryptEnabled(false);
+      setRecipientPublicKey(null);
+    }
+  }, [canChooseEncrypt, encryptEnabled]);
+
+  const resetFeeState = () => {
+    setFeeEstimate(null);
+    setFeeLoading(false);
+    setFeeError(false);
+  };
+
+  const disableEncryptionAndReturn = () => {
+    setEncryptUnavailableVisible(false);
+    setNoPubkeyDialogVisible(false);
+    setManualPubkey('');
+    setManualPubkeyError('');
+    setRecipientPublicKey(null);
+    setEncryptEnabled(false);
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmSendVisible(false);
+    resetFeeState();
+  };
+
+  const estimateFee = async (pubKey?: string | null) => {
+    setFeeLoading(true);
+    setFeeEstimate(null);
+    setFeeError(false);
+    try {
+      const fromAddress = profile?.address;
+      if (!fromAddress) {
+        throw new Error(t('send.noPrivateKey'));
+      }
+      const items = buildContentItems();
+      const target = recipientAddress.trim() || BLACK_HOLE;
+      const resolvedKey = pubKey ?? recipientPublicKey;
+      const { feeEth } = await estimateSendFeeFromAddress(
+        fromAddress,
+        DEFAULT_RPC_NODE,
+        target,
+        items,
+        isSelf,
+        {
+          encrypt: encryptEnabled && !!resolvedKey,
+          recipientPublicKey: resolvedKey || undefined,
+        },
+      );
+      setFeeEstimate(feeEth);
+    } catch (error) {
+      console.error('Fee estimate error:', error);
+      setFeeError(true);
+    } finally {
+      setFeeLoading(false);
+    }
+  };
+
+  const openConfirmAndEstimate = (pubKey?: string | null) => {
+    setConfirmSendVisible(true);
+    estimateFee(pubKey);
+  };
+
+  const handleEncryptChange = (enabled: boolean) => {
+    setEncryptEnabled(enabled);
+    if (!enabled) {
+      setRecipientPublicKey(null);
+    }
+  };
+
+  const handleManualPubkeyConfirm = () => {
+    const target = recipientAddress.trim();
+    setManualPubkeyError('');
+    try {
+      const normalized = normalizePublicKeyInput(manualPubkey);
+      if (!publicKeyMatchesAddress(normalized, target)) {
+        setManualPubkeyError(t('send.publicKeyMismatch'));
+        return;
+      }
+      setRecipientPublicKey(normalized);
+      setNoPubkeyDialogVisible(false);
+      setManualPubkey('');
+      openConfirmAndEstimate(normalized);
+    } catch {
+      setManualPubkeyError(t('send.invalidPublicKey'));
+    }
+  };
+
+  const handleNoPublicKey = () => {
+    setNoPubkeyDialogVisible(false);
+    setManualPubkey('');
+    setManualPubkeyError('');
+    setEncryptUnavailableVisible(true);
+  };
 
   const pickImage = async () => {
     try {
@@ -123,12 +296,47 @@ export default function SendDataScreen() {
     navigation.goBack();
   };
 
-  const handleSend = () => {
-    setConfirmSendVisible(true);
+  const handleSend = async () => {
+    const target = recipientAddress.trim() || BLACK_HOLE;
+    const useP2PEncrypt = encryptEnabled && !isSelf && target.toLowerCase() !== BLACK_HOLE.toLowerCase();
+
+    if (useP2PEncrypt) {
+      if (!isAddress(target)) {
+        setSnackbarMessage(t('send.invalidAddress'));
+        setSnackbarVisible(true);
+        return;
+      }
+      if (!recipientPublicKey) {
+        setPubkeyLookupVisible(true);
+        try {
+          const result = await lookupRecipientPublicKey(target, DEFAULT_RPC_NODE);
+          setPubkeyLookupVisible(false);
+          if (result.ok) {
+            setRecipientPublicKey(result.publicKey);
+            openConfirmAndEstimate(result.publicKey);
+            return;
+          }
+          setNoPubkeyReason(result.reason);
+          setManualPubkey('');
+          setManualPubkeyError('');
+          setNoPubkeyDialogVisible(true);
+        } catch (error) {
+          console.error('Public key lookup error:', error);
+          setPubkeyLookupVisible(false);
+          setNoPubkeyReason('recover-failed');
+          setManualPubkey('');
+          setManualPubkeyError('');
+          setNoPubkeyDialogVisible(true);
+        }
+        return;
+      }
+    }
+
+    openConfirmAndEstimate();
   };
 
   const startPasswordInput = () => {
-    setConfirmSendVisible(false);
+    closeConfirmDialog();
     setPasswordVisible(true);
   };
 
@@ -141,45 +349,24 @@ export default function SendDataScreen() {
 
     setLoading(true);
     try {
-      // 1. 获取私钥 (假设存储在 SecureStore 中，由之前的流程保存)
-      const privateKey = await SecureStore.getItemAsync('user_wallet_private_key');
-      if (!privateKey) {
-        throw new Error(t('send.noPrivateKey'));
-      }
+      const wallet = await unlockSession(password);
+      const client = new OAMPClient(wallet.privateKey, DEFAULT_RPC_NODE);
+      const items = buildContentItems();
 
-      // 2. 初始化 OAMP 客户端
-      const client = new OAMPClient(privateKey, DEFAULT_RPC_NODE);
-
-      // 3. 构建 Payload
-      const items: ContentItem[] = [];
-      if (text) {
-        items.push({ type: 'text', content: text });
-      }
-      for (const img of images) {
-        if (img.type === 'image/png') {
-          items.push(createPngItem(img.base64, img.name));
-        } else if (img.type === 'image/gif') {
-          items.push(createGifItem(img.base64, img.name));
-        } else {
-          items.push(createJpegItem(img.base64, img.name));
-        }
-      }
-
-      // 4. 发送
       let txHash = '';
       const target = recipientAddress.trim() || BLACK_HOLE;
 
       if (isSelf) {
-        // 加密发送，使用 sendPersonalNote 发给自己
         txHash = await client.sendPersonalNote(items);
-      } else {
-        if (target.toLowerCase() === BLACK_HOLE.toLowerCase()) {
-          // 公开广播
-          txHash = await client.sendBroadcast(items);
-        } else {
-          // 发送明文消息给特定地址
-          txHash = await client.sendUnencryptedMessage(target, items);
+      } else if (target.toLowerCase() === BLACK_HOLE.toLowerCase()) {
+        txHash = await client.sendBroadcast(items);
+      } else if (encryptEnabled) {
+        if (!recipientPublicKey) {
+          throw new Error(t('send.encryptUnavailableTitle'));
         }
+        txHash = await client.sendP2PMessage(target, recipientPublicKey, items);
+      } else {
+        txHash = await client.sendUnencryptedMessage(target, items);
       }
 
       setLoading(false);
@@ -188,16 +375,27 @@ export default function SendDataScreen() {
         { text: t('common.ok'), onPress: () => navigation.goBack() }
       ]);
 
-      // 清空
       setText('');
       setImages([]);
     } catch (error: any) {
       console.error('Send error:', error);
       setLoading(false);
-      setSnackbarMessage(t('send.sendFailed', { error: error.message }));
+      const message =
+        error?.name === NO_KEYSTORE_ERROR
+          ? t('send.noPrivateKey')
+          : error?.name === INVALID_PASSWORD_ERROR
+            ? t('home.passwordIncorrect')
+            : error.message;
+      setSnackbarMessage(t('send.sendFailed', { error: message }));
       setSnackbarVisible(true);
     }
   };
+
+  const feeDisplay = feeLoading
+    ? t('send.feeEstimating')
+    : feeError || !feeEstimate
+      ? t('send.feeEstimateFailed')
+      : t('send.feeEstimateValue', { fee: feeEstimate });
 
   return (
     <View style={styles.container}>
@@ -216,7 +414,12 @@ export default function SendDataScreen() {
         {images.map((img, index) => (
           <Card key={index} style={styles.imageListItem}>
             <View style={styles.imageCardContent}>
-              <Image source={{ uri: img.uri }} style={styles.thumbnail} />
+              <PlatformImage
+                uri={img.uri}
+                mimeType={img.type}
+                style={styles.thumbnail}
+                resizeMode="contain"
+              />
               <View style={styles.imageInfo}>
                 <Text variant="bodySmall" numberOfLines={1}>
                   {img.name ? img.name : `数据摘要: ${img.base64.substring(0, 20)}...`}
@@ -270,9 +473,34 @@ export default function SendDataScreen() {
           </View>
         </Card>
 
+        {canChooseEncrypt && (
+          <Card style={styles.optionCard}>
+            <Text style={styles.optionTitle}>{t('send.encryptOption')}</Text>
+            <RadioButton.Group
+              onValueChange={(value) => handleEncryptChange(value === 'yes')}
+              value={encryptEnabled ? 'yes' : 'no'}
+            >
+              <RadioButton.Item
+                label={t('send.encryptNo')}
+                value="no"
+                style={styles.radioItem}
+                labelStyle={styles.radioLabel}
+              />
+              <RadioButton.Item
+                label={t('send.encryptYes')}
+                value="yes"
+                style={styles.radioItem}
+                labelStyle={styles.radioLabel}
+              />
+            </RadioButton.Group>
+          </Card>
+        )}
+
         <Button
           mode="contained"
           onPress={handleSend}
+          disabled={pubkeyLookupVisible}
+          loading={pubkeyLookupVisible}
           style={styles.sendButton}
           contentStyle={styles.buttonContent}
         >
@@ -306,14 +534,49 @@ export default function SendDataScreen() {
           </Dialog.Actions>
         </Dialog>
 
-        {/* 发送法律确认 */}
-        <Dialog visible={confirmSendVisible} onDismiss={() => setConfirmSendVisible(false)}>
-          <Dialog.Title>{t('send.safetyTipTitle')}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{t('send.safetyTipMsg')}</Text>
-          </Dialog.Content>
+        {/* 交易确认回显 */}
+        <Dialog visible={confirmSendVisible} onDismiss={closeConfirmDialog}>
+          <Dialog.Title>{t('send.confirmTxTitle')}</Dialog.Title>
+          <Dialog.ScrollArea style={styles.confirmScrollArea}>
+            <ScrollView>
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmLabel}>{t('send.confirmRecipient')}</Text>
+                <Text style={styles.confirmValue} selectable>
+                  {recipientAddress.trim() || BLACK_HOLE}
+                </Text>
+              </View>
+
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmLabel}>{t('send.confirmMode')}</Text>
+                <Text style={styles.confirmValue}>{sendModeLabel}</Text>
+              </View>
+
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmLabel}>{t('send.confirmData')}</Text>
+                <Text style={styles.confirmValue}>{dataSummary}</Text>
+              </View>
+
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmLabel}>{t('send.confirmFee')}</Text>
+                <View style={styles.feeRow}>
+                  {feeLoading && (
+                    <ActivityIndicator size="small" style={styles.feeSpinner} />
+                  )}
+                  <Text style={styles.confirmValue}>{feeDisplay}</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.feeDisclaimer, { color: theme.colors.error }]}>
+                {t('send.feeDisclaimer')}
+              </Text>
+
+              <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant }]}>
+                {t('send.safetyTipMsg')}
+              </Text>
+            </ScrollView>
+          </Dialog.ScrollArea>
           <Dialog.Actions>
-            <Button onPress={() => setConfirmSendVisible(false)}>{t('common.cancel')}</Button>
+            <Button onPress={closeConfirmDialog}>{t('common.cancel')}</Button>
             <Button onPress={startPasswordInput}>{t('wallet.verifyButtonConfirm')}</Button>
           </Dialog.Actions>
         </Dialog>
@@ -325,6 +588,7 @@ export default function SendDataScreen() {
             <PaperTextInput
               label={t('send.passwordLabel')}
               secureTextEntry
+              maxLength={16}
               value={password}
               onChangeText={setPassword}
               autoFocus
@@ -345,6 +609,66 @@ export default function SendDataScreen() {
           <Dialog.Actions>
             <Button onPress={() => setCancelConfirmVisible(false)}>{t('send.continueEdit')}</Button>
             <Button onPress={confirmCancel}>{t('common.ok')}</Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        {/* 查询接收地址公钥 */}
+        <Dialog visible={pubkeyLookupVisible} dismissable={false}>
+          <Dialog.Title>{t('send.pubkeyLookupTitle')}</Dialog.Title>
+          <Dialog.Content>
+            <View style={styles.lookupRow}>
+              <ActivityIndicator size="small" style={styles.feeSpinner} />
+              <Text>{t('send.pubkeyLookupMsg')}</Text>
+            </View>
+          </Dialog.Content>
+        </Dialog>
+
+        {/* 无法从链上找到公钥：可手填 */}
+        <Dialog visible={noPubkeyDialogVisible} dismissable={false}>
+          <Dialog.Title>{t('send.noPubkeyTitle')}</Dialog.Title>
+          <Dialog.ScrollArea style={styles.confirmScrollArea}>
+            <ScrollView>
+              <Text style={styles.dialogBody}>
+                {noPubkeyReason === 'no-history'
+                  ? t('send.noPubkeyMsg')
+                  : t('send.noPubkeyRecoverFailed')}
+              </Text>
+              <Text style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}>
+                {t('send.noPubkeyManualHint')}
+              </Text>
+              <PaperTextInput
+                mode="outlined"
+                multiline
+                placeholder={t('send.noPubkeyPlaceholder')}
+                value={manualPubkey}
+                onChangeText={(value) => {
+                  setManualPubkey(value);
+                  if (manualPubkeyError) setManualPubkeyError('');
+                }}
+                style={styles.pubkeyInput}
+                error={!!manualPubkeyError}
+              />
+              {!!manualPubkeyError && (
+                <Text style={[styles.dialogError, { color: theme.colors.error }]}>
+                  {manualPubkeyError}
+                </Text>
+              )}
+            </ScrollView>
+          </Dialog.ScrollArea>
+          <Dialog.Actions style={styles.dialogActionsWrap}>
+            <Button onPress={handleNoPublicKey}>{t('send.noPubkeyNone')}</Button>
+            <Button onPress={handleManualPubkeyConfirm}>{t('send.noPubkeyConfirm')}</Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        {/* 没有公钥：无法启用加密，返回并取消加密选项 */}
+        <Dialog visible={encryptUnavailableVisible} onDismiss={disableEncryptionAndReturn}>
+          <Dialog.Title>{t('send.encryptUnavailableTitle')}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{t('send.encryptUnavailableMsg')}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={disableEncryptionAndReturn}>{t('common.back')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -434,6 +758,40 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginTop: 4,
   },
+  radioItem: {
+    paddingLeft: 0,
+    paddingVertical: 0,
+  },
+  radioLabel: {
+    fontSize: 14,
+  },
+  lookupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dialogBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  dialogHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  pubkeyInput: {
+    backgroundColor: '#fff',
+    marginBottom: 4,
+  },
+  dialogError: {
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  dialogActionsWrap: {
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
   sendButton: {
     marginTop: 8,
     marginBottom: 12,
@@ -443,5 +801,40 @@ const styles = StyleSheet.create({
   },
   buttonContent: {
     height: 48,
+  },
+  confirmScrollArea: {
+    maxHeight: 360,
+    paddingHorizontal: 0,
+  },
+  confirmRow: {
+    marginBottom: 12,
+  },
+  confirmLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
+    opacity: 0.7,
+  },
+  confirmValue: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  feeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  feeSpinner: {
+    marginRight: 8,
+  },
+  feeDisclaimer: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  safetyTip: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 4,
   },
 });

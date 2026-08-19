@@ -1,9 +1,10 @@
 import { Platform } from 'react-native';
 import { IImagePickerAdapter } from './ImagePickerAdapter';
-import { AndroidImagePickerAdapter } from './android';
-import { IosImagePickerAdapter } from './ios';
-import { MacImagePickerAdapter } from './mac';
-import { WindowsImagePickerAdapter } from './windows';
+import { IImageRendererAdapter } from './ImageRendererAdapter';
+import { AndroidImagePickerAdapter, AndroidImageRendererAdapter } from './android';
+import { IosImagePickerAdapter, IosImageRendererAdapter } from './ios';
+import { MacImagePickerAdapter, MacImageRendererAdapter } from './mac';
+import { WindowsImagePickerAdapter, WindowsImageRendererAdapter } from './windows';
 
 export function getImagePickerAdapter(): IImagePickerAdapter {
   if (Platform.OS === 'android') {
@@ -16,6 +17,19 @@ export function getImagePickerAdapter(): IImagePickerAdapter {
     return WindowsImagePickerAdapter;
   }
 
-  // Default to Android one as it uses standard expo-image-picker
   return AndroidImagePickerAdapter;
+}
+
+export function getImageRendererAdapter(): IImageRendererAdapter {
+  if (Platform.OS === 'android') {
+    return AndroidImageRendererAdapter;
+  } else if (Platform.OS === 'ios') {
+    return IosImageRendererAdapter;
+  } else if (Platform.OS === 'macos') {
+    return MacImageRendererAdapter;
+  } else if (Platform.OS === 'windows') {
+    return WindowsImageRendererAdapter;
+  }
+
+  return AndroidImageRendererAdapter;
 }

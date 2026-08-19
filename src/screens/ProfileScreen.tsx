@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import {
   Text,
@@ -9,10 +9,9 @@ import {
   Modal,
   Portal,
   TextInput,
-  Menu,
-  Divider,
   Avatar,
   Dialog,
+  RadioButton,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -52,11 +51,18 @@ export default function ProfileScreen() {
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isAddressDetailVisible, setIsAddressDetailVisible] = useState(false);
+  const [isLanguageDialogVisible, setIsLanguageDialogVisible] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
-  const [menuVisible, setMenuVisible] = useState(false);
 
-  const openMenu = () => setMenuVisible(true);
-  const closeMenu = () => setMenuVisible(false);
+  const currentLanguage = i18n.language?.startsWith('zh') ? 'zh' : 'en';
+
+  const showLanguageDialog = useCallback(() => {
+    setIsLanguageDialogVisible(true);
+  }, []);
+
+  const hideLanguageDialog = useCallback(() => {
+    setIsLanguageDialogVisible(false);
+  }, []);
 
   const showAddressDetail = useCallback(() => {
     setIsAddressDetailVisible(true);
@@ -69,12 +75,25 @@ export default function ProfileScreen() {
   const changeLanguage = useCallback(async (lng: string) => {
     await i18n.changeLanguage(lng);
     await AsyncStorage.setItem(LANGUAGE_KEY, lng);
-    closeMenu();
-  }, [i18n]);
+    hideLanguageDialog();
+  }, [i18n, hideLanguageDialog]);
 
   const handleAdd = useCallback(() => {
     navigation.navigate('AddInfoSelect');
   }, [navigation]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <IconButton
+          icon="plus"
+          iconColor="#FFFFFF"
+          onPress={handleAdd}
+          accessibilityLabel={t('wallet.selectAddMethod')}
+        />
+      ),
+    });
+  }, [navigation, handleAdd, t]);
 
   const handleEdit = useCallback(() => {
     if (state.profile) {
@@ -117,61 +136,71 @@ export default function ProfileScreen() {
 
         {/* 1. 我的地址信息 */}
         {state.profile ? (
-          <Card
-            style={[styles.card, { backgroundColor: theme.colors.surface }]}
-            mode="elevated"
-            onPress={handleEdit}
-          >
-            <Card.Content style={styles.cardContent}>
-              <View style={styles.row}>
-                <Avatar.Icon
-                  size={48}
-                  icon="account"
-                  style={{ backgroundColor: theme.colors.primaryContainer }}
-                  color={theme.colors.primary}
-                />
-                <View style={styles.cardTextContainer}>
-                  <View style={styles.row}>
-                    <Text
-                      variant="labelMedium"
-                      style={{ color: theme.colors.onSurfaceVariant }}
-                    >
-                      {t('common.address')}
-                    </Text>
-                    {state.profile.walletType && (
-                      <View style={[
-                        styles.typeTag,
-                        { backgroundColor: state.profile.walletType === 'write' ? theme.colors.primaryContainer : theme.colors.secondaryContainer }
-                      ]}>
-                        <Text style={[
-                          styles.typeTagText,
-                          { color: state.profile.walletType === 'write' ? theme.colors.primary : theme.colors.secondary }
+          <>
+            <Card
+              style={[styles.card, { backgroundColor: theme.colors.surface }]}
+              mode="elevated"
+              onPress={handleEdit}
+            >
+              <Card.Content style={styles.cardContent}>
+                <View style={styles.row}>
+                  <Avatar.Icon
+                    size={48}
+                    icon="account"
+                    style={{ backgroundColor: theme.colors.primaryContainer }}
+                    color={theme.colors.primary}
+                  />
+                  <View style={styles.cardTextContainer}>
+                    <View style={styles.row}>
+                      <Text
+                        variant="labelMedium"
+                        style={{ color: theme.colors.onSurfaceVariant }}
+                      >
+                        {t('common.address')}
+                      </Text>
+                      {state.profile.walletType && (
+                        <View style={[
+                          styles.typeTag,
+                          { backgroundColor: state.profile.walletType === 'write' ? theme.colors.primaryContainer : theme.colors.secondaryContainer }
                         ]}>
-                          {state.profile.walletType === 'write' ? t('profile.fullFunction') : t('profile.readOnly')}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text
-                    variant="titleMedium"
-                    style={[styles.addressText, { color: theme.colors.primary }]}
-                  >
-                    {shortenAddress(state.profile.address)}
-                  </Text>
-                  {state.profile.description ? (
+                          <Text style={[
+                            styles.typeTagText,
+                            { color: state.profile.walletType === 'write' ? theme.colors.primary : theme.colors.secondary }
+                          ]}>
+                            {state.profile.walletType === 'write' ? t('profile.fullFunction') : t('profile.readOnly')}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     <Text
-                      variant="bodySmall"
-                      style={{ color: theme.colors.onSurfaceVariant }}
-                      numberOfLines={1}
+                      variant="titleMedium"
+                      style={[styles.addressText, { color: theme.colors.primary }]}
                     >
-                      {state.profile.description}
+                      {shortenAddress(state.profile.address)}
                     </Text>
-                  ) : null}
+                    {state.profile.description ? (
+                      <Text
+                        variant="bodySmall"
+                        style={{ color: theme.colors.onSurfaceVariant }}
+                        numberOfLines={1}
+                      >
+                        {state.profile.description}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <IconButton icon="pencil" onPress={handleEdit} />
                 </View>
-                <IconButton icon="pencil" onPress={handleEdit} />
-              </View>
-            </Card.Content>
-          </Card>
+              </Card.Content>
+            </Card>
+            <Button
+              mode="outlined"
+              icon="shield-key-outline"
+              onPress={handleAdd}
+              style={styles.upgradeButton}
+            >
+              {t('profile.upgradeWallet')}
+            </Button>
+          </>
         ) : (
           <Card
             style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -202,44 +231,34 @@ export default function ProfileScreen() {
 
         {/* 2. 语言选择 */}
         <View style={styles.sectionSpacer} />
-        <Menu
-          visible={menuVisible}
-          onDismiss={closeMenu}
-          anchor={
-            <Card
-              style={[styles.card, { backgroundColor: theme.colors.surface }]}
-              mode="elevated"
-              onPress={openMenu}
-            >
-              <Card.Content style={styles.cardContent}>
-                <View style={styles.row}>
-                  <Avatar.Icon
-                    size={48}
-                    icon="translate"
-                    style={{ backgroundColor: theme.colors.secondaryContainer }}
-                    color={theme.colors.secondary}
-                  />
-                  <View style={styles.cardTextContainer}>
-                    <Text
-                      variant="labelMedium"
-                      style={{ color: theme.colors.onSurfaceVariant }}
-                    >
-                      {t('profile.language')}
-                    </Text>
-                    <Text variant="titleMedium">
-                      {i18n.language === 'zh' ? '简体中文' : 'English'}
-                    </Text>
-                  </View>
-                  <IconButton icon="menu-down" onPress={openMenu} />
-                </View>
-              </Card.Content>
-            </Card>
-          }
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={showLanguageDialog}
         >
-          <Menu.Item onPress={() => changeLanguage('en')} title="English" />
-          <Divider />
-          <Menu.Item onPress={() => changeLanguage('zh')} title="简体中文" />
-        </Menu>
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="translate"
+                style={{ backgroundColor: theme.colors.secondaryContainer }}
+                color={theme.colors.secondary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.language')}
+                </Text>
+                <Text variant="titleMedium">
+                  {currentLanguage === 'zh' ? '简体中文' : 'English'}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={showLanguageDialog} />
+            </View>
+          </Card.Content>
+        </Card>
 
         {/* 3. API Key */}
         <View style={styles.sectionSpacer} />
@@ -310,6 +329,31 @@ export default function ProfileScreen() {
             </Button>
           </View>
         </Modal>
+
+        {/* 语言选择弹窗 */}
+        <Dialog visible={isLanguageDialogVisible} onDismiss={hideLanguageDialog}>
+          <Dialog.Title>{t('profile.selectLanguage')}</Dialog.Title>
+          <Dialog.Content style={styles.languageDialogContent}>
+            <RadioButton.Group
+              onValueChange={changeLanguage}
+              value={currentLanguage}
+            >
+              <RadioButton.Item
+                label="简体中文"
+                value="zh"
+                style={styles.radioItem}
+              />
+              <RadioButton.Item
+                label="English"
+                value="en"
+                style={styles.radioItem}
+              />
+            </RadioButton.Group>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideLanguageDialog}>{t('common.cancel')}</Button>
+          </Dialog.Actions>
+        </Dialog>
 
         {/* 地址详情弹窗 */}
         <Dialog visible={isAddressDetailVisible} onDismiss={hideAddressDetail}>
@@ -384,6 +428,10 @@ const styles = StyleSheet.create({
   sectionSpacer: {
     height: 12,
   },
+  upgradeButton: {
+    marginTop: 12,
+    borderRadius: 12,
+  },
   typeTag: {
     marginLeft: 8,
     paddingHorizontal: 6,
@@ -412,5 +460,13 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     marginLeft: 8,
+  },
+  languageDialogContent: {
+    paddingHorizontal: 8,
+    paddingBottom: 0,
+  },
+  radioItem: {
+    paddingHorizontal: 16,
+    borderRadius: 8,
   },
 });

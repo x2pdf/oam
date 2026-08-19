@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/splashscreen_background">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <ImageView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:src="@drawable/splashscreen_logo"
+            android:contentDescription="App Logo"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:id="@+id/slogan_main"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="OAM"
+            android:textSize="48sp"
+            android:textStyle="bold"
+            android:textColor="@color/slogan_text_color" />
+
+        <TextView
+            android:id="@+id/slogan_sub"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Onchain Forever"
+            android:textSize="20sp"
+            android:textColor="@color/slogan_text_color"
+            android:layout_marginTop="8dp" />
+    </LinearLayout>
+
+</RelativeLayout>

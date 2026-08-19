@@ -6,10 +6,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EthereumWalletManager } from '../wallet/walletManager';
-import { saveWalletSecured } from '../wallet/ethereum'; // Use the helper in ethereum.ts
+import { EthereumWalletManager, encryptWallet, saveEncryptedKeystore } from '../wallet/walletManager';
 import { useAppContext } from '../context/AppContext';
-import { ethers } from 'ethers';
 
 type RoutePropType = RouteProp<RootStackParamList, 'PrivateKeySetup'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -37,8 +35,12 @@ export default function PrivateKeySetupScreen() {
       Alert.alert(t('common.error'), t('form.walletNameMaxLength'));
       return;
     }
-    if (password.length < 4) {
+    if (password.length < 6) {
       Alert.alert(t('common.error'), t('form.payPasswordMinLength'));
+      return;
+    }
+    if (password.length > 16) {
+      Alert.alert(t('common.error'), t('form.payPasswordMaxLength'));
       return;
     }
     if (password !== confirmPassword) {
@@ -48,15 +50,9 @@ export default function PrivateKeySetupScreen() {
 
     setLoading(true);
     try {
-      // 1. Get wallet info
       const walletInfo = EthereumWalletManager.importFromPrivateKey(privateKey);
-
-      // 2. Encrypt private key with password using ethers keystore
-      const ethersWallet = new ethers.Wallet(privateKey);
-      const keystoreJson = await ethersWallet.encrypt(password);
-
-      // 3. Save to SecureStore
-      await saveWalletSecured(keystoreJson, walletInfo.address, name);
+      const keystoreJson = await encryptWallet(walletInfo, password);
+      await saveEncryptedKeystore(keystoreJson);
 
       // 4. Update Profile in Context
       await saveProfile({
@@ -105,6 +101,7 @@ export default function PrivateKeySetupScreen() {
           mode="outlined"
           secureTextEntry
           keyboardType="numeric"
+          maxLength={16}
           placeholder={t('form.payPasswordPlaceholder')}
           style={styles.input}
         />
@@ -116,6 +113,7 @@ export default function PrivateKeySetupScreen() {
           mode="outlined"
           secureTextEntry
           keyboardType="numeric"
+          maxLength={16}
           placeholder={t('form.confirmPayPasswordPlaceholder')}
           style={styles.input}
         />

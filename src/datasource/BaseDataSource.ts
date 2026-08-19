@@ -1,10 +1,11 @@
-import { IDataSource, FetchMode, DataSourceResult } from './types';
+import { IDataSource, FetchMode, DataSourceResult, OutgoingTxResult } from './types';
 
 export abstract class BaseDataSource implements IDataSource {
   abstract name: string;
   abstract weight: number;
 
   abstract fetchMessages(address: string, mode: FetchMode, params?: any): Promise<DataSourceResult>;
+  abstract fetchOutgoingTransactions(address: string, params?: any): Promise<OutgoingTxResult>;
 
   /**
    * 将十六进制字符串转换为 UTF-8 文本 (支持中文/Emoji)

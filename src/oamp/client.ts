@@ -1,10 +1,8 @@
 import {
   Wallet,
   JsonRpcProvider,
-  toUtf8Bytes,
-  toUtf8String,
-  dataSlice,
-  Transaction
+  formatEther,
+  TransactionRequest
 } from "ethers";
 import { MessageType, CryptoScheme, OAMPMessage, DecryptedMessage } from "./types";
 import { serializeMessage, deserializeMessage, getMessageHeader, BLACK_HOLE } from "./protocol";
@@ -18,59 +16,140 @@ import {
   generateNonce
 } from "./crypto";
 
+export type SendMode = "broadcast" | "personal" | "unencrypted" | "p2p";
+
+export interface BuiltTxRequest {
+  to: string;
+  data: string;
+  mode: SendMode;
+}
+
+/** AES-GCM auth tag; ciphertext length = plaintext + this. */
+const AES_GCM_TAG_BYTES = 16;
+
+function preparePayload(content: string | ContentItem[]): Uint8Array {
+  if (typeof content === "string") {
+    return payloadEncode([{ type: "text", content }]);
+  }
+  return payloadEncode(content);
+}
+
+function buildBroadcastTx(content: string | ContentItem[]): BuiltTxRequest {
+  const payload = preparePayload(content);
+  const nonce = generateNonce();
+  const data = serializeMessage(
+    MessageType.BROADCAST,
+    CryptoScheme.NONE,
+    nonce,
+    payload
+  );
+  return { to: BLACK_HOLE, data, mode: "broadcast" };
+}
+
+function buildUnencryptedMessageTx(
+  recipientAddress: string,
+  content: string | ContentItem[]
+): BuiltTxRequest {
+  const payload = preparePayload(content);
+  const nonce = generateNonce();
+  const data = serializeMessage(
+    MessageType.P2P,
+    CryptoScheme.NONE,
+    nonce,
+    payload
+  );
+  return { to: recipientAddress, data, mode: "unencrypted" };
+}
+
+function buildPlaceholderEncryptedTx(
+  type: MessageType.PERSONAL | MessageType.P2P,
+  to: string,
+  content: string | ContentItem[]
+): BuiltTxRequest {
+  const payload = preparePayload(content);
+  const nonce = generateNonce();
+  const dummyCiphertext = new Uint8Array(payload.length + AES_GCM_TAG_BYTES);
+  const data = serializeMessage(type, CryptoScheme.AES_256_GCM, nonce, dummyCiphertext);
+  return {
+    to,
+    data,
+    mode: type === MessageType.PERSONAL ? "personal" : "p2p",
+  };
+}
+
+async function estimateFeeEth(
+  provider: JsonRpcProvider,
+  fromAddress: string,
+  tx: TransactionRequest
+): Promise<string> {
+  const [gasLimit, feeData] = await Promise.all([
+    provider.estimateGas({
+      ...tx,
+      from: fromAddress,
+    }),
+    provider.getFeeData(),
+  ]);
+
+  const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
+  if (!gasPrice) {
+    throw new Error("Unable to fetch gas price");
+  }
+
+  const feeWei = gasLimit * gasPrice;
+  return formatEther(feeWei);
+}
+
+/**
+ * Estimate send fee using only the sender address. Encrypted payloads use
+ * equal-length dummy ciphertext so the private key is never needed.
+ */
+export async function estimateSendFeeFromAddress(
+  fromAddress: string,
+  rpcUrl: string,
+  recipientAddress: string,
+  content: string | ContentItem[],
+  isSelf: boolean,
+  options?: { encrypt?: boolean; recipientPublicKey?: string }
+): Promise<{ feeEth: string; built: BuiltTxRequest }> {
+  const target = recipientAddress.trim() || BLACK_HOLE;
+  let built: BuiltTxRequest;
+
+  if (isSelf) {
+    built = buildPlaceholderEncryptedTx(MessageType.PERSONAL, fromAddress, content);
+  } else if (target.toLowerCase() === BLACK_HOLE.toLowerCase()) {
+    built = buildBroadcastTx(content);
+  } else if (options?.encrypt && options.recipientPublicKey) {
+    built = buildPlaceholderEncryptedTx(MessageType.P2P, target, content);
+  } else {
+    built = buildUnencryptedMessageTx(target, content);
+  }
+
+  const provider = new JsonRpcProvider(rpcUrl);
+  const feeEth = await estimateFeeEth(provider, fromAddress, {
+    to: built.to,
+    data: built.data,
+  });
+  return { feeEth, built };
+}
+
 export class OAMPClient {
   private wallet: Wallet;
-  private provider: JsonRpcProvider;
 
   constructor(privateKey: string, rpcUrl: string) {
-    this.provider = new JsonRpcProvider(rpcUrl);
-    this.wallet = new Wallet(privateKey, this.provider);
+    const provider = new JsonRpcProvider(rpcUrl);
+    this.wallet = new Wallet(privateKey, provider);
   }
 
-  /**
-   * 内部统一处理 Payload 编码
-   */
-  private preparePayload(content: string | ContentItem[]): Uint8Array {
-    if (typeof content === "string") {
-      // 如果是纯字符串，为了规范化，也包装成 ContentItem 进行编码
-      return payloadEncode([{ type: "text", content }]);
-    }
-    return payloadEncode(content);
+  async buildBroadcastTx(content: string | ContentItem[]): Promise<BuiltTxRequest> {
+    return buildBroadcastTx(content);
   }
 
-  /**
-   * Send a public broadcast message (A -> BLACK_HOLE)
-   */
-  async sendBroadcast(content: string | ContentItem[]): Promise<string> {
-    const payload = this.preparePayload(content);
-    // For broadcast, we can use a random nonce as it's unencrypted
-    const nonce = generateNonce();
-
-    const data = serializeMessage(
-      MessageType.BROADCAST,
-      CryptoScheme.NONE,
-      nonce,
-      payload
-    );
-
-    const tx = await this.wallet.sendTransaction({
-      to: BLACK_HOLE,
-      data: data
-    });
-
-    return tx.hash;
-  }
-
-  /**
-   * Send an encrypted personal note (A -> A)
-   */
-  async sendPersonalNote(content: string | ContentItem[]): Promise<string> {
+  async buildPersonalNoteTx(content: string | ContentItem[]): Promise<BuiltTxRequest> {
     const key = await derivePersonalKey(this.wallet);
     const txCount = await this.wallet.getNonce();
     const nonce = generateDeterministicNonce(txCount, this.wallet.address);
-    const payload = this.preparePayload(content);
+    const payload = preparePayload(content);
 
-    // Apply AAD: Header (Magic + Version + Type + Crypto)
     const aad = getMessageHeader(MessageType.PERSONAL, CryptoScheme.AES_256_GCM);
     const ciphertext = await encrypt(key, payload, nonce, aad);
 
@@ -81,24 +160,19 @@ export class OAMPClient {
       ciphertext
     );
 
-    const tx = await this.wallet.sendTransaction({
-      to: this.wallet.address,
-      data: data
-    });
-
-    return tx.hash;
+    return { to: this.wallet.address, data, mode: "personal" };
   }
 
-  /**
-   * Send an end-to-end encrypted message (A -> B)
-   */
-  async sendP2PMessage(recipientAddress: string, recipientPublicKey: string, content: string | ContentItem[]): Promise<string> {
+  async buildP2PMessageTx(
+    recipientAddress: string,
+    recipientPublicKey: string,
+    content: string | ContentItem[]
+  ): Promise<BuiltTxRequest> {
     const sharedKey = deriveSharedSecret(this.wallet.privateKey, recipientPublicKey);
     const txCount = await this.wallet.getNonce();
     const nonce = generateDeterministicNonce(txCount, recipientAddress);
-    const payload = this.preparePayload(content);
+    const payload = preparePayload(content);
 
-    // Apply AAD: Header (Magic + Version + Type + Crypto)
     const aad = getMessageHeader(MessageType.P2P, CryptoScheme.AES_256_GCM);
     const ciphertext = await encrypt(sharedKey, payload, nonce, aad);
 
@@ -109,11 +183,49 @@ export class OAMPClient {
       ciphertext
     );
 
-    const tx = await this.wallet.sendTransaction({
-      to: recipientAddress,
-      data: data
-    });
+    return { to: recipientAddress, data, mode: "p2p" };
+  }
 
+  async buildUnencryptedMessageTx(
+    recipientAddress: string,
+    content: string | ContentItem[]
+  ): Promise<BuiltTxRequest> {
+    return buildUnencryptedMessageTx(recipientAddress, content);
+  }
+
+  /**
+   * Send a public broadcast message (A -> BLACK_HOLE)
+   */
+  async sendBroadcast(content: string | ContentItem[]): Promise<string> {
+    const built = await this.buildBroadcastTx(content);
+    const tx = await this.wallet.sendTransaction({
+      to: built.to,
+      data: built.data
+    });
+    return tx.hash;
+  }
+
+  /**
+   * Send an encrypted personal note (A -> A)
+   */
+  async sendPersonalNote(content: string | ContentItem[]): Promise<string> {
+    const built = await this.buildPersonalNoteTx(content);
+    const tx = await this.wallet.sendTransaction({
+      to: built.to,
+      data: built.data
+    });
+    return tx.hash;
+  }
+
+  /**
+   * Send an end-to-end encrypted message (A -> B)
+   */
+  async sendP2PMessage(recipientAddress: string, recipientPublicKey: string, content: string | ContentItem[]): Promise<string> {
+    const built = await this.buildP2PMessageTx(recipientAddress, recipientPublicKey, content);
+    const tx = await this.wallet.sendTransaction({
+      to: built.to,
+      data: built.data
+    });
     return tx.hash;
   }
 
@@ -121,21 +233,11 @@ export class OAMPClient {
    * Send an unencrypted message to a specific address (A -> B)
    */
   async sendUnencryptedMessage(recipientAddress: string, content: string | ContentItem[]): Promise<string> {
-    const payload = this.preparePayload(content);
-    const nonce = generateNonce();
-
-    const data = serializeMessage(
-      MessageType.P2P,
-      CryptoScheme.NONE,
-      nonce,
-      payload
-    );
-
+    const built = await this.buildUnencryptedMessageTx(recipientAddress, content);
     const tx = await this.wallet.sendTransaction({
-      to: recipientAddress,
-      data: data
+      to: built.to,
+      data: built.data
     });
-
     return tx.hash;
   }
 
@@ -181,7 +283,7 @@ export class OAMPClient {
         recipient: msg.recipient
       };
     } catch (e) {
-      console.error("Decryption failed", e);
+      console.warn("Decryption failed", e);
       return null;
     }
   }
