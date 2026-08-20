@@ -47,6 +47,12 @@ export interface InputDataItem {
   textContent?: string;
 }
 
+/** 本地收藏条目（完整数据快照 + 收藏时间） */
+export interface FavoriteItem {
+  item: InputDataItem;
+  favoritedAt: number;
+}
+
 /** 导航路由参数 */
 export type RootStackParamList = {
   MainTabs: undefined;
@@ -73,7 +79,9 @@ export type RootStackParamList = {
   PrivateKeySetup: { privateKey: string };
   SendData: undefined;
   InputDataDetail: { item: InputDataItem };
-  AddressDataList: { address: string; title?: string };
+  SubscriptionDetail: { subscription: Subscription };
+  AddressDataList: { address: string; title?: string; peerAddress?: string };
+  LocalFavorites: undefined;
 };
 
 export type MainTabParamList = {

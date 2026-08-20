@@ -1,4 +1,4 @@
-package com.onchaindata.app
+package com.oam.app
 
 import android.os.Build
 import android.os.Bundle

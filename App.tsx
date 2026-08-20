@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { useTheme } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import './src/i18n'; // Initialize i18n
@@ -14,7 +13,6 @@ const SPLASH_MIN_DURATION_MS = 2000;
 
 function AppContent() {
   const { state } = useAppContext();
-  const theme = useTheme();
   const [minDurationElapsed, setMinDurationElapsed] = useState(false);
 
   useEffect(() => {
@@ -25,19 +23,19 @@ function AppContent() {
   const showSplash = state.isLoading || !minDurationElapsed;
 
   if (showSplash) {
-    return <SplashScreen isDark={theme.dark} />;
+    return <SplashScreen />;
   }
 
   return (
     <>
-      <StatusBar style={theme.dark ? 'light' : 'dark'} />
+      <StatusBar style="light" />
       <AppNavigator />
     </>
   );
 }
 
 /**
- * Onchain Data — 应用根组件
+ * OAM (Onchain Attachment Message) — 应用根组件
  *
  * Provider 层次（由外到内）：
  *   SafeAreaProvider → ThemeProvider → AppProvider → WalletSessionProvider → AppContent

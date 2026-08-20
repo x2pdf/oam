@@ -1,5 +1,4 @@
 import {
-  JsonRpcProvider,
   Transaction,
   SigningKey,
   computeAddress,
@@ -7,8 +6,8 @@ import {
   TransactionResponse,
   TransactionLike,
 } from "ethers";
-import { DEFAULT_RPC_NODE } from "../config/rpcConfig";
 import { dataSourceManager } from "../datasource/DataSourceManager";
+import { withRpcFallback } from "../rpc/rpcClient";
 
 export type PubKeyLookupResult =
   | { ok: true; publicKey: string }
@@ -61,15 +60,14 @@ function recoverPublicKeyFromTx(tx: TransactionResponse): string | null {
  * 若该地址从未发送过交易（nonce = 0），链上无法还原公钥。
  */
 export async function lookupRecipientPublicKey(
-  address: string,
-  rpcUrl: string = DEFAULT_RPC_NODE
+  address: string
 ): Promise<PubKeyLookupResult> {
   const checksum = getAddress(address);
-  const provider = new JsonRpcProvider(rpcUrl);
 
-  let nonce: number | null = null;
   try {
-    nonce = await provider.getTransactionCount(checksum);
+    const nonce = await withRpcFallback((provider) =>
+      provider.getTransactionCount(checksum)
+    );
     if (nonce === 0) {
       return { ok: false, reason: "no-history" };
     }
@@ -94,8 +92,16 @@ export async function lookupRecipientPublicKey(
 
   for (const hash of hashes.slice(0, MAX_TXS_TO_TRY)) {
     try {
-      const tx = await provider.getTransaction(hash);
-      if (!tx) continue;
+      const tx = await withRpcFallback(
+        async (provider) => {
+          const found = await provider.getTransaction(hash);
+          if (!found) {
+            throw new Error("transaction not found on this node");
+          }
+          return found;
+        },
+        { cycles: 1 }
+      );
       const publicKey = recoverPublicKeyFromTx(tx);
       if (publicKey && computeAddress(publicKey).toLowerCase() === checksum.toLowerCase()) {
         return { ok: true, publicKey };

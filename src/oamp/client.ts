@@ -1,6 +1,5 @@
 import {
   Wallet,
-  JsonRpcProvider,
   formatEther,
   TransactionRequest
 } from "ethers";
@@ -15,6 +14,7 @@ import {
   generateDeterministicNonce,
   generateNonce
 } from "./crypto";
+import { broadcastRawTx, withRpcFallback } from "../rpc/rpcClient";
 
 export type SendMode = "broadcast" | "personal" | "unencrypted" | "p2p";
 
@@ -78,25 +78,26 @@ function buildPlaceholderEncryptedTx(
 }
 
 async function estimateFeeEth(
-  provider: JsonRpcProvider,
   fromAddress: string,
   tx: TransactionRequest
 ): Promise<string> {
-  const [gasLimit, feeData] = await Promise.all([
-    provider.estimateGas({
-      ...tx,
-      from: fromAddress,
-    }),
-    provider.getFeeData(),
-  ]);
+  return withRpcFallback(async (provider) => {
+    const [gasLimit, feeData] = await Promise.all([
+      provider.estimateGas({
+        ...tx,
+        from: fromAddress,
+      }),
+      provider.getFeeData(),
+    ]);
 
-  const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
-  if (!gasPrice) {
-    throw new Error("Unable to fetch gas price");
-  }
+    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
+    if (!gasPrice) {
+      throw new Error("Unable to fetch gas price");
+    }
 
-  const feeWei = gasLimit * gasPrice;
-  return formatEther(feeWei);
+    const feeWei = gasLimit * gasPrice;
+    return formatEther(feeWei);
+  });
 }
 
 /**
@@ -105,7 +106,6 @@ async function estimateFeeEth(
  */
 export async function estimateSendFeeFromAddress(
   fromAddress: string,
-  rpcUrl: string,
   recipientAddress: string,
   content: string | ContentItem[],
   isSelf: boolean,
@@ -124,8 +124,7 @@ export async function estimateSendFeeFromAddress(
     built = buildUnencryptedMessageTx(target, content);
   }
 
-  const provider = new JsonRpcProvider(rpcUrl);
-  const feeEth = await estimateFeeEth(provider, fromAddress, {
+  const feeEth = await estimateFeeEth(fromAddress, {
     to: built.to,
     data: built.data,
   });
@@ -135,9 +134,27 @@ export async function estimateSendFeeFromAddress(
 export class OAMPClient {
   private wallet: Wallet;
 
-  constructor(privateKey: string, rpcUrl: string) {
-    const provider = new JsonRpcProvider(rpcUrl);
-    this.wallet = new Wallet(privateKey, provider);
+  constructor(privateKey: string, _rpcUrl?: string) {
+    this.wallet = new Wallet(privateKey);
+  }
+
+  private async getPendingNonce(): Promise<number> {
+    return withRpcFallback((provider) =>
+      provider.getTransactionCount(this.wallet.address, "pending")
+    );
+  }
+
+  private async sendBuilt(built: BuiltTxRequest, nonce?: number): Promise<string> {
+    const populated = await withRpcFallback(async (provider) => {
+      const connected = this.wallet.connect(provider);
+      return connected.populateTransaction({
+        to: built.to,
+        data: built.data,
+        ...(nonce !== undefined ? { nonce } : {}),
+      });
+    });
+    const signed = await this.wallet.signTransaction(populated);
+    return broadcastRawTx(signed);
   }
 
   async buildBroadcastTx(content: string | ContentItem[]): Promise<BuiltTxRequest> {
@@ -145,8 +162,15 @@ export class OAMPClient {
   }
 
   async buildPersonalNoteTx(content: string | ContentItem[]): Promise<BuiltTxRequest> {
+    const txCount = await this.getPendingNonce();
+    return this.buildPersonalNoteTxFromNonce(content, txCount);
+  }
+
+  private async buildPersonalNoteTxFromNonce(
+    content: string | ContentItem[],
+    txCount: number
+  ): Promise<BuiltTxRequest> {
     const key = await derivePersonalKey(this.wallet);
-    const txCount = await this.wallet.getNonce();
     const nonce = generateDeterministicNonce(txCount, this.wallet.address);
     const payload = preparePayload(content);
 
@@ -168,8 +192,17 @@ export class OAMPClient {
     recipientPublicKey: string,
     content: string | ContentItem[]
   ): Promise<BuiltTxRequest> {
+    const txCount = await this.getPendingNonce();
+    return this.buildP2PMessageTxFromNonce(recipientAddress, recipientPublicKey, content, txCount);
+  }
+
+  private async buildP2PMessageTxFromNonce(
+    recipientAddress: string,
+    recipientPublicKey: string,
+    content: string | ContentItem[],
+    txCount: number
+  ): Promise<BuiltTxRequest> {
     const sharedKey = deriveSharedSecret(this.wallet.privateKey, recipientPublicKey);
-    const txCount = await this.wallet.getNonce();
     const nonce = generateDeterministicNonce(txCount, recipientAddress);
     const payload = preparePayload(content);
 
@@ -198,35 +231,30 @@ export class OAMPClient {
    */
   async sendBroadcast(content: string | ContentItem[]): Promise<string> {
     const built = await this.buildBroadcastTx(content);
-    const tx = await this.wallet.sendTransaction({
-      to: built.to,
-      data: built.data
-    });
-    return tx.hash;
+    return this.sendBuilt(built);
   }
 
   /**
    * Send an encrypted personal note (A -> A)
    */
   async sendPersonalNote(content: string | ContentItem[]): Promise<string> {
-    const built = await this.buildPersonalNoteTx(content);
-    const tx = await this.wallet.sendTransaction({
-      to: built.to,
-      data: built.data
-    });
-    return tx.hash;
+    const txCount = await this.getPendingNonce();
+    const built = await this.buildPersonalNoteTxFromNonce(content, txCount);
+    return this.sendBuilt(built, txCount);
   }
 
   /**
    * Send an end-to-end encrypted message (A -> B)
    */
   async sendP2PMessage(recipientAddress: string, recipientPublicKey: string, content: string | ContentItem[]): Promise<string> {
-    const built = await this.buildP2PMessageTx(recipientAddress, recipientPublicKey, content);
-    const tx = await this.wallet.sendTransaction({
-      to: built.to,
-      data: built.data
-    });
-    return tx.hash;
+    const txCount = await this.getPendingNonce();
+    const built = await this.buildP2PMessageTxFromNonce(
+      recipientAddress,
+      recipientPublicKey,
+      content,
+      txCount
+    );
+    return this.sendBuilt(built, txCount);
   }
 
   /**
@@ -234,11 +262,7 @@ export class OAMPClient {
    */
   async sendUnencryptedMessage(recipientAddress: string, content: string | ContentItem[]): Promise<string> {
     const built = await this.buildUnencryptedMessageTx(recipientAddress, content);
-    const tx = await this.wallet.sendTransaction({
-      to: built.to,
-      data: built.data
-    });
-    return tx.hash;
+    return this.sendBuilt(built);
   }
 
   /**

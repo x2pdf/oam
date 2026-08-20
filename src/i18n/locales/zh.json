@@ -46,7 +46,10 @@
     "privateKeySetup": "钱包设定",
     "sendData": "发送数据",
     "inputDataDetail": "数据详情",
-    "addressDataList": "地址数据"
+    "subscriptionDetail": "订阅详情",
+    "addressDataList": "地址数据",
+    "conversation": "双方对话",
+    "localFavorites": "我的本地收藏"
   },
   "home": {
     "tabs": {
@@ -81,7 +84,16 @@
   },
   "subscriptions": {
     "noSubscriptions": "暂无订阅",
-    "addHint": "点击右下角 + 添加订阅地址"
+    "addHint": "点击右下角 + 添加订阅地址",
+    "viewAllData": "查看全部收发",
+    "viewConversation": "查看双方对话",
+    "myAddress": "我的地址",
+    "needProfileForConversation": "请先在「我的」页面填写当前地址，才能查看双方对话。"
+  },
+  "favorites": {
+    "empty": "暂无本地收藏",
+    "emptyHint": "浏览数据详情时点击「收藏」，即可保存在本机",
+    "count": "{{count}} 条"
   },
   "detail": {
     "txHash": "交易哈希",
@@ -91,12 +103,17 @@
     "addresses": "地址",
     "from": "发送方",
     "to": "接收方",
-    "content": "内容"
+    "content": "内容",
+    "favorite": "收藏",
+    "unfavorite": "取消收藏",
+    "favorited": "已加入本地收藏",
+    "unfavorited": "已取消收藏"
   },
   "profile": {
     "addHint": "点击右上角 + 添加个人信息",
     "language": "语言",
     "selectLanguage": "选择语言",
+    "localFavorites": "我的本地收藏",
     "appearance": "外观",
     "selectAppearance": "选择外观",
     "themeLight": "浅色",
@@ -219,10 +236,11 @@
     "title": "发送数据",
     "inputPlaceholder": "输入要上链的文本…",
     "addImage": "添加图片",
-    "addImageHint": "支持 JPEG / PNG / GIF",
+    "addImageHint": "支持 JPEG / PNG / GIF，可从相册或文件选择",
     "contentTitle": "内容",
     "recipientTitle": "发送至",
     "recipientSelf": "自己",
+    "recipientBlackHole": "黑洞地址",
     "recipientBroadcast": "公开",
     "recipientCustom": "自定义",
     "recipientPlaceholder": "输入 0x 接收地址",
@@ -277,17 +295,22 @@
     "balanceValue": "约 {{balance}} ETH",
     "insufficientBalance": "余额不足，无法支付预估手续费。请先充值后再试。",
     "feeDisclaimer": "应用本身不收取任何费用。发送数据可能产生额外且可能超高的区块链网络手续费，金额随网络拥堵与数据量变化。建议使用小资金账户以控制意外风险。",
+    "submitNotMinedDisclaimer": "应用在 RPC 节点收下交易并返回哈希后即提示已提交，不保证交易一定会被打包上链。网络拥堵、节点未继续广播等都可能导致交易长时间等待或最终失败。请自行用哈希在区块浏览器核对状态。",
     "passwordTitle": "输入支付密码",
     "passwordLabel": "支付密码",
-    "sendSuccess": "发送成功",
+    "sendSuccess": "已提交（节点已收下）",
     "sendFailed": "发送失败: {{error}}",
     "sendFailedRetry": "发送失败: {{error}}（还可重试 {{remaining}} 次）",
     "networkFaultTitle": "网络异常",
-    "networkFaultMsg": "已连续多次发送失败，可能是网络故障。请检查网络连接后稍后再试。",
+    "networkFaultMsg": "所有 RPC 节点均不可用，本次发送失败。请检查网络连接后稍后再试。",
     "txHash": "交易哈希: {{hash}}",
+    "submitNotMinedHint": "上链结果请以区块浏览器为准。",
     "confirmCancelTitle": "确认取消",
     "confirmCancelMsg": "确定要取消吗？这将会清空已输入的数据。",
     "continueEdit": "继续编辑",
+    "pickImageSourceTitle": "选择图片来源",
+    "pickImageFromLibrary": "相册",
+    "pickImageFromFiles": "文件",
     "pickImageFailed": "选择图片失败",
     "noPrivateKey": "未找到钱包私钥，请重新导入钱包"
   }

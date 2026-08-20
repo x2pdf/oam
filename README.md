@@ -88,7 +88,7 @@ src/
 
 ```bash
 git clone <project-url>
-cd onchaindata
+cd oam
 npm install
 ```
 
@@ -123,7 +123,7 @@ npm run android
 - **TYPE**: `0` 广播, `1` 个人, `2` P2P
 - **CRYPTO**: `0` 无, `1` AES-256-GCM
 
-详细文档请参考 [src/oamp/README.md](file:///Users/megan/code/onchaindata/src/oamp/README.md)。
+详细文档请参考 [src/oamp/README.md](src/oamp/README.md)。
 
 ---
 

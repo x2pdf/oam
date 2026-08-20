@@ -10,10 +10,10 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text, useTheme, Button, Snackbar, FAB, Portal, Dialog, TextInput as PaperTextInput } from 'react-native-paper';
+import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import PagerView from 'react-native-pager-view';
+import TabPager, { TabPagerRef } from '../components/TabPager';
 import { useTranslation } from 'react-i18next';
 import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
@@ -34,6 +34,8 @@ import {
   INVALID_PASSWORD_ERROR,
   NO_KEYSTORE_ERROR,
 } from '../wallet/session';
+import { AppModal } from '../components/AppModal';
+import { getHeaderChrome } from '../theme';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -67,9 +69,14 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const { state } = useAppContext();
   const { t } = useTranslation();
-  const { apiKey, profile, subscriptions } = state;
+  const { apiKey, profile, subscriptions, isLoading: contextLoading } = state;
   const { unlocked, unlock, lock } = useWalletSession();
   const isWriteWallet = profile?.walletType === 'write';
+
+  const headerChrome = getHeaderChrome(theme);
+  const tabActiveColor = theme.dark ? theme.colors.onSurface : '#FFFFFF';
+  const tabInactiveColor = theme.dark ? theme.colors.onSurfaceVariant : 'rgba(255, 255, 255, 0.7)';
+  const tabIndicatorColor = theme.dark ? theme.colors.primary : '#FFFFFF';
 
   const TABS = useMemo(() => [
     t('home.tabs.square'),
@@ -79,7 +86,7 @@ export default function HomeScreen() {
   ], [t]);
 
   const [activeTab, setActiveTab] = useState(0);
-  const pagerRef = useRef<PagerView>(null);
+  const pagerRef = useRef<TabPagerRef>(null);
   const activeTabRef = useRef(0);
   const isWriteWalletRef = useRef(isWriteWallet);
   const skipAutoPromptRef = useRef(false);
@@ -92,8 +99,8 @@ export default function HomeScreen() {
   const [squareData, setSquareData] = useState<InputDataItem[]>([]);
   const [sentData, setSentData] = useState<InputDataItem[]>([]);
   const [inboxData, setInboxData] = useState<InputDataItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState([false, false, false, false]);
+  const [refreshing, setRefreshing] = useState([false, false, false, false]);
   const [loadingMore, setLoadingMore] = useState([false, false, false, false]);
   const [hasMore, setHasMore] = useState([true, true, true, true]);
   const [error, setError] = useState<string | null>(null);
@@ -105,10 +112,11 @@ export default function HomeScreen() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
 
-  // 使用 Ref 存储分页参数和状态，避免 loadData 频繁变动导致 useFocusEffect 循环触发
+  // 使用 Ref 存储分页参数和状态，避免 loadData 身份变化触发重复请求
   const nextPageParamsRef = useRef<any[]>([null, null, null, null]);
   const hasMoreRef = useRef<boolean[]>([true, true, true, true]);
   const loadingMoreRef = useRef<boolean[]>([false, false, false, false]);
+  const initialLoadDoneRef = useRef(false);
 
   const cardWidth = screenWidth - 32;
 
@@ -122,7 +130,11 @@ export default function HomeScreen() {
     if (isLoadMore && (!hasMoreRef.current[tabIndex] || loadingMoreRef.current[tabIndex])) return;
 
     if (isRefreshing) {
-      setRefreshing(true);
+      setRefreshing((prev) => {
+        const next = [...prev];
+        next[tabIndex] = true;
+        return next;
+      });
       // 下拉刷新重置分页
       nextPageParamsRef.current[tabIndex] = null;
       hasMoreRef.current[tabIndex] = true;
@@ -139,7 +151,11 @@ export default function HomeScreen() {
         return next;
       });
     } else {
-      setLoading(true);
+      setLoading((prev) => {
+        const next = [...prev];
+        next[tabIndex] = true;
+        return next;
+      });
       // 初次加载重置分页
       nextPageParamsRef.current[tabIndex] = null;
       hasMoreRef.current[tabIndex] = true;
@@ -280,8 +296,16 @@ export default function HomeScreen() {
         setError(err.message || t('common.errorFetch'));
       }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoading((prev) => {
+        const next = [...prev];
+        next[tabIndex] = false;
+        return next;
+      });
+      setRefreshing((prev) => {
+        const next = [...prev];
+        next[tabIndex] = false;
+        return next;
+      });
       loadingMoreRef.current[tabIndex] = false;
       setLoadingMore(prev => {
         const next = [...prev];
@@ -403,13 +427,18 @@ export default function HomeScreen() {
     setPasswordError(null);
   };
 
+  useEffect(() => {
+    if (contextLoading || initialLoadDoneRef.current) return;
+    initialLoadDoneRef.current = true;
+    loadData(0);
+    loadData(1);
+    loadData(2);
+    loadData(3);
+  }, [contextLoading, loadData]);
+
   useFocusEffect(
     useCallback(() => {
       homeFocusedRef.current = true;
-      loadData(0);
-      loadData(1);
-      loadData(2);
-      loadData(3);
       if (
         activeTabRef.current === SELF_TAB_INDEX &&
         isWriteWalletRef.current &&
@@ -428,7 +457,7 @@ export default function HomeScreen() {
           lock();
         }
       };
-    }, [loadData, lock]),
+    }, [lock]),
   );
 
   const onTabPress = (index: number) => {
@@ -516,7 +545,7 @@ export default function HomeScreen() {
       );
     }
 
-    if (loading && !refreshing && (isSelfList || isSquareList || isSentList || isInboxList)) {
+    if (loading[tabIndex] && !refreshing[tabIndex] && data.length === 0) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -535,7 +564,7 @@ export default function HomeScreen() {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={refreshing[tabIndex]}
             onRefresh={() => loadData(tabIndex, true)}
             colors={[theme.colors.primary]}
             enabled={true}
@@ -613,23 +642,23 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} translucent />
+      <StatusBar barStyle="light-content" backgroundColor={headerChrome.backgroundColor} translucent />
       {/* 自定义 TabBar */}
-      <View style={{ backgroundColor: theme.colors.primary, paddingTop: insets.top }}>
-        <View style={[styles.tabBar, { backgroundColor: theme.colors.primary, borderBottomColor: theme.colors.outline + '20' }]}>
+      <View style={{ backgroundColor: headerChrome.backgroundColor, paddingTop: insets.top }}>
+        <View style={[styles.tabBar, { backgroundColor: headerChrome.backgroundColor, borderBottomColor: theme.colors.outline + '20' }]}>
           {TABS.map((tab, index) => (
             <TouchableOpacity
               key={index}
               onPress={() => onTabPress(index)}
               style={[
                 styles.tabItem,
-                activeTab === index && { borderBottomColor: '#FFFFFF' },
+                activeTab === index && { borderBottomColor: tabIndicatorColor },
               ]}
             >
               <Text
                 style={[
                   styles.tabText,
-                  { color: activeTab === index ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)' },
+                  { color: activeTab === index ? tabActiveColor : tabInactiveColor },
                   activeTab === index && styles.activeTabText,
                 ]}
               >
@@ -640,7 +669,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <PagerView
+      <TabPager
         ref={pagerRef}
         style={styles.pagerView}
         initialPage={0}
@@ -650,7 +679,7 @@ export default function HomeScreen() {
         <View key="2">{renderList(sentData, 1)}</View>
         <View key="3">{renderList(inboxData, 2)}</View>
         <View key="4">{renderList(selfData, 3)}</View>
-      </PagerView>
+      </TabPager>
 
       {error && (
         <View style={[styles.errorBar, { backgroundColor: theme.colors.errorContainer }]}>
@@ -678,50 +707,49 @@ export default function HomeScreen() {
         {snackbarMessage}
       </Snackbar>
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
-          <Dialog.Title>{t('common.tip')}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">
-              {t('home.readOnlyWalletTip')}
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)}>{t('common.ok')}</Button>
-          </Dialog.Actions>
-        </Dialog>
+      <AppModal
+        visible={dialogVisible}
+        onDismiss={() => setDialogVisible(false)}
+        title={t('common.tip')}
+        actions={[{ label: t('common.ok'), onPress: () => setDialogVisible(false) }]}
+      >
+        <Text variant="bodyMedium">
+          {t('home.readOnlyWalletTip')}
+        </Text>
+      </AppModal>
 
-        <Dialog visible={passwordVisible} onDismiss={dismissPasswordDialog} dismissable={!unlocking}>
-          <Dialog.Title>{t('send.passwordTitle')}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium" style={{ marginBottom: 12 }}>
-              {t('home.unlockHint')}
-            </Text>
-            <PaperTextInput
-              label={t('send.passwordLabel')}
-              secureTextEntry
-              maxLength={16}
-              value={password}
-              onChangeText={(value) => {
-                setPassword(value);
-                if (passwordError) setPasswordError(null);
-              }}
-              autoFocus
-              error={!!passwordError}
-              disabled={unlocking}
-            />
-            {passwordError ? (
-              <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 8 }}>
-                {passwordError}
-              </Text>
-            ) : null}
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button disabled={unlocking} onPress={dismissPasswordDialog}>{t('common.cancel')}</Button>
-            <Button loading={unlocking} disabled={unlocking} onPress={handleUnlock}>{t('common.ok')}</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <AppModal
+        visible={passwordVisible}
+        onDismiss={dismissPasswordDialog}
+        dismissable={!unlocking}
+        title={t('send.passwordTitle')}
+        actions={[
+          { label: t('common.cancel'), onPress: dismissPasswordDialog, disabled: unlocking },
+          { label: t('common.ok'), onPress: handleUnlock, loading: unlocking, disabled: unlocking },
+        ]}
+      >
+        <Text variant="bodyMedium" style={{ marginBottom: 12 }}>
+          {t('home.unlockHint')}
+        </Text>
+        <PaperTextInput
+          label={t('send.passwordLabel')}
+          secureTextEntry
+          maxLength={16}
+          value={password}
+          onChangeText={(value) => {
+            setPassword(value);
+            if (passwordError) setPasswordError(null);
+          }}
+          autoFocus
+          error={!!passwordError}
+          disabled={unlocking}
+        />
+        {passwordError ? (
+          <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 8 }}>
+            {passwordError}
+          </Text>
+        ) : null}
+      </AppModal>
 
       <FAB
         icon="plus"

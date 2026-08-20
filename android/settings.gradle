@@ -40,7 +40,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'OnchainData'
+rootProject.name = 'OAM'
 
 expoAutolinking.useExpoVersionCatalog()
 

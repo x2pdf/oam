@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <resources>
-  <color name="splashscreen_background">#FFFFFF</color>
-  <color name="slogan_text_color">#4A90D9</color>
+  <color name="splashscreen_background">#1DA1F2</color>
+  <color name="ic_launcher_background_color">#FFFFFF</color>
+  <color name="slogan_text_color">#FFFFFF</color>
+  <color name="slogan_sub_text_color">#D9FFFFFF</color>
 </resources>

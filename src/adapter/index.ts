@@ -15,6 +15,8 @@ export function getImagePickerAdapter(): IImagePickerAdapter {
     return MacImagePickerAdapter;
   } else if (Platform.OS === 'windows') {
     return WindowsImagePickerAdapter;
+  } else if (Platform.OS === 'web') {
+    return AndroidImagePickerAdapter;
   }
 
   return AndroidImagePickerAdapter;
@@ -29,6 +31,8 @@ export function getImageRendererAdapter(): IImageRendererAdapter {
     return MacImageRendererAdapter;
   } else if (Platform.OS === 'windows') {
     return WindowsImageRendererAdapter;
+  } else if (Platform.OS === 'web') {
+    return AndroidImageRendererAdapter;
   }
 
   return AndroidImageRendererAdapter;

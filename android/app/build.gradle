@@ -40,9 +40,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.onchaindata.app"
+    namespace "com.oam.app"
     defaultConfig {
-        applicationId "com.onchaindata.app"
+        applicationId "com.oam.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PaperProvider, MD3Theme } from 'react-native-paper';
 import { lightTheme, darkTheme } from '../theme';
 import { STORAGE_KEYS } from '../constants';
+import { migrateLegacyStorage } from '../storage/migrate';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -33,6 +34,7 @@ export const ThemeProvider: React.FC<Props> = ({ children }) => {
   useEffect(() => {
     (async () => {
       try {
+        await migrateLegacyStorage();
         const saved = await AsyncStorage.getItem(STORAGE_KEYS.THEME);
         if (saved === 'light' || saved === 'dark') {
           setThemeModeState(saved);

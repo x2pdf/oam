@@ -1,42 +1,36 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import {
   Text,
   Button,
   useTheme,
   Card,
   IconButton,
-  Portal,
-  Dialog,
-  TextInput as PaperTextInput,
+  TextInput,
   Snackbar,
   ActivityIndicator,
   RadioButton,
+  HelperText,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR } from '../wallet/session';
-import { isAddress, JsonRpcProvider, parseEther, formatEther } from 'ethers';
+import { isAddress, parseEther, formatEther } from 'ethers';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
 import { ContentItem, createJpegItem, createPngItem, createGifItem } from '../mypayload';
 import { estimateSendFeeFromAddress, OAMPClient } from '../oamp/client';
 import { BLACK_HOLE } from '../oamp/protocol';
-import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
 import {
   lookupRecipientPublicKey,
   normalizePublicKeyInput,
   publicKeyMatchesAddress,
 } from '../oamp/recoverPublicKey';
+import { AppModal } from '../components/AppModal';
+import { AllRpcFailedError, withRpcFallback } from '../rpc/rpcClient';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -50,11 +44,15 @@ interface ImageItem {
 }
 
 const DATA_PREVIEW_MAX = 80;
-const MAX_SEND_ATTEMPTS = 3;
+
+function wrapLongHex(value: string): string {
+  return value.replace(/(.{8})/g, '$1\u200b');
+}
 
 export default function SendDataScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { state } = useAppContext();
   const { profile } = state;
@@ -116,6 +114,7 @@ export default function SendDataScreen() {
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
   const [password, setPassword] = useState('');
   const [imageNameDialogVisible, setImageNameDialogVisible] = useState(false);
+  const [imageSourceDialogVisible, setImageSourceDialogVisible] = useState(false);
   const [currentPickingImage, setCurrentPickingImage] = useState<ImageItem | null>(null);
 
   const [feeEstimate, setFeeEstimate] = useState<string | null>(null);
@@ -124,7 +123,6 @@ export default function SendDataScreen() {
   const [feeEstimatePubKey, setFeeEstimatePubKey] = useState<string | null | undefined>(undefined);
   const [balanceEth, setBalanceEth] = useState<string | null>(null);
   const [insufficientBalance, setInsufficientBalance] = useState(false);
-  const [sendAttemptCount, setSendAttemptCount] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -200,11 +198,9 @@ export default function SendDataScreen() {
       const items = buildContentItems();
       const target = recipientAddress.trim() || BLACK_HOLE;
       const resolvedKey = pubKey ?? recipientPublicKey;
-      const provider = new JsonRpcProvider(DEFAULT_RPC_NODE);
       const [{ feeEth }, balanceWei] = await Promise.all([
         estimateSendFeeFromAddress(
           fromAddress,
-          DEFAULT_RPC_NODE,
           target,
           items,
           isSelf,
@@ -213,7 +209,7 @@ export default function SendDataScreen() {
             recipientPublicKey: resolvedKey || undefined,
           },
         ),
-        provider.getBalance(fromAddress),
+        withRpcFallback((provider) => provider.getBalance(fromAddress)),
       ]);
       setFeeEstimate(feeEth);
       setBalanceEth(formatEther(balanceWei));
@@ -268,19 +264,33 @@ export default function SendDataScreen() {
     setEncryptUnavailableVisible(true);
   };
 
-  const pickImage = async () => {
+  const applyPickedImage = (result: {
+    uri: string;
+    base64: string;
+    name?: string;
+    type: ImageItem['type'];
+  }) => {
+    setCurrentPickingImage({
+      uri: result.uri,
+      base64: result.base64,
+      name: result.name,
+      type: result.type,
+    });
+    setImageNameDialogVisible(true);
+  };
+
+  const pickImageFromSource = async (source: 'library' | 'files') => {
+    setImageSourceDialogVisible(false);
+    await new Promise((resolve) => setTimeout(resolve, 100));
     try {
       const adapter = getImagePickerAdapter();
-      const result = await adapter.pickImage();
+      const result =
+        source === 'files'
+          ? await adapter.pickImageFromFiles()
+          : await adapter.pickImage();
 
       if (result) {
-        setCurrentPickingImage({
-          uri: result.uri,
-          base64: result.base64,
-          name: result.name,
-          type: result.type,
-        });
-        setImageNameDialogVisible(true);
+        applyPickedImage(result);
       }
     } catch (error) {
       console.error('Pick image error:', error);
@@ -335,7 +345,7 @@ export default function SendDataScreen() {
       if (!recipientPublicKey) {
         setPubkeyLookupVisible(true);
         try {
-          const result = await lookupRecipientPublicKey(target, DEFAULT_RPC_NODE);
+          const result = await lookupRecipientPublicKey(target);
           setPubkeyLookupVisible(false);
           if (result.ok) {
             setRecipientPublicKey(result.publicKey);
@@ -364,7 +374,6 @@ export default function SendDataScreen() {
   const startPasswordInput = () => {
     if (!canConfirmSend) return;
     closeConfirmDialog();
-    setSendAttemptCount(0);
     setPasswordVisible(true);
   };
 
@@ -378,7 +387,7 @@ export default function SendDataScreen() {
     setLoading(true);
     try {
       const wallet = await unlockSession(password);
-      const client = new OAMPClient(wallet.privateKey, DEFAULT_RPC_NODE);
+      const client = new OAMPClient(wallet.privateKey);
       const items = buildContentItems();
 
       let txHash = '';
@@ -399,10 +408,13 @@ export default function SendDataScreen() {
 
       setLoading(false);
       setPasswordVisible(false);
-      setSendAttemptCount(0);
-      Alert.alert(t('send.sendSuccess'), t('send.txHash', { hash: txHash }), [
-        { text: t('common.ok'), onPress: () => navigation.goBack() }
-      ]);
+      Alert.alert(
+        t('send.sendSuccess'),
+        `${t('send.txHash', { hash: txHash })}\n\n${t('send.submitNotMinedHint')}`,
+        [
+          { text: t('common.ok'), onPress: () => navigation.goBack() }
+        ]
+      );
 
       setText('');
       setImages([]);
@@ -416,33 +428,22 @@ export default function SendDataScreen() {
             ? t('home.passwordIncorrect')
             : error.message;
 
-      const isRetryableFailure =
-        error?.name !== NO_KEYSTORE_ERROR && error?.name !== INVALID_PASSWORD_ERROR;
+      const isAuthError =
+        error?.name === NO_KEYSTORE_ERROR || error?.name === INVALID_PASSWORD_ERROR;
 
-      if (isRetryableFailure) {
-        const nextAttempt = sendAttemptCount + 1;
-        setSendAttemptCount(nextAttempt);
-        if (nextAttempt >= MAX_SEND_ATTEMPTS) {
-          Alert.alert(t('send.networkFaultTitle'), t('send.networkFaultMsg'), [
-            {
-              text: t('common.ok'),
-              onPress: () => {
-                setPasswordVisible(false);
-                setSendAttemptCount(0);
-              },
+      if (!isAuthError && (error instanceof AllRpcFailedError || error?.name === 'AllRpcFailedError')) {
+        Alert.alert(t('send.networkFaultTitle'), t('send.networkFaultMsg'), [
+          {
+            text: t('common.ok'),
+            onPress: () => {
+              setPasswordVisible(false);
             },
-          ]);
-          return;
-        }
-        setSnackbarMessage(
-          t('send.sendFailedRetry', {
-            error: message,
-            remaining: MAX_SEND_ATTEMPTS - nextAttempt,
-          }),
-        );
-      } else {
-        setSnackbarMessage(t('send.sendFailed', { error: message }));
+          },
+        ]);
+        return;
       }
+
+      setSnackbarMessage(t('send.sendFailed', { error: message }));
       setSnackbarVisible(true);
     }
   };
@@ -461,20 +462,42 @@ export default function SendDataScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Card style={styles.inputCard}>
-          <TextInput
-            style={[styles.textInput, { color: theme.colors.onSurface }]}
-            multiline
-            placeholder={t('send.inputPlaceholder')}
-            value={text}
-            onChangeText={setText}
-            placeholderTextColor={theme.colors.onSurfaceVariant}
-          />
-        </Card>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <Text
+          variant="labelLarge"
+          style={[styles.fieldLabel, { color: theme.colors.onSurface }]}
+        >
+          {t('send.contentTitle')}
+        </Text>
+        <TextInput
+          mode="outlined"
+          placeholder={t('send.inputPlaceholder')}
+          value={text}
+          onChangeText={setText}
+          multiline
+          numberOfLines={6}
+          blurOnSubmit={false}
+          scrollEnabled={false}
+          style={styles.textArea}
+          contentStyle={styles.textAreaContent}
+          outlineColor={theme.colors.outline}
+          activeOutlineColor={theme.colors.primary}
+        />
+        <HelperText type="info" visible style={styles.counter}>
+          {t('send.charCount', { count: text.length })}
+        </HelperText>
 
         {images.map((img, index) => (
-          <Card key={index} style={styles.imageListItem}>
+          <Card
+            key={index}
+            mode="elevated"
+            style={[styles.imageListItem, { backgroundColor: theme.colors.surface }]}
+          >
             <View style={styles.imageCardContent}>
               <PlatformImage
                 uri={img.uri}
@@ -483,8 +506,10 @@ export default function SendDataScreen() {
                 resizeMode="contain"
               />
               <View style={styles.imageInfo}>
-                <Text variant="bodySmall" numberOfLines={1}>
-                  {img.name ? img.name : `数据摘要: ${img.base64.substring(0, 20)}...`}
+                <Text variant="bodySmall" numberOfLines={2}>
+                  {img.name
+                    ? img.name
+                    : `${t('send.imageDigest')}: ${img.base64.substring(0, 20)}...`}
                 </Text>
               </View>
               <IconButton icon="close" size={20} onPress={() => removeImage(index)} />
@@ -492,52 +517,72 @@ export default function SendDataScreen() {
           </Card>
         ))}
 
-        <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
-          <Card style={[styles.addImageCard, { borderColor: theme.colors.outline }]}>
-            <View style={styles.addImageContent}>
-              <IconButton icon="image-plus" size={24} />
-              <Text>{t('send.addImage')}</Text>
-            </View>
-          </Card>
-        </TouchableOpacity>
+        <Button
+          mode="outlined"
+          icon="image-plus"
+          onPress={() => setImageSourceDialogVisible(true)}
+          style={styles.addImageButton}
+        >
+          {t('send.addImage')}
+        </Button>
+        <HelperText type="info" visible>
+          {t('send.addImageHint')}
+        </HelperText>
 
-        <Card style={styles.optionCard}>
-          <Text style={styles.optionTitle}>接收地址</Text>
-          <PaperTextInput
+        <Text
+          variant="labelLarge"
+          style={[styles.fieldLabel, styles.sectionLabel, { color: theme.colors.onSurface }]}
+        >
+          {t('send.confirmRecipient')}
+        </Text>
+        <TextInput
+          mode="outlined"
+          placeholder={t('send.recipientPlaceholder')}
+          value={recipientAddress}
+          onChangeText={setRecipientAddress}
+          multiline
+          numberOfLines={2}
+          scrollEnabled={false}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          spellCheck={false}
+          style={styles.input}
+          contentStyle={styles.addressContent}
+          outlineColor={theme.colors.outline}
+          activeOutlineColor={theme.colors.primary}
+        />
+        <View style={styles.shortcutRow}>
+          <Button
             mode="outlined"
-            placeholder="0x..."
-            value={recipientAddress}
-            onChangeText={setRecipientAddress}
-            style={styles.addressInput}
-            dense
-          />
-          <View style={styles.shortcutRow}>
+            compact
+            onPress={() => setRecipientAddress(BLACK_HOLE)}
+            style={styles.shortcutButton}
+            labelStyle={styles.shortcutLabel}
+          >
+            {t('send.recipientBlackHole')}
+          </Button>
+          {profile?.address && (
             <Button
               mode="outlined"
               compact
-              onPress={() => setRecipientAddress(BLACK_HOLE)}
+              onPress={() => setRecipientAddress(profile.address)}
               style={styles.shortcutButton}
-              labelStyle={{ fontSize: 12 }}
+              labelStyle={styles.shortcutLabel}
             >
-              黑洞地址
+              {t('send.recipientSelf')}
             </Button>
-            {profile?.address && (
-              <Button
-                mode="outlined"
-                compact
-                onPress={() => setRecipientAddress(profile.address)}
-                style={styles.shortcutButton}
-                labelStyle={{ fontSize: 12 }}
-              >
-                自己
-              </Button>
-            )}
-          </View>
-        </Card>
+          )}
+        </View>
 
         {canChooseEncrypt && (
-          <Card style={styles.optionCard}>
-            <Text style={styles.optionTitle}>{t('send.encryptOption')}</Text>
+          <View style={styles.encryptSection}>
+            <Text
+              variant="labelLarge"
+              style={[styles.fieldLabel, { color: theme.colors.onSurface }]}
+            >
+              {t('send.encryptOption')}
+            </Text>
             <RadioButton.Group
               onValueChange={(value) => handleEncryptChange(value === 'yes')}
               value={encryptEnabled ? 'yes' : 'no'}
@@ -555,235 +600,268 @@ export default function SendDataScreen() {
                 labelStyle={styles.radioLabel}
               />
             </RadioButton.Group>
-          </Card>
+          </View>
         )}
 
-        <Button
-          mode="contained"
-          onPress={handleSend}
-          disabled={pubkeyLookupVisible}
-          loading={pubkeyLookupVisible}
-          style={styles.sendButton}
-          contentStyle={styles.buttonContent}
-        >
-          {t('send.sendButton')}
-        </Button>
-
-        <Button
-          mode="outlined"
-          onPress={handleCancel}
-          style={styles.cancelButton}
-          contentStyle={styles.buttonContent}
-        >
-          {t('common.cancel')}
-        </Button>
+        <View style={styles.buttonGroup}>
+          <Button
+            mode="contained"
+            onPress={handleSend}
+            disabled={pubkeyLookupVisible}
+            loading={pubkeyLookupVisible}
+            style={styles.button}
+            buttonColor={theme.colors.primary}
+            contentStyle={styles.buttonContent}
+          >
+            {t('send.sendButton')}
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={handleCancel}
+            style={styles.button}
+            contentStyle={styles.buttonContent}
+          >
+            {t('common.cancel')}
+          </Button>
+        </View>
       </ScrollView>
 
-      {/* Dialogs */}
-      <Portal>
-        {/* 图片名称确认 */}
-        <Dialog visible={imageNameDialogVisible} onDismiss={() => setImageNameDialogVisible(false)}>
-          <Dialog.Title>{t('send.imageNameDialogTitle')}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{t('send.imageNameDialogMsg')}</Text>
-            {currentPickingImage?.name && (
-              <Text style={{ marginTop: 8, fontWeight: 'bold' }}>{currentPickingImage.name}</Text>
-            )}
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => handleImageNameConfirm(false)}>{t('send.imageNameDialogNo')}</Button>
-            <Button onPress={() => handleImageNameConfirm(true)}>{t('send.imageNameDialogYes')}</Button>
-          </Dialog.Actions>
-        </Dialog>
-
-        {/* 交易确认回显 */}
-        <Dialog visible={confirmSendVisible} onDismiss={closeConfirmDialog}>
-          <Dialog.Title>{t('send.confirmTxTitle')}</Dialog.Title>
-          <Dialog.ScrollArea style={styles.confirmScrollArea}>
-            <ScrollView>
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>{t('send.confirmRecipient')}</Text>
-                <Text style={styles.confirmValue} selectable>
-                  {recipientAddress.trim() || BLACK_HOLE}
-                </Text>
-              </View>
-
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>{t('send.confirmMode')}</Text>
-                <Text style={styles.confirmValue}>{sendModeLabel}</Text>
-              </View>
-
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>{t('send.confirmData')}</Text>
-                <Text style={styles.confirmValue}>{dataSummary}</Text>
-              </View>
-
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>{t('send.confirmBalance')}</Text>
-                <View style={styles.feeRow}>
-                  {feeLoading && (
-                    <ActivityIndicator size="small" style={styles.feeSpinner} />
-                  )}
-                  <Text style={styles.confirmValue}>{balanceDisplay}</Text>
-                </View>
-              </View>
-
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>{t('send.confirmFee')}</Text>
-                <View style={styles.feeRow}>
-                  {feeLoading && (
-                    <ActivityIndicator size="small" style={styles.feeSpinner} />
-                  )}
-                  <Text style={styles.confirmValue}>{feeDisplay}</Text>
-                </View>
-              </View>
-
-              {insufficientBalance && (
-                <Text style={[styles.confirmWarning, { color: theme.colors.error }]}>
-                  {t('send.insufficientBalance')}
-                </Text>
-              )}
-
-              {feeError && !feeLoading && (
-                <>
-                  <Text style={[styles.confirmWarning, { color: theme.colors.error }]}>
-                    {t('send.feeEstimateFailedHint')}
-                  </Text>
-                  <Button
-                    mode="outlined"
-                    compact
-                    onPress={retryFeeEstimate}
-                    style={styles.feeRetryButton}
-                  >
-                    {t('send.feeRetry')}
-                  </Button>
-                </>
-              )}
-
-              <Text style={[styles.feeDisclaimer, { color: theme.colors.error }]}>
-                {t('send.feeDisclaimer')}
-              </Text>
-
-              <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant }]}>
-                {t('send.safetyTipMsg')}
-              </Text>
-            </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={closeConfirmDialog}>{t('common.cancel')}</Button>
-            <Button onPress={startPasswordInput} disabled={!canConfirmSend}>
-              {t('wallet.verifyButtonConfirm')}
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-
-        {/* 支付密码输入 */}
-        <Dialog
-          visible={passwordVisible}
-          onDismiss={() => {
-            if (!loading) {
-              setPasswordVisible(false);
-              setSendAttemptCount(0);
-            }
+      <AppModal
+        visible={imageSourceDialogVisible}
+        onDismiss={() => setImageSourceDialogVisible(false)}
+        title={t('send.pickImageSourceTitle')}
+      >
+        <Button
+          mode="outlined"
+          icon="image"
+          onPress={() => {
+            void pickImageFromSource('library');
           }}
+          style={styles.sourceButton}
         >
-          <Dialog.Title>{t('send.passwordTitle')}</Dialog.Title>
-          <Dialog.Content>
-            <PaperTextInput
-              label={t('send.passwordLabel')}
-              secureTextEntry
-              maxLength={16}
-              value={password}
-              onChangeText={setPassword}
-              autoFocus
-            />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button
-              disabled={loading}
-              onPress={() => {
-                setPasswordVisible(false);
-                setSendAttemptCount(0);
-              }}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button loading={loading} disabled={loading} onPress={executeSend}>{t('common.ok')}</Button>
-          </Dialog.Actions>
-        </Dialog>
+          {t('send.pickImageFromLibrary')}
+        </Button>
+        <Button
+          mode="outlined"
+          icon="folder-open-outline"
+          onPress={() => {
+            void pickImageFromSource('files');
+          }}
+          style={styles.sourceButton}
+        >
+          {t('send.pickImageFromFiles')}
+        </Button>
+      </AppModal>
 
-        {/* 取消确认 */}
-        <Dialog visible={cancelConfirmVisible} onDismiss={() => setCancelConfirmVisible(false)}>
-          <Dialog.Title>{t('send.confirmCancelTitle')}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{t('send.confirmCancelMsg')}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setCancelConfirmVisible(false)}>{t('send.continueEdit')}</Button>
-            <Button onPress={confirmCancel}>{t('common.ok')}</Button>
-          </Dialog.Actions>
-        </Dialog>
+      <AppModal
+        visible={imageNameDialogVisible}
+        onDismiss={() => setImageNameDialogVisible(false)}
+        title={t('send.imageNameDialogTitle')}
+        actions={[
+          { label: t('send.imageNameDialogNo'), onPress: () => handleImageNameConfirm(false) },
+          { label: t('send.imageNameDialogYes'), onPress: () => handleImageNameConfirm(true) },
+        ]}
+      >
+        <Text>{t('send.imageNameDialogMsg')}</Text>
+        {currentPickingImage?.name && (
+          <Text style={{ marginTop: 8, fontWeight: 'bold' }}>{currentPickingImage.name}</Text>
+        )}
+      </AppModal>
 
-        {/* 查询接收地址公钥 */}
-        <Dialog visible={pubkeyLookupVisible} dismissable={false}>
-          <Dialog.Title>{t('send.pubkeyLookupTitle')}</Dialog.Title>
-          <Dialog.Content>
-            <View style={styles.lookupRow}>
+      <AppModal
+        visible={confirmSendVisible}
+        onDismiss={closeConfirmDialog}
+        title={t('send.confirmTxTitle')}
+        scrollable
+        actions={[
+          { label: t('common.cancel'), onPress: closeConfirmDialog },
+          {
+            label: t('wallet.verifyButtonConfirm'),
+            onPress: startPasswordInput,
+            disabled: !canConfirmSend,
+          },
+        ]}
+      >
+        <View style={styles.confirmRow}>
+          <Text style={styles.confirmLabel}>{t('send.confirmRecipient')}</Text>
+          <Text style={[styles.confirmValue, styles.addressText]} selectable>
+            {wrapLongHex(recipientAddress.trim() || BLACK_HOLE)}
+          </Text>
+        </View>
+
+        <View style={styles.confirmRow}>
+          <Text style={styles.confirmLabel}>{t('send.confirmMode')}</Text>
+          <Text style={styles.confirmValue}>{sendModeLabel}</Text>
+        </View>
+
+        <View style={styles.confirmRow}>
+          <Text style={styles.confirmLabel}>{t('send.confirmData')}</Text>
+          <Text style={styles.confirmValue}>{dataSummary}</Text>
+        </View>
+
+        <View style={styles.confirmRow}>
+          <Text style={styles.confirmLabel}>{t('send.confirmBalance')}</Text>
+          <View style={styles.feeRow}>
+            {feeLoading && (
               <ActivityIndicator size="small" style={styles.feeSpinner} />
-              <Text>{t('send.pubkeyLookupMsg')}</Text>
-            </View>
-          </Dialog.Content>
-        </Dialog>
+            )}
+            <Text style={styles.confirmValue}>{balanceDisplay}</Text>
+          </View>
+        </View>
 
-        {/* 无法从链上找到公钥：可手填 */}
-        <Dialog visible={noPubkeyDialogVisible} dismissable={false}>
-          <Dialog.Title>{t('send.noPubkeyTitle')}</Dialog.Title>
-          <Dialog.ScrollArea style={styles.confirmScrollArea}>
-            <ScrollView>
-              <Text style={styles.dialogBody}>
-                {noPubkeyReason === 'no-history'
-                  ? t('send.noPubkeyMsg')
-                  : t('send.noPubkeyRecoverFailed')}
-              </Text>
-              <Text style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}>
-                {t('send.noPubkeyManualHint')}
-              </Text>
-              <PaperTextInput
-                mode="outlined"
-                multiline
-                placeholder={t('send.noPubkeyPlaceholder')}
-                value={manualPubkey}
-                onChangeText={(value) => {
-                  setManualPubkey(value);
-                  if (manualPubkeyError) setManualPubkeyError('');
-                }}
-                style={styles.pubkeyInput}
-                error={!!manualPubkeyError}
-              />
-              {!!manualPubkeyError && (
-                <Text style={[styles.dialogError, { color: theme.colors.error }]}>
-                  {manualPubkeyError}
-                </Text>
-              )}
-            </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions style={styles.dialogActionsWrap}>
-            <Button onPress={handleNoPublicKey}>{t('send.noPubkeyNone')}</Button>
-            <Button onPress={handleManualPubkeyConfirm}>{t('send.noPubkeyConfirm')}</Button>
-          </Dialog.Actions>
-        </Dialog>
+        <View style={styles.confirmRow}>
+          <Text style={styles.confirmLabel}>{t('send.confirmFee')}</Text>
+          <View style={styles.feeRow}>
+            {feeLoading && (
+              <ActivityIndicator size="small" style={styles.feeSpinner} />
+            )}
+            <Text style={styles.confirmValue}>{feeDisplay}</Text>
+          </View>
+        </View>
 
-        {/* 没有公钥：无法启用加密，返回并取消加密选项 */}
-        <Dialog visible={encryptUnavailableVisible} onDismiss={disableEncryptionAndReturn}>
-          <Dialog.Title>{t('send.encryptUnavailableTitle')}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{t('send.encryptUnavailableMsg')}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={disableEncryptionAndReturn}>{t('common.back')}</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+        {insufficientBalance && (
+          <Text style={[styles.confirmWarning, { color: theme.colors.error }]}>
+            {t('send.insufficientBalance')}
+          </Text>
+        )}
+
+        {feeError && !feeLoading && (
+          <>
+            <Text style={[styles.confirmWarning, { color: theme.colors.error }]}>
+              {t('send.feeEstimateFailedHint')}
+            </Text>
+            <Button
+              mode="outlined"
+              compact
+              onPress={retryFeeEstimate}
+              style={styles.feeRetryButton}
+            >
+              {t('send.feeRetry')}
+            </Button>
+          </>
+        )}
+
+        <Text style={[styles.feeDisclaimer, { color: theme.colors.error }]}>
+          {t('send.feeDisclaimer')}
+        </Text>
+
+        <Text style={[styles.feeDisclaimer, { color: theme.colors.error }]}>
+          {t('send.submitNotMinedDisclaimer')}
+        </Text>
+
+        <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant }]}>
+          {t('send.safetyTipMsg')}
+        </Text>
+      </AppModal>
+
+      <AppModal
+        visible={passwordVisible}
+        onDismiss={() => {
+          if (!loading) {
+            setPasswordVisible(false);
+          }
+        }}
+        dismissable={!loading}
+        title={t('send.passwordTitle')}
+        actions={[
+          {
+            label: t('common.cancel'),
+            disabled: loading,
+            onPress: () => {
+              setPasswordVisible(false);
+            },
+          },
+          {
+            label: t('common.ok'),
+            onPress: executeSend,
+            loading,
+            disabled: loading,
+          },
+        ]}
+      >
+        <TextInput
+          mode="outlined"
+          label={t('send.passwordLabel')}
+          secureTextEntry
+          maxLength={16}
+          value={password}
+          onChangeText={setPassword}
+          autoFocus
+          outlineColor={theme.colors.outline}
+          activeOutlineColor={theme.colors.primary}
+        />
+      </AppModal>
+
+      <AppModal
+        visible={cancelConfirmVisible}
+        onDismiss={() => setCancelConfirmVisible(false)}
+        title={t('send.confirmCancelTitle')}
+        actions={[
+          { label: t('send.continueEdit'), onPress: () => setCancelConfirmVisible(false) },
+          { label: t('common.ok'), onPress: confirmCancel },
+        ]}
+      >
+        <Text>{t('send.confirmCancelMsg')}</Text>
+      </AppModal>
+
+      <AppModal
+        visible={pubkeyLookupVisible}
+        dismissable={false}
+        title={t('send.pubkeyLookupTitle')}
+      >
+        <View style={styles.lookupRow}>
+          <ActivityIndicator size="small" style={styles.feeSpinner} />
+          <Text>{t('send.pubkeyLookupMsg')}</Text>
+        </View>
+      </AppModal>
+
+      <AppModal
+        visible={noPubkeyDialogVisible}
+        dismissable={false}
+        title={t('send.noPubkeyTitle')}
+        scrollable
+        actions={[
+          { label: t('send.noPubkeyNone'), onPress: handleNoPublicKey },
+          { label: t('send.noPubkeyConfirm'), onPress: handleManualPubkeyConfirm },
+        ]}
+      >
+        <Text style={styles.dialogBody}>
+          {noPubkeyReason === 'no-history'
+            ? t('send.noPubkeyMsg')
+            : t('send.noPubkeyRecoverFailed')}
+        </Text>
+        <Text style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}>
+          {t('send.noPubkeyManualHint')}
+        </Text>
+        <TextInput
+          mode="outlined"
+          multiline
+          placeholder={t('send.noPubkeyPlaceholder')}
+          value={manualPubkey}
+          onChangeText={(value) => {
+            setManualPubkey(value);
+            if (manualPubkeyError) setManualPubkeyError('');
+          }}
+          style={styles.pubkeyInput}
+          error={!!manualPubkeyError}
+          outlineColor={theme.colors.outline}
+          activeOutlineColor={theme.colors.primary}
+        />
+        {!!manualPubkeyError && (
+          <Text style={[styles.dialogError, { color: theme.colors.error }]}>
+            {manualPubkeyError}
+          </Text>
+        )}
+      </AppModal>
+
+      <AppModal
+        visible={encryptUnavailableVisible}
+        onDismiss={disableEncryptionAndReturn}
+        title={t('send.encryptUnavailableTitle')}
+        actions={[{ label: t('common.back'), onPress: disableEncryptionAndReturn }]}
+      >
+        <Text>{t('send.encryptUnavailableMsg')}</Text>
+      </AppModal>
 
       <Snackbar
         visible={snackbarVisible}
@@ -800,34 +878,44 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
+  content: {
     padding: 16,
+    paddingBottom: 40,
   },
-  inputCard: {
-    minHeight: 150,
-    maxHeight: 300,
-    marginBottom: 16,
-    padding: 8,
+  fieldLabel: {
+    marginBottom: 6,
+    fontWeight: '600',
   },
-  textInput: {
-    flex: 1,
-    fontSize: 16,
+  sectionLabel: {
+    marginTop: 16,
+  },
+  input: {
+    marginBottom: 0,
+  },
+  textArea: {
+    minHeight: 140,
+  },
+  textAreaContent: {
+    minHeight: 120,
     textAlignVertical: 'top',
+    paddingTop: 8,
+  },
+  addressContent: {
+    minHeight: 48,
+    textAlignVertical: 'top',
+    paddingTop: 8,
+  },
+  counter: {
+    textAlign: 'right',
+    fontSize: 12,
   },
   addImageButton: {
-    marginBottom: 16,
+    marginTop: 4,
+    borderRadius: 8,
   },
-  addImageCard: {
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    backgroundColor: 'transparent',
-    elevation: 0,
-  },
-  addImageContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+  sourceButton: {
+    marginTop: 8,
+    borderRadius: 8,
   },
   imageListItem: {
     marginBottom: 8,
@@ -846,25 +934,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
   },
-  optionCard: {
-    padding: 16,
-    marginBottom: 16,
-  },
-  optionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  addressInput: {
-    marginBottom: 8,
-  },
   shortcutRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    marginTop: 8,
   },
   shortcutButton: {
     marginRight: 8,
     marginTop: 4,
+    borderRadius: 8,
+  },
+  shortcutLabel: {
+    fontSize: 12,
+  },
+  encryptSection: {
+    marginTop: 16,
   },
   radioItem: {
     paddingLeft: 0,
@@ -872,6 +956,16 @@ const styles = StyleSheet.create({
   },
   radioLabel: {
     fontSize: 14,
+  },
+  buttonGroup: {
+    marginTop: 32,
+    gap: 12,
+  },
+  button: {
+    borderRadius: 8,
+  },
+  buttonContent: {
+    paddingVertical: 4,
   },
   lookupRow: {
     flexDirection: 'row',
@@ -895,24 +989,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 8,
   },
-  dialogActionsWrap: {
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-  },
-  sendButton: {
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  cancelButton: {
-    marginBottom: 24,
-  },
-  buttonContent: {
-    height: 48,
-  },
-  confirmScrollArea: {
-    maxHeight: 360,
-    paddingHorizontal: 0,
-  },
   confirmRow: {
     marginBottom: 12,
   },
@@ -925,6 +1001,11 @@ const styles = StyleSheet.create({
   confirmValue: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  addressText: {
+    width: '100%',
+    flexShrink: 1,
+    fontFamily: 'monospace',
   },
   feeRow: {
     flexDirection: 'row',

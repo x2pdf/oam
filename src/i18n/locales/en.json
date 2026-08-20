@@ -46,7 +46,10 @@
     "privateKeySetup": "Private Key Setup",
     "sendData": "Send Data",
     "inputDataDetail": "Data Detail",
-    "addressDataList": "Address Data"
+    "subscriptionDetail": "Subscription Detail",
+    "addressDataList": "Address Data",
+    "conversation": "Conversation",
+    "localFavorites": "Local Favorites"
   },
   "home": {
     "tabs": {
@@ -81,7 +84,16 @@
   },
   "subscriptions": {
     "noSubscriptions": "No subscriptions yet",
-    "addHint": "Tap + to add a subscription address"
+    "addHint": "Tap + to add a subscription address",
+    "viewAllData": "View all sent & received",
+    "viewConversation": "View conversation",
+    "myAddress": "My address",
+    "needProfileForConversation": "Please set your address in Profile before viewing the conversation."
+  },
+  "favorites": {
+    "empty": "No local favorites yet",
+    "emptyHint": "Open a data detail page and tap Favorite to save it on this device",
+    "count": "{{count}} items"
   },
   "detail": {
     "txHash": "Transaction Hash",
@@ -91,12 +103,17 @@
     "addresses": "Addresses",
     "from": "From",
     "to": "To",
-    "content": "Content"
+    "content": "Content",
+    "favorite": "Favorite",
+    "unfavorite": "Remove Favorite",
+    "favorited": "Saved to local favorites",
+    "unfavorited": "Removed from favorites"
   },
   "profile": {
     "addHint": "Tap the + button to add profile info",
     "language": "Language",
     "selectLanguage": "Select Language",
+    "localFavorites": "Local Favorites",
     "appearance": "Appearance",
     "selectAppearance": "Select Appearance",
     "themeLight": "Light",
@@ -219,10 +236,11 @@
     "title": "Send Data",
     "inputPlaceholder": "Write the text to put on-chain…",
     "addImage": "Add image",
-    "addImageHint": "JPEG / PNG / GIF",
+    "addImageHint": "JPEG / PNG / GIF. Choose from library or files.",
     "contentTitle": "Content",
     "recipientTitle": "Send to",
     "recipientSelf": "Myself",
+    "recipientBlackHole": "Black hole",
     "recipientBroadcast": "Public",
     "recipientCustom": "Custom",
     "recipientPlaceholder": "Enter 0x recipient address",
@@ -277,17 +295,22 @@
     "balanceValue": "Approx. {{balance}} ETH",
     "insufficientBalance": "Insufficient balance to cover the estimated fee. Please add funds and try again.",
     "feeDisclaimer": "This app charges no fees. Sending data may incur additional and potentially very high blockchain network fees, which vary with congestion and data size. Use a small-balance account to limit unexpected risk.",
+    "submitNotMinedDisclaimer": "The app reports submitted once an RPC node accepts the transaction and returns a hash. This does not guarantee that the transaction will be mined. Congestion or a node that does not gossip the transaction may leave it pending or dropped. Check the hash on a block explorer.",
     "passwordTitle": "Enter Payment Password",
     "passwordLabel": "Payment Password",
-    "sendSuccess": "Sent successfully",
+    "sendSuccess": "Submitted (accepted by node)",
     "sendFailed": "Send failed: {{error}}",
     "sendFailedRetry": "Send failed: {{error}} ({{remaining}} retries left)",
     "networkFaultTitle": "Network error",
-    "networkFaultMsg": "Multiple send attempts failed. This may be a network issue. Check your connection and try again later.",
+    "networkFaultMsg": "All RPC nodes are unavailable. This send failed. Check your connection and try again later.",
     "txHash": "Transaction Hash: {{hash}}",
+    "submitNotMinedHint": "On-chain inclusion is not guaranteed; check a block explorer for the final status.",
     "confirmCancelTitle": "Confirm Cancel",
     "confirmCancelMsg": "Are you sure you want to cancel? This will clear the entered data.",
     "continueEdit": "Continue Editing",
+    "pickImageSourceTitle": "Choose image source",
+    "pickImageFromLibrary": "Photo library",
+    "pickImageFromFiles": "Files",
     "pickImageFailed": "Failed to pick image",
     "noPrivateKey": "Private key not found, please re-import wallet"
   }

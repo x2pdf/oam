@@ -8,9 +8,10 @@ const PlatformImage = getImageRendererAdapter().Image;
 
 interface Props {
   items: ContentItem[];
+  selectable?: boolean;
 }
 
-export const RichContentRenderer: React.FC<Props> = ({ items }) => {
+export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false }) => {
   const theme = useTheme();
 
   return (
@@ -22,6 +23,7 @@ export const RichContentRenderer: React.FC<Props> = ({ items }) => {
               key={index}
               variant="bodyMedium"
               style={[styles.preText, { color: theme.colors.onSurface }]}
+              selectable={selectable}
             >
               {item.content}
             </Text>

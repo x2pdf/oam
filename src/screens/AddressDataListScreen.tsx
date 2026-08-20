@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -11,7 +11,6 @@ import { Text, useTheme, Snackbar } from 'react-native-paper';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
-import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList, InputDataItem } from '../types';
 import { dataSourceManager } from '../datasource/DataSourceManager';
 import { applyDisplayPipeline, markAllRaw } from '../display';
@@ -22,6 +21,31 @@ import { useAppContext } from '../context/AppContext';
 type RouteProps = RouteProp<RootStackParamList, 'AddressDataList'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
+const MAX_PAGES_PER_LOAD = 10;
+
+function isBetweenAddresses(
+  item: InputDataItem,
+  addrA: string,
+  addrB: string,
+): boolean {
+  const from = (item.from || '').toLowerCase();
+  const to = (item.to || '').toLowerCase();
+  return (from === addrA && to === addrB) || (from === addrB && to === addrA);
+}
+
+function sortByTimeDesc(items: InputDataItem[]): InputDataItem[] {
+  return items.sort(
+    (a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime(),
+  );
+}
+
+function mergeById(prev: InputDataItem[], next: InputDataItem[]): InputDataItem[] {
+  const map = new Map<string, InputDataItem>();
+  prev.forEach((i) => map.set(i.id, i));
+  next.forEach((i) => map.set(i.id, i));
+  return sortByTimeDesc(Array.from(map.values()));
+}
+
 export default function AddressDataListScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -29,7 +53,7 @@ export default function AddressDataListScreen() {
   const navigation = useNavigation<NavProp>();
   const { width: screenWidth } = useWindowDimensions();
   const { state } = useAppContext();
-  const { address, title } = route.params;
+  const { address, title, peerAddress } = route.params;
 
   const [data, setData] = useState<InputDataItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +68,59 @@ export default function AddressDataListScreen() {
   const loadingMoreRef = useRef(false);
 
   const cardWidth = screenWidth - 32;
+  const conversationMode = !!peerAddress;
+
+  const processItems = useCallback(
+    async (items: InputDataItem[]): Promise<InputDataItem[]> => {
+      try {
+        return await applyDisplayPipeline(items, {
+          userAddress: state.profile?.address,
+          client: null,
+        });
+      } catch {
+        return markAllRaw(items);
+      }
+    },
+    [state.profile?.address],
+  );
+
+  const filterConversation = useCallback(
+    (items: InputDataItem[]): InputDataItem[] => {
+      if (!peerAddress) return items;
+      const a = address.toLowerCase();
+      const b = peerAddress.toLowerCase();
+      return items.filter((item) => isBetweenAddresses(item, a, b));
+    },
+    [address, peerAddress],
+  );
+
+  /**
+   * 拉取一页或多页（对话模式下若过滤后为空则自动续拉），返回处理后的条目。
+   */
+  const fetchPages = useCallback(
+    async (startParams: any): Promise<{ items: InputDataItem[]; nextParams: any }> => {
+      let pageParams = startParams;
+      let collected: InputDataItem[] = [];
+      let pages = 0;
+
+      do {
+        const result = await dataSourceManager.fetchAll(address, 'all', pageParams);
+        const processed = await processItems(result.items);
+        const filtered = filterConversation(processed);
+        collected = collected.concat(filtered);
+        pageParams = result.next_page_params ?? null;
+        pages += 1;
+
+        // 非对话模式：只拉一页；对话模式：过滤后为空且还有下一页则继续
+        if (!conversationMode) break;
+        if (collected.length > 0) break;
+        if (!pageParams) break;
+      } while (pages < MAX_PAGES_PER_LOAD);
+
+      return { items: collected, nextParams: pageParams };
+    },
+    [address, conversationMode, filterConversation, processItems],
+  );
 
   const loadData = useCallback(
     async (isRefreshing = false, isLoadMore = false) => {
@@ -67,42 +144,19 @@ export default function AddressDataListScreen() {
       setError(null);
 
       try {
-        const result = await dataSourceManager.fetchAll(
-          address,
-          'all',
-          nextPageParamsRef.current,
+        const { items, nextParams } = await fetchPages(
+          isLoadMore ? nextPageParamsRef.current : null,
         );
 
-        let processedItems: InputDataItem[];
-        try {
-          processedItems = await applyDisplayPipeline(result.items, {
-            userAddress: state.profile?.address,
-            client: null,
-          });
-        } catch {
-          processedItems = markAllRaw(result.items);
-        }
-
         if (isLoadMore) {
-          setData((prev) => {
-            const map = new Map<string, InputDataItem>();
-            prev.forEach((i) => map.set(i.id, i));
-            processedItems.forEach((i) => map.set(i.id, i));
-            return Array.from(map.values()).sort(
-              (a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime(),
-            );
-          });
+          setData((prev) => mergeById(prev, items));
         } else {
-          setData(
-            processedItems.sort(
-              (a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime(),
-            ),
-          );
+          setData(sortByTimeDesc([...items]));
         }
 
-        nextPageParamsRef.current = result.next_page_params;
-        hasMoreRef.current = !!result.next_page_params;
-        setHasMore(!!result.next_page_params);
+        nextPageParamsRef.current = nextParams;
+        hasMoreRef.current = !!nextParams;
+        setHasMore(!!nextParams);
       } catch (err: any) {
         setError(err.message || t('common.errorFetch'));
       } finally {
@@ -112,14 +166,19 @@ export default function AddressDataListScreen() {
         setLoadingMore(false);
       }
     },
-    [address, state.profile?.address, t],
+    [fetchPages, t],
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData]),
-  );
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData;
+
+  useEffect(() => {
+    setData([]);
+    nextPageParamsRef.current = null;
+    hasMoreRef.current = true;
+    setHasMore(true);
+    loadDataRef.current();
+  }, [address, peerAddress]);
 
   const showCopiedSnackbar = useCallback(() => {
     setSnackbarVisible(true);
@@ -177,7 +236,13 @@ export default function AddressDataListScreen() {
           <View style={styles.header}>
             {title ? (
               <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 8 }}>
-                {title}
+                {conversationMode
+                  ? t('nav.conversation')
+                  : title}
+              </Text>
+            ) : conversationMode ? (
+              <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 8 }}>
+                {t('nav.conversation')}
               </Text>
             ) : null}
             <AddressWithActions
@@ -187,6 +252,15 @@ export default function AddressDataListScreen() {
               onCopied={showCopiedSnackbar}
               showInfo={false}
             />
+            {conversationMode && peerAddress ? (
+              <AddressWithActions
+                address={peerAddress}
+                label={t('subscriptions.myAddress')}
+                showFullAddress
+                onCopied={showCopiedSnackbar}
+                showInfo={false}
+              />
+            ) : null}
             <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
               {t('home.totalItems', { count: data.length })}
             </Text>

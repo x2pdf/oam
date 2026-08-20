@@ -102,8 +102,8 @@ npm install -D @tauri-apps/cli@^2
 
 ```powershell
 npx tauri init --ci `
-  --app-name OnchainData `
-  --window-title "Onchain Data" `
+  --app-name OAM `
+  --window-title "OAM" `
   --frontend-dist ../dist `
   --dev-url http://localhost:19006 `
   --before-dev-command "npm run web" `
@@ -114,9 +114,9 @@ npx tauri init --ci `
 
 ```json
 {
-  "productName": "OnchainData",
+  "productName": "OAM",
   "version": "0.1.0",
-  "identifier": "com.onchaindata.app",
+  "identifier": "com.oam.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:19006",
@@ -130,7 +130,7 @@ npx tauri init --ci `
 }
 ```
 
-`identifier` 与现有 `app.json` 里的 `com.onchaindata.app` 保持一致即可。`targets: ["nsis"]` 表示只打 Windows 安装包。
+`identifier` 与现有 `src-tauri/tauri.conf.json` 里的 `com.oam.desktop` 保持一致即可。`targets: ["nsis"]` 表示只打 Windows 安装包。
 
 默认会生成 `src-tauri/icons/`。图标文件也必须是未加密明文。
 
@@ -188,8 +188,8 @@ npm run build:desktop
 
 | 文件 | 路径 |
 |------|------|
-| 可直接运行的 exe | `src-tauri\target\release\OnchainData.exe` |
-| NSIS 安装包 | `src-tauri\target\release\bundle\nsis\OnchainData_0.1.0_x64-setup.exe` |
+| 可直接运行的 exe | `src-tauri\target\release\OAM.exe` |
+| NSIS 安装包 | `src-tauri\target\release\bundle\nsis\OAM_0.1.0_x64-setup.exe` |
 
 版本号来自 `src-tauri/tauri.conf.json` 的 `version`。安装包文件名会随版本变化。
 

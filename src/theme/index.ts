@@ -1,7 +1,7 @@
 import { MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 
-/** 应用主色调 */
-const PRIMARY_COLOR = '#4A90D9';
+/** 应用主色调（Twitter / X 经典蓝） */
+const PRIMARY_COLOR = '#1DA1F2';
 const SECONDARY_COLOR = '#7B68EE';
 
 export const lightTheme = {
@@ -9,7 +9,7 @@ export const lightTheme = {
   colors: {
     ...MD3LightTheme.colors,
     primary: PRIMARY_COLOR,
-    primaryContainer: '#D6E8F7',
+    primaryContainer: '#D0EFFF',
     secondary: SECONDARY_COLOR,
     secondaryContainer: '#E8E0FF',
     surface: '#FAFBFC',
@@ -25,8 +25,8 @@ export const darkTheme = {
   ...MD3DarkTheme,
   colors: {
     ...MD3DarkTheme.colors,
-    primary: '#8BB8E8',
-    primaryContainer: '#2A5A8A',
+    primary: PRIMARY_COLOR,
+    primaryContainer: '#0B5A94',
     secondary: '#B0A0FF',
     secondaryContainer: '#4A3A8A',
     surface: '#1A1C1E',
@@ -37,3 +37,14 @@ export const darkTheme = {
   },
   roundness: 12,
 };
+
+/** 顶栏：浅色用品牌蓝，暗色跟页面背景走（推特 Lights out 做法） */
+export function getHeaderChrome(theme: {
+  dark: boolean;
+  colors: { primary: string; background: string; onSurface: string };
+}) {
+  return {
+    backgroundColor: theme.dark ? theme.colors.background : theme.colors.primary,
+    tintColor: theme.dark ? theme.colors.onSurface : '#FFFFFF',
+  };
+}

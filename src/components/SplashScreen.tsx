@@ -1,27 +1,17 @@
 import React from 'react';
-import { View, Image, StyleSheet, StatusBar } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { View, StyleSheet, StatusBar } from 'react-native';
+import { Text } from 'react-native-paper';
 
-interface Props {
-  isDark?: boolean;
-}
+const SPLASH_BG = '#1DA1F2';
+const SPLASH_TITLE = '#FFFFFF';
+const SPLASH_SUBTITLE = 'rgba(255, 255, 255, 0.85)';
 
-export default function SplashScreen({ isDark = false }: Props) {
-  const theme = useTheme();
-
+export default function SplashScreen() {
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.colors.background}
-      />
-      <Image
-        source={require('../../assets/splash-icon.png')}
-        style={styles.logo}
-        resizeMode="contain"
-      />
-      <Text style={[styles.sloganMain, { color: theme.colors.primary }]}>OAM</Text>
-      <Text style={[styles.sloganSub, { color: theme.colors.primary }]}>Onchain Forever</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={SPLASH_BG} />
+      <Text style={styles.sloganMain}>OAM</Text>
+      <Text style={styles.sloganSub}>Onchain Forever</Text>
     </View>
   );
 }
@@ -31,19 +21,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 24,
+    backgroundColor: SPLASH_BG,
   },
   sloganMain: {
     fontSize: 48,
     fontWeight: '700',
     letterSpacing: 2,
+    color: SPLASH_TITLE,
   },
   sloganSub: {
-    fontSize: 20,
+    fontSize: 16,
     marginTop: 8,
+    letterSpacing: 0.4,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    color: SPLASH_SUBTITLE,
   },
 });

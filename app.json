@@ -1,29 +1,32 @@
 {
   "expo": {
-    "name": "Onchain Data",
-    "slug": "onchain-data",
+    "name": "OAM",
+    "slug": "oam",
     "version": "1.0.0",
+    "description": "Onchain Attachment Message",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#4A90D9"
+      "backgroundColor": "#1DA1F2"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.onchaindata.app"
+      "bundleIdentifier": "com.oam.app"
     },
     "android": {
-      "package": "com.onchaindata.app"
+      "package": "com.oam.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
     },
     "plugins": [
       "expo-secure-store",
+      "expo-document-picker",
       [
         "expo-image-picker",
         {

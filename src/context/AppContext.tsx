@@ -8,8 +8,9 @@ import React, {
   ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Subscription, normalizeSubscription } from '../types';
+import { Subscription, FavoriteItem, InputDataItem, normalizeSubscription } from '../types';
 import { STORAGE_KEYS, API_CONFIG } from '../constants';
+import { migrateLegacyStorage } from '../storage/migrate';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                              */
@@ -19,6 +20,7 @@ interface AppState {
   subscriptions: Subscription[];
   profile: Subscription | null;
   apiKey: string;
+  favorites: FavoriteItem[];
   isLoading: boolean;
 }
 
@@ -26,6 +28,7 @@ const initialState: AppState = {
   subscriptions: [],
   profile: null,
   apiKey: '',
+  favorites: [],
   isLoading: true,
 };
 
@@ -40,6 +43,9 @@ type Action =
   | { type: 'DELETE_SUBSCRIPTION'; payload: string }
   | { type: 'SET_PROFILE'; payload: Subscription | null }
   | { type: 'SET_API_KEY'; payload: string }
+  | { type: 'SET_FAVORITES'; payload: FavoriteItem[] }
+  | { type: 'ADD_FAVORITE'; payload: FavoriteItem }
+  | { type: 'REMOVE_FAVORITE'; payload: string }
   | { type: 'SET_LOADING'; payload: boolean };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -67,6 +73,21 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, profile: action.payload };
     case 'SET_API_KEY':
       return { ...state, apiKey: action.payload };
+    case 'SET_FAVORITES':
+      return { ...state, favorites: action.payload };
+    case 'ADD_FAVORITE':
+      if (state.favorites.some((f) => f.item.id === action.payload.item.id)) {
+        return state;
+      }
+      return {
+        ...state,
+        favorites: [action.payload, ...state.favorites],
+      };
+    case 'REMOVE_FAVORITE':
+      return {
+        ...state,
+        favorites: state.favorites.filter((f) => f.item.id !== action.payload),
+      };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     default:
@@ -87,6 +108,9 @@ interface AppContextType {
   updateProfile: (item: Subscription) => Promise<void>;
   deleteProfile: () => Promise<void>;
   setApiKey: (key: string) => Promise<void>;
+  addFavorite: (item: InputDataItem) => Promise<void>;
+  removeFavorite: (id: string) => Promise<void>;
+  isFavorite: (id: string) => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -106,14 +130,17 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
   useEffect(() => {
     (async () => {
       try {
+        await migrateLegacyStorage();
         const results = await AsyncStorage.multiGet([
           STORAGE_KEYS.SUBSCRIPTIONS,
           STORAGE_KEYS.PROFILE,
           STORAGE_KEYS.API_KEY,
+          STORAGE_KEYS.FAVORITES,
         ]);
         const subsValue = results[0]?.[1];
         const profileValue = results[1]?.[1];
         const apiKeyValue = results[2]?.[1];
+        const favoritesValue = results[3]?.[1];
         if (subsValue) {
           const subs: Subscription[] = JSON.parse(subsValue);
           dispatch({
@@ -130,6 +157,20 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
         if (apiKeyValue !== null) {
           dispatch({ type: 'SET_API_KEY', payload: apiKeyValue });
           API_CONFIG.ETHERSCAN_API_KEY = apiKeyValue;
+        }
+        if (favoritesValue) {
+          const parsed: unknown = JSON.parse(favoritesValue);
+          const favorites: FavoriteItem[] = Array.isArray(parsed)
+            ? parsed.filter(
+                (entry): entry is FavoriteItem =>
+                  !!entry &&
+                  typeof entry === 'object' &&
+                  typeof (entry as FavoriteItem).favoritedAt === 'number' &&
+                  !!(entry as FavoriteItem).item &&
+                  typeof (entry as FavoriteItem).item.id === 'string',
+              )
+            : [];
+          dispatch({ type: 'SET_FAVORITES', payload: favorites });
         }
       } catch (error) {
         console.warn('Failed to load persisted data:', error);
@@ -182,6 +223,23 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     API_CONFIG.ETHERSCAN_API_KEY = key;
   }, []);
 
+  /* ---------- 本地收藏 CRUD ---------- */
+  const addFavorite = useCallback(async (item: InputDataItem) => {
+    dispatch({
+      type: 'ADD_FAVORITE',
+      payload: { item, favoritedAt: Date.now() },
+    });
+  }, []);
+
+  const removeFavorite = useCallback(async (id: string) => {
+    dispatch({ type: 'REMOVE_FAVORITE', payload: id });
+  }, []);
+
+  const isFavorite = useCallback(
+    (id: string) => state.favorites.some((f) => f.item.id === id),
+    [state.favorites],
+  );
+
   /* ---------- 同步 Profile 到 AsyncStorage ---------- */
   useEffect(() => {
     if (state.isLoading) return;
@@ -205,6 +263,16 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     }
   }, [state.apiKey, state.isLoading]);
 
+  /* ---------- 同步收藏列表到 AsyncStorage ---------- */
+  useEffect(() => {
+    if (!state.isLoading) {
+      AsyncStorage.setItem(
+        STORAGE_KEYS.FAVORITES,
+        JSON.stringify(state.favorites),
+      ).catch(console.warn);
+    }
+  }, [state.favorites, state.isLoading]);
+
   const value = useMemo<AppContextType>(
     () => ({
       state,
@@ -215,6 +283,9 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       updateProfile,
       deleteProfile,
       setApiKey,
+      addFavorite,
+      removeFavorite,
+      isFavorite,
     }),
     [
       state,
@@ -225,6 +296,9 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       updateProfile,
       deleteProfile,
       setApiKey,
+      addFavorite,
+      removeFavorite,
+      isFavorite,
     ],
   );
 

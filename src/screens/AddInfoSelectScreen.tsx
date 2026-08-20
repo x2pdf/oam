@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Avatar, useTheme, IconButton, Dialog, Portal, Button } from 'react-native-paper';
+import { Text, Card, Avatar, useTheme, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
+import { AppModal } from '../components/AppModal';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type PendingAction = 'create' | 'recover' | 'privateKey' | 'readOnly' | null;
@@ -182,18 +183,17 @@ export default function AddInfoSelectScreen() {
         ))}
       </ScrollView>
 
-      <Portal>
-        <Dialog visible={visible} onDismiss={() => setVisible(false)}>
-          <Dialog.Title>{dialogCopy.title}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">{dialogCopy.message}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setVisible(false)}>{t('common.cancel')}</Button>
-            <Button onPress={confirmReplacement}>{t('common.confirm')}</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <AppModal
+        visible={visible}
+        onDismiss={() => setVisible(false)}
+        title={dialogCopy.title}
+        actions={[
+          { label: t('common.cancel'), onPress: () => setVisible(false) },
+          { label: t('common.confirm'), onPress: confirmReplacement },
+        ]}
+      >
+        <Text variant="bodyMedium">{dialogCopy.message}</Text>
+      </AppModal>
     </View>
   );
 }

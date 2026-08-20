@@ -1,4 +1,4 @@
-package com.onchaindata.app
+package com.oam.app
 
 import android.app.Application
 import android.content.res.Configuration

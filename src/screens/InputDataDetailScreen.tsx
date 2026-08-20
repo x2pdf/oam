@@ -1,12 +1,14 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, ScrollView, StyleSheet, Platform } from 'react-native';
-import { Text, Card, useTheme, Snackbar } from 'react-native-paper';
+import { Text, Card, Button, IconButton, useTheme, Snackbar } from 'react-native-paper';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import * as Clipboard from 'expo-clipboard';
 import { RootStackParamList } from '../types';
 import { AddressWithActions } from '../components/AddressWithActions';
 import { RichContentRenderer } from '../components/RichContentRenderer';
 import { CONTENT_KIND_I18N_KEY } from '../display';
+import { useAppContext } from '../context/AppContext';
 
 type RouteProps = RouteProp<RootStackParamList, 'InputDataDetail'>;
 
@@ -15,23 +17,61 @@ export default function InputDataDetailScreen() {
   const { t } = useTranslation();
   const route = useRoute<RouteProps>();
   const { item } = route.params;
-  const [snackbarVisible, setSnackbarVisible] = React.useState(false);
+  const { addFavorite, removeFavorite, isFavorite } = useAppContext();
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const kind = item.contentKind ?? 'RAW';
   const rawHex = item.rawInput || item.description || '';
+  const favorited = isFavorite(item.id);
 
-  const showCopiedSnackbar = useCallback(() => {
+  const copyableContent = useMemo(() => {
+    if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
+      return item.oampItems
+        .filter((entry) => entry.type === 'text')
+        .map((entry) => (entry.type === 'text' ? entry.content : ''))
+        .join('\n')
+        .trim();
+    }
+    if (kind === 'UTF-8' && item.textContent) {
+      return item.textContent;
+    }
+    return rawHex;
+  }, [kind, item.oampItems, item.textContent, rawHex]);
+
+  const showSnackbar = useCallback((message: string) => {
+    setSnackbarMessage(message);
     setSnackbarVisible(true);
   }, []);
 
+  const showCopiedSnackbar = useCallback(() => {
+    showSnackbar(t('common.copied'));
+  }, [showSnackbar, t]);
+
+  const handleCopyContent = useCallback(async () => {
+    if (!copyableContent) return;
+    await Clipboard.setStringAsync(copyableContent);
+    showCopiedSnackbar();
+  }, [copyableContent, showCopiedSnackbar]);
+
+  const handleToggleFavorite = useCallback(async () => {
+    if (favorited) {
+      await removeFavorite(item.id);
+      showSnackbar(t('detail.unfavorited'));
+    } else {
+      await addFavorite(item);
+      showSnackbar(t('detail.favorited'));
+    }
+  }, [favorited, item, addFavorite, removeFavorite, showSnackbar, t]);
+
   const renderBody = () => {
     if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-      return <RichContentRenderer items={item.oampItems} />;
+      return <RichContentRenderer items={item.oampItems} selectable />;
     }
 
     if (kind === 'UTF-8' && item.textContent) {
       return (
-        <Text variant="bodyMedium" style={styles.contentText}>
+        <Text variant="bodyMedium" style={styles.contentText} selectable>
           {item.textContent}
         </Text>
       );
@@ -135,12 +175,36 @@ export default function InputDataDetailScreen() {
 
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
-            <Text variant="titleSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-              {t('detail.content')}
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Text
+                variant="titleSmall"
+                style={[styles.sectionTitle, styles.sectionHeaderTitle, { color: theme.colors.primary }]}
+              >
+                {t('detail.content')}
+              </Text>
+              {copyableContent ? (
+                <IconButton
+                  icon="content-copy"
+                  size={18}
+                  onPress={handleCopyContent}
+                  iconColor={theme.colors.primary}
+                  style={styles.copyBtn}
+                  accessibilityLabel={t('common.copy')}
+                />
+              ) : null}
+            </View>
             {renderBody()}
           </Card.Content>
         </Card>
+
+        <Button
+          mode={favorited ? 'outlined' : 'contained'}
+          icon={favorited ? 'star-off' : 'star-outline'}
+          onPress={handleToggleFavorite}
+          style={styles.favoriteButton}
+        >
+          {favorited ? t('detail.unfavorite') : t('detail.favorite')}
+        </Button>
       </ScrollView>
 
       <Snackbar
@@ -148,7 +212,7 @@ export default function InputDataDetailScreen() {
         onDismiss={() => setSnackbarVisible(false)}
         duration={2000}
       >
-        {t('common.copied')}
+        {snackbarMessage}
       </Snackbar>
     </View>
   );
@@ -169,9 +233,24 @@ const styles = StyleSheet.create({
   metaRow: {
     marginBottom: 10,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sectionHeaderTitle: {
+    marginBottom: 0,
+    flex: 1,
+  },
   sectionTitle: {
     fontWeight: '700',
     marginBottom: 8,
+  },
+  copyBtn: {
+    margin: 0,
+    width: 32,
+    height: 32,
   },
   monoText: {
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
@@ -195,5 +274,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontSize: 12,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  favoriteButton: {
+    marginTop: 4,
+    borderRadius: 12,
   },
 });

@@ -1,10 +1,11 @@
 import { IImagePickerAdapter } from '../ImagePickerAdapter';
 import { IImageRendererAdapter } from '../ImageRendererAdapter';
-import { pickImageFromLibrary } from '../pickImageShared';
+import { pickImageFromFiles, pickImageFromLibrary } from '../pickImageShared';
 import { IosPlatformImage } from './PlatformImage';
 
 export const IosImagePickerAdapter: IImagePickerAdapter = {
   pickImage: pickImageFromLibrary,
+  pickImageFromFiles,
 };
 
 export const IosImageRendererAdapter: IImageRendererAdapter = {

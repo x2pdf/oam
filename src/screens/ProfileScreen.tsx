@@ -1,20 +1,16 @@
-import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import {
   Text,
   Card,
   Button,
   useTheme,
   IconButton,
-  Modal,
-  Portal,
   TextInput,
   Avatar,
-  Dialog,
   RadioButton,
   Snackbar,
 } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -23,12 +19,14 @@ import { useAppContext } from '../context/AppContext';
 import { useThemePreference, ThemeMode } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
 import { LANGUAGE_KEY } from '../i18n';
-import { CopyableAddress, copyAddress } from '../components/CopyableAddress';
+import { CopyableAddress } from '../components/CopyableAddress';
+import { AppModal } from '../components/AppModal';
 import appConfig from '../../app.json';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 const APP_NAME = appConfig.expo.name;
+const APP_FULL_NAME = appConfig.expo.description;
 const APP_VERSION = appConfig.expo.version;
 
 /* ------------------------------------------------------------------ */
@@ -38,11 +36,6 @@ const APP_VERSION = appConfig.expo.version;
 function shortenAddress(address: string): string {
   if (address.length <= 20) return address;
   return `${address.slice(0, 10)}...${address.slice(-8)}`;
-}
-
-function formatHeaderAddress(address: string): string {
-  if (address.length <= 16) return address;
-  return `${address.slice(0, 8)}....${address.slice(-6)}`;
 }
 
 function getPlatformLabel(t: (key: string) => string): string {
@@ -64,14 +57,12 @@ function getPlatformLabel(t: (key: string) => string): string {
 
 export default function ProfileScreen() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const { state, setApiKey } = useAppContext();
   const { themeMode, setThemeMode } = useThemePreference();
   const { t, i18n } = useTranslation();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isAddressDetailVisible, setIsAddressDetailVisible] = useState(false);
   const [isLanguageDialogVisible, setIsLanguageDialogVisible] = useState(false);
   const [isThemeDialogVisible, setIsThemeDialogVisible] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
@@ -96,14 +87,6 @@ export default function ProfileScreen() {
     setIsThemeDialogVisible(false);
   }, []);
 
-  const showAddressDetail = useCallback(() => {
-    setIsAddressDetailVisible(true);
-  }, []);
-
-  const hideAddressDetail = useCallback(() => {
-    setIsAddressDetailVisible(false);
-  }, []);
-
   const changeLanguage = useCallback(async (lng: string) => {
     await i18n.changeLanguage(lng);
     await AsyncStorage.setItem(LANGUAGE_KEY, lng);
@@ -118,19 +101,6 @@ export default function ProfileScreen() {
   const handleAdd = useCallback(() => {
     navigation.navigate('AddInfoSelect');
   }, [navigation]);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <IconButton
-          icon="plus"
-          iconColor="#FFFFFF"
-          onPress={handleAdd}
-          accessibilityLabel={t('wallet.selectAddMethod')}
-        />
-      ),
-    });
-  }, [navigation, handleAdd, t]);
 
   const handleEdit = useCallback(() => {
     if (state.profile) {
@@ -160,30 +130,10 @@ export default function ProfileScreen() {
     setSnackbarVisible(true);
   }, []);
 
-  const handleCopyAddress = useCallback(async (address: string) => {
-    await copyAddress(address);
-    showCopiedSnackbar();
-  }, [showCopiedSnackbar]);
-
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* 内容区 */}
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        {/* 顶部地址展示 (非列表数据) */}
-        {state.profile && (
-          <View style={styles.headerInfo}>
-            <Pressable
-              onPress={showAddressDetail}
-              onLongPress={() => handleCopyAddress(state.profile.address)}
-              delayLongPress={400}
-            >
-              <Text variant="bodySmall" style={[styles.headerInfoText, { color: theme.colors.onSurfaceVariant }]}>
-                {`${state.profile.description} (${formatHeaderAddress(state.profile.address)})`}
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
         {/* 1. 我的地址信息 */}
         {state.profile ? (
           <>
@@ -312,7 +262,41 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 3. 外观 / 主题 */}
+        {/* 3. 我的本地收藏 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={() => navigation.navigate('LocalFavorites')}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="star-outline"
+                style={{ backgroundColor: theme.colors.tertiaryContainer }}
+                color={theme.colors.tertiary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.localFavorites')}
+                </Text>
+                <Text variant="titleMedium">
+                  {t('favorites.count', { count: state.favorites.length })}
+                </Text>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                onPress={() => navigation.navigate('LocalFavorites')}
+              />
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* 4. 外观 / 主题 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -343,7 +327,7 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 4. API Key */}
+        {/* 5. API Key */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -376,7 +360,7 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 5. 应用信息 */}
+        {/* 6. 应用信息 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -398,6 +382,11 @@ export default function ProfileScreen() {
                   {t('profile.appInfo')}
                 </Text>
                 <Text variant="titleMedium">{APP_NAME}</Text>
+                {APP_FULL_NAME ? (
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    {APP_FULL_NAME}
+                  </Text>
+                ) : null}
                 <View style={styles.appInfoRows}>
                   <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                     {t('profile.appVersion')}: {APP_VERSION}
@@ -412,117 +401,70 @@ export default function ProfileScreen() {
         </Card>
       </ScrollView>
 
-      {/* API Key 输入弹窗 */}
-      <Portal>
-        <Modal
-          visible={isModalVisible}
-          onDismiss={hideApiKeyModal}
-          contentContainerStyle={[
-            styles.modalContent,
-            { backgroundColor: theme.colors.surface },
-          ]}
+      <AppModal
+        visible={isModalVisible}
+        onDismiss={hideApiKeyModal}
+        title={t('profile.setApiKeyTitle')}
+        actions={[
+          { label: t('common.cancel'), onPress: hideApiKeyModal },
+          { label: t('common.save'), onPress: handleSaveApiKey },
+        ]}
+      >
+        <TextInput
+          label="API Key"
+          value={tempApiKey}
+          onChangeText={setTempApiKey}
+          mode="outlined"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </AppModal>
+
+      <AppModal
+        visible={isLanguageDialogVisible}
+        onDismiss={hideLanguageDialog}
+        title={t('profile.selectLanguage')}
+        actions={[{ label: t('common.cancel'), onPress: hideLanguageDialog }]}
+      >
+        <RadioButton.Group
+          onValueChange={changeLanguage}
+          value={currentLanguage}
         >
-          <Text variant="titleMedium" style={styles.modalTitle}>
-            {t('profile.setApiKeyTitle')}
-          </Text>
-          <TextInput
-            label="API Key"
-            value={tempApiKey}
-            onChangeText={setTempApiKey}
-            mode="outlined"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.input}
+          <RadioButton.Item
+            label="简体中文"
+            value="zh"
+            style={styles.radioItem}
           />
-          <View style={styles.modalButtons}>
-            <Button onPress={hideApiKeyModal} style={styles.modalButton}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              mode="contained"
-              onPress={handleSaveApiKey}
-              style={styles.modalButton}
-            >
-              {t('common.save')}
-            </Button>
-          </View>
-        </Modal>
+          <RadioButton.Item
+            label="English"
+            value="en"
+            style={styles.radioItem}
+          />
+        </RadioButton.Group>
+      </AppModal>
 
-        {/* 语言选择弹窗 */}
-        <Dialog visible={isLanguageDialogVisible} onDismiss={hideLanguageDialog}>
-          <Dialog.Title>{t('profile.selectLanguage')}</Dialog.Title>
-          <Dialog.Content style={styles.languageDialogContent}>
-            <RadioButton.Group
-              onValueChange={changeLanguage}
-              value={currentLanguage}
-            >
-              <RadioButton.Item
-                label="简体中文"
-                value="zh"
-                style={styles.radioItem}
-              />
-              <RadioButton.Item
-                label="English"
-                value="en"
-                style={styles.radioItem}
-              />
-            </RadioButton.Group>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideLanguageDialog}>{t('common.cancel')}</Button>
-          </Dialog.Actions>
-        </Dialog>
-
-        {/* 主题选择弹窗 */}
-        <Dialog visible={isThemeDialogVisible} onDismiss={hideThemeDialog}>
-          <Dialog.Title>{t('profile.selectAppearance')}</Dialog.Title>
-          <Dialog.Content style={styles.languageDialogContent}>
-            <RadioButton.Group
-              onValueChange={(value) => changeTheme(value as ThemeMode)}
-              value={themeMode}
-            >
-              <RadioButton.Item
-                label={t('profile.themeLight')}
-                value="light"
-                style={styles.radioItem}
-              />
-              <RadioButton.Item
-                label={t('profile.themeDark')}
-                value="dark"
-                style={styles.radioItem}
-              />
-            </RadioButton.Group>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideThemeDialog}>{t('common.cancel')}</Button>
-          </Dialog.Actions>
-        </Dialog>
-
-        {/* 地址详情弹窗 */}
-        <Dialog visible={isAddressDetailVisible} onDismiss={hideAddressDetail}>
-          <Dialog.Title>{t('common.address')}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium" style={{ marginBottom: 8 }}>
-              {state.profile?.description}
-            </Text>
-            <Pressable
-              onLongPress={() => state.profile && handleCopyAddress(state.profile.address)}
-              delayLongPress={400}
-            >
-              <Text
-                variant="bodySmall"
-                style={[styles.addressText, { color: theme.colors.primary }]}
-                selectable
-              >
-                {state.profile?.address}
-              </Text>
-            </Pressable>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideAddressDetail}>{t('common.close')}</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <AppModal
+        visible={isThemeDialogVisible}
+        onDismiss={hideThemeDialog}
+        title={t('profile.selectAppearance')}
+        actions={[{ label: t('common.cancel'), onPress: hideThemeDialog }]}
+      >
+        <RadioButton.Group
+          onValueChange={(value) => changeTheme(value as ThemeMode)}
+          value={themeMode}
+        >
+          <RadioButton.Item
+            label={t('profile.themeLight')}
+            value="light"
+            style={styles.radioItem}
+          />
+          <RadioButton.Item
+            label={t('profile.themeDark')}
+            value="dark"
+            style={styles.radioItem}
+          />
+        </RadioButton.Group>
+      </AppModal>
 
       <Snackbar
         visible={snackbarVisible}
@@ -572,15 +514,6 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontWeight: '700',
   },
-  headerInfo: {
-    marginBottom: 16,
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  headerInfoText: {
-    textAlign: 'center',
-    opacity: 0.8,
-  },
   sectionSpacer: {
     height: 12,
   },
@@ -602,31 +535,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     gap: 2,
   },
-  modalContent: {
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
-  },
-  modalTitle: {
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  input: {
-    marginBottom: 16,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  modalButton: {
-    marginLeft: 8,
-  },
-  languageDialogContent: {
-    paddingHorizontal: 8,
-    paddingBottom: 0,
-  },
   radioItem: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     borderRadius: 8,
   },
 });

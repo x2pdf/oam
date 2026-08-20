@@ -7,4 +7,5 @@ export interface ImagePickerResult {
 
 export interface IImagePickerAdapter {
   pickImage(): Promise<ImagePickerResult | null>;
+  pickImageFromFiles(): Promise<ImagePickerResult | null>;
 }

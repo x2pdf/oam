@@ -26,7 +26,10 @@ import PrivateKeyVerifyScreen from '../screens/PrivateKeyVerifyScreen';
 import PrivateKeySetupScreen from '../screens/PrivateKeySetupScreen';
 import InputDataDetailScreen from '../screens/InputDataDetailScreen';
 import AddressDataListScreen from '../screens/AddressDataListScreen';
+import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
+import LocalFavoritesScreen from '../screens/LocalFavoritesScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
+import { getHeaderChrome } from '../theme';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,20 +42,22 @@ function MainTabNavigator() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const headerChrome = getHeaderChrome(theme);
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: theme.colors.primary,
+          backgroundColor: headerChrome.backgroundColor,
           height: 48 + insets.top,
         },
         headerTitleAlign: 'center',
-        headerTintColor: '#FFFFFF',
+        headerTintColor: headerChrome.tintColor,
         headerTitleStyle: {
           fontWeight: '600',
           fontSize: 16,
         },
+        headerShadowVisible: !theme.dark,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
         tabBarStyle: {
@@ -105,6 +110,7 @@ function MainTabNavigator() {
 export default function AppNavigator() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const headerChrome = getHeaderChrome(theme);
 
   const navigationTheme = {
     ...(theme.dark ? DarkTheme : DefaultTheme),
@@ -120,7 +126,14 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      <Stack.Navigator>
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: { backgroundColor: headerChrome.backgroundColor },
+          headerTintColor: headerChrome.tintColor,
+          headerTitleStyle: { fontWeight: '600' },
+          headerShadowVisible: !theme.dark,
+        }}
+      >
         <Stack.Screen
           name="MainTabs"
           component={MainTabNavigator}
@@ -134,9 +147,6 @@ export default function AppNavigator() {
               route.params?.mode === 'add'
                 ? t('form.addSubscription')
                 : t('form.editSubscription'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: { fontWeight: '600' },
             presentation: 'modal',
           })}
         />
@@ -145,9 +155,6 @@ export default function AppNavigator() {
           component={AddInfoSelectScreen}
           options={{
             title: t('nav.addInfoSelect'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: { fontWeight: '600' },
           }}
         />
         <Stack.Screen
@@ -155,9 +162,6 @@ export default function AppNavigator() {
           component={AddAddressFormScreen}
           options={({ route }) => ({
             title: route.params?.mode === 'add' ? t('nav.addAddressForm') : t('nav.editAddressForm'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: { fontWeight: '600' },
             presentation: 'modal',
           })}
         />
@@ -166,8 +170,6 @@ export default function AppNavigator() {
           component={WalletDisclaimerScreen}
           options={{
             title: t('nav.walletDisclaimer'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -175,8 +177,6 @@ export default function AppNavigator() {
           component={RecoverDisclaimerScreen}
           options={{
             title: t('nav.recoverDisclaimer'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -184,8 +184,6 @@ export default function AppNavigator() {
           component={MnemonicBackupScreen}
           options={{
             title: t('nav.mnemonicBackup'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -193,8 +191,6 @@ export default function AppNavigator() {
           component={MnemonicInputScreen}
           options={{
             title: t('nav.mnemonicInput'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -202,8 +198,6 @@ export default function AppNavigator() {
           component={WalletVerifyScreen}
           options={{
             title: t('nav.walletVerify'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -211,8 +205,6 @@ export default function AppNavigator() {
           component={WalletSetupScreen}
           options={{
             title: t('nav.walletSetup'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -220,8 +212,6 @@ export default function AppNavigator() {
           component={PrivateKeyDisclaimerScreen}
           options={{
             title: t('nav.privateKeyDisclaimer'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -229,8 +219,6 @@ export default function AppNavigator() {
           component={PrivateKeyInputScreen}
           options={{
             title: t('nav.privateKeyInput'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -238,8 +226,6 @@ export default function AppNavigator() {
           component={PrivateKeyVerifyScreen}
           options={{
             title: t('nav.privateKeyVerify'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -247,8 +233,6 @@ export default function AppNavigator() {
           component={PrivateKeySetupScreen}
           options={{
             title: t('nav.privateKeySetup'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -256,8 +240,6 @@ export default function AppNavigator() {
           component={SendDataScreen}
           options={{
             title: t('nav.sendData'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
           }}
         />
         <Stack.Screen
@@ -265,19 +247,29 @@ export default function AppNavigator() {
           component={InputDataDetailScreen}
           options={{
             title: t('nav.inputDataDetail'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: { fontWeight: '600' },
+          }}
+        />
+        <Stack.Screen
+          name="SubscriptionDetail"
+          component={SubscriptionDetailScreen}
+          options={{
+            title: t('nav.subscriptionDetail'),
+          }}
+        />
+        <Stack.Screen
+          name="LocalFavorites"
+          component={LocalFavoritesScreen}
+          options={{
+            title: t('nav.localFavorites'),
           }}
         />
         <Stack.Screen
           name="AddressDataList"
           component={AddressDataListScreen}
           options={({ route }) => ({
-            title: route.params?.title || t('nav.addressDataList'),
-            headerStyle: { backgroundColor: theme.colors.primary },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: { fontWeight: '600' },
+            title: route.params?.peerAddress
+              ? t('nav.conversation')
+              : route.params?.title || t('nav.addressDataList'),
           })}
         />
       </Stack.Navigator>
