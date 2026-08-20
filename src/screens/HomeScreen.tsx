@@ -3,12 +3,14 @@ import {
   View,
   FlatList,
   StyleSheet,
-  useWindowDimensions,
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
   StatusBar,
+  Platform,
 } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { useListColumnLayout } from '../theme/layout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -66,7 +68,7 @@ export default function HomeScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
+  const { cardWidth, listContentStyle, columnStyle } = useListColumnLayout();
   const { state } = useAppContext();
   const { t } = useTranslation();
   const { apiKey, profile, subscriptions, isLoading: contextLoading } = state;
@@ -117,8 +119,6 @@ export default function HomeScreen() {
   const hasMoreRef = useRef<boolean[]>([true, true, true, true]);
   const loadingMoreRef = useRef<boolean[]>([false, false, false, false]);
   const initialLoadDoneRef = useRef(false);
-
-  const cardWidth = screenWidth - 32;
 
   const loadData = useCallback(async (tabIndex: number, isRefreshing = false, isLoadMore = false) => {
     const modeMap: ('square' | 'sent' | 'inbox' | 'self')[] = ['square', 'sent', 'inbox', 'self'];
@@ -556,19 +556,22 @@ export default function HomeScreen() {
 
     return (
       <FlatList
+        style={scrollFill}
         data={data}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, listContentStyle]}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing[tabIndex]}
-            onRefresh={() => loadData(tabIndex, true)}
-            colors={[theme.colors.primary]}
-            enabled={true}
-          />
+          Platform.OS !== 'web' ? (
+            <RefreshControl
+              refreshing={refreshing[tabIndex]}
+              onRefresh={() => loadData(tabIndex, true)}
+              colors={[theme.colors.primary]}
+              enabled={true}
+            />
+          ) : undefined
         }
         onEndReached={() => loadData(tabIndex, false, true)}
         onEndReachedThreshold={0.2}
@@ -591,7 +594,7 @@ export default function HomeScreen() {
           </View>
         }
         ListHeaderComponent={
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, columnStyle]}>
             <View>
               {(isSelfList || isSentList || isInboxList) && profile?.address && (
                 <CopyableAddress
@@ -675,10 +678,10 @@ export default function HomeScreen() {
         initialPage={0}
         onPageSelected={onPageSelected}
       >
-        <View key="1">{renderList(squareData, 0)}</View>
-        <View key="2">{renderList(sentData, 1)}</View>
-        <View key="3">{renderList(inboxData, 2)}</View>
-        <View key="4">{renderList(selfData, 3)}</View>
+        <View key="1" style={scrollFill}>{renderList(squareData, 0)}</View>
+        <View key="2" style={scrollFill}>{renderList(sentData, 1)}</View>
+        <View key="3" style={scrollFill}>{renderList(inboxData, 2)}</View>
+        <View key="4" style={scrollFill}>{renderList(selfData, 3)}</View>
       </TabPager>
 
       {error && (
@@ -787,6 +790,7 @@ const styles = StyleSheet.create({
   },
   pagerView: {
     flex: 1,
+    minHeight: 0,
   },
   centerContainer: {
     flex: 1,
@@ -808,7 +812,6 @@ const styles = StyleSheet.create({
     right: 0,
   },
   listContent: {
-    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 24,
   },

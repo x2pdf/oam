@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Button, Checkbox, useTheme, Card } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,6 +15,7 @@ export default function RecoverDisclaimerScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
   const [checked, setChecked] = useState(false);
 
@@ -25,7 +28,8 @@ export default function RecoverDisclaimerScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
+      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle, { paddingBottom: insets.bottom + 20 }]}>
+        <ListColumn>
         <Text variant="headlineSmall" style={styles.title}>{t('wallet.recoverDisclaimerTitle')}</Text>
 
         <Card style={styles.card} mode="outlined">
@@ -61,6 +65,7 @@ export default function RecoverDisclaimerScreen() {
         >
           {t('wallet.privateKeyDisclaimerButton')}
         </Button>
+        </ListColumn>
       </ScrollView>
     </View>
   );

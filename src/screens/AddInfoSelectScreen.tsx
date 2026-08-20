@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Card, Avatar, useTheme, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +27,7 @@ export default function AddInfoSelectScreen() {
   const { t } = useTranslation();
   const profile = state.profile;
   const isWriteWallet = profile?.walletType === 'write';
+  const { listContentStyle } = useListColumnLayout();
 
   const [visible, setVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -125,7 +128,11 @@ export default function AddInfoSelectScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}>
+      <ScrollView
+        style={scrollFill}
+        contentContainerStyle={[styles.scrollContent, listContentStyle, { paddingBottom: insets.bottom + 20 }]}
+      >
+        <ListColumn>
         {profile && (
           <Card
             mode="contained"
@@ -181,6 +188,7 @@ export default function AddInfoSelectScreen() {
             </Card.Content>
           </Card>
         ))}
+        </ListColumn>
       </ScrollView>
 
       <AppModal
@@ -203,7 +211,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    paddingVertical: 16,
   },
   banner: {
     marginBottom: 16,

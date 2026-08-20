@@ -1,5 +1,7 @@
 import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Button, useTheme, Snackbar, IconButton } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +16,7 @@ export default function SubscriptionDetailScreen({ route, navigation }: Props) {
   const { subscription } = route.params;
   const theme = useTheme();
   const { t } = useTranslation();
+  const { listContentStyle } = useListColumnLayout();
   const { state } = useAppContext();
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
@@ -63,7 +66,8 @@ export default function SubscriptionDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle]}>
+        <ListColumn>
         <Text
           variant="titleMedium"
           style={[styles.description, { color: theme.colors.onSurface }]}
@@ -101,6 +105,7 @@ export default function SubscriptionDetailScreen({ route, navigation }: Props) {
             {t('subscriptions.viewConversation')}
           </Button>
         </View>
+        </ListColumn>
       </ScrollView>
 
       <Snackbar

@@ -18,7 +18,7 @@ const TabPager = forwardRef<TabPagerRef, TabPagerProps>(function TabPager(
   }));
 
   return (
-    <View style={style}>
+    <View style={[styles.root, style]}>
       {React.Children.map(children, (child, index) => (
         <View style={[styles.page, index === page ? styles.visible : styles.hidden]}>
           {child}
@@ -29,8 +29,15 @@ const TabPager = forwardRef<TabPagerRef, TabPagerProps>(function TabPager(
 });
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
   page: {
     flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
   },
   visible: {
     display: 'flex',

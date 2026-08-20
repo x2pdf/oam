@@ -1,5 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, FlatList, StyleSheet } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { useListColumnLayout } from '../theme/layout';
 import {
   Text,
   List,
@@ -25,6 +27,7 @@ export default function SubscriptionsScreen() {
   const navigation = useNavigation<NavProp>();
   const { state } = useAppContext();
   const { t } = useTranslation();
+  const { listContentStyle, columnStyle } = useListColumnLayout();
 
   // 每次聚焦时刷新列表（编辑返回后可看到最新数据）
   useFocusEffect(
@@ -62,32 +65,34 @@ export default function SubscriptionsScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: Subscription }) => (
-      <List.Item
-        title={item.description}
-        titleNumberOfLines={2}
-        description={item.address.length > 20 ? `${item.address.slice(0, 20)}...` : item.address}
-        descriptionNumberOfLines={1}
-        onPress={() => handleViewDetail(item)}
-        style={styles.listItem}
-        left={(props) => (
-          <List.Icon
-            {...props}
-            icon="bookmark-outline"
-            color={theme.colors.primary}
-          />
-        )}
-        right={(props) => (
-          <IconButton
-            {...props}
-            icon="pencil-outline"
-            size={20}
-            iconColor={theme.colors.onSurfaceVariant}
-            onPress={() => handleEdit(item)}
-          />
-        )}
-      />
+      <View style={columnStyle}>
+        <List.Item
+          title={item.description}
+          titleNumberOfLines={2}
+          description={item.address.length > 20 ? `${item.address.slice(0, 20)}...` : item.address}
+          descriptionNumberOfLines={1}
+          onPress={() => handleViewDetail(item)}
+          style={styles.listItem}
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="bookmark-outline"
+              color={theme.colors.primary}
+            />
+          )}
+          right={(props) => (
+            <IconButton
+              {...props}
+              icon="pencil-outline"
+              size={20}
+              iconColor={theme.colors.onSurfaceVariant}
+              onPress={() => handleEdit(item)}
+            />
+          )}
+        />
+      </View>
     ),
-    [handleViewDetail, handleEdit, theme],
+    [handleViewDetail, handleEdit, theme, columnStyle],
   );
 
   const keyExtractor = useCallback((item: Subscription) => item.id, []);
@@ -95,11 +100,13 @@ export default function SubscriptionsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <FlatList
+        style={scrollFill}
         data={state.subscriptions}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={[
           styles.listContent,
+          listContentStyle,
           state.subscriptions.length === 0 && styles.emptyList,
         ]}
         showsVerticalScrollIndicator={false}
@@ -152,7 +159,7 @@ const styles = StyleSheet.create({
     paddingTop: 120,
   },
   listItem: {
-    marginHorizontal: 8,
+    marginHorizontal: 0,
     marginVertical: 2,
     borderRadius: 8,
     backgroundColor: 'transparent',

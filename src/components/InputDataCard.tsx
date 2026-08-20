@@ -56,7 +56,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
       <Card
         style={[
           styles.card,
-          cardWidth != null && { width: cardWidth },
+          cardWidth != null && { width: cardWidth, alignSelf: 'center' },
           { backgroundColor: theme.colors.surface },
         ]}
         mode="elevated"

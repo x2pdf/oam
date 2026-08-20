@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, ScrollView, StyleSheet, Platform } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Card, Button, IconButton, useTheme, Snackbar } from 'react-native-paper';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +17,7 @@ type RouteProps = RouteProp<RootStackParamList, 'InputDataDetail'>;
 export default function InputDataDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { listContentStyle } = useListColumnLayout();
   const route = useRoute<RouteProps>();
   const { item } = route.params;
   const { addFavorite, removeFavorite, isFavorite } = useAppContext();
@@ -96,7 +99,8 @@ export default function InputDataDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle]}>
+        <ListColumn>
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
             <View style={styles.metaRow}>
@@ -205,6 +209,7 @@ export default function InputDataDetailScreen() {
         >
           {favorited ? t('detail.unfavorite') : t('detail.favorite')}
         </Button>
+        </ListColumn>
       </ScrollView>
 
       <Snackbar

@@ -1,5 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
   TextInput,
   Button,
@@ -23,6 +25,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
   const { mode, source, subscription } = route.params;
   const theme = useTheme();
   const { t } = useTranslation();
+  const { listContentStyle } = useListColumnLayout();
   const {
     addSubscription,
     updateSubscription,
@@ -127,10 +130,11 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
   /* ---------- 渲染 ---------- */
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      contentContainerStyle={styles.content}
+      style={[scrollFill, styles.container, { backgroundColor: theme.colors.background }]}
+      contentContainerStyle={[styles.content, listContentStyle]}
       keyboardShouldPersistTaps="handled"
     >
+      <ListColumn>
       {/* 地址输入 */}
       <Text
         variant="labelLarge"
@@ -231,6 +235,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
           </Button>
         )}
       </View>
+      </ListColumn>
     </ScrollView>
   );
 }

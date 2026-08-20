@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Button, Card, useTheme, Avatar } from 'react-native-paper';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,6 +18,7 @@ export default function PrivateKeyVerifyScreen() {
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RoutePropType>();
   const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
   const { privateKey } = route.params;
 
@@ -33,7 +36,8 @@ export default function PrivateKeyVerifyScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
+      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle, { paddingBottom: insets.bottom + 20 }]}>
+        <ListColumn>
         <Text variant="headlineSmall" style={styles.title}>{t('wallet.verifyTitle')}</Text>
 
         <Text variant="bodyMedium" style={styles.subtitle}>
@@ -79,6 +83,7 @@ export default function PrivateKeyVerifyScreen() {
             {t('wallet.verifyButtonConfirm')}
           </Button>
         </View>
+        </ListColumn>
       </ScrollView>
     </View>
   );

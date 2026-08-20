@@ -1,5 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { View, FlatList, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, FlatList, StyleSheet } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { useListColumnLayout } from '../theme/layout';
 import { Text, useTheme, Snackbar } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,11 +16,10 @@ export default function LocalFavoritesScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const navigation = useNavigation<NavProp>();
-  const { width: screenWidth } = useWindowDimensions();
+  const { cardWidth, listContentStyle } = useListColumnLayout();
   const { state } = useAppContext();
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
-  const cardWidth = screenWidth - 32;
   const favorites = state.favorites;
 
   const showCopiedSnackbar = useCallback(() => {
@@ -49,11 +50,13 @@ export default function LocalFavoritesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <FlatList
+        style={scrollFill}
         data={favorites}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={[
           styles.listContent,
+          listContentStyle,
           favorites.length === 0 && styles.emptyList,
         ]}
         showsVerticalScrollIndicator={false}
@@ -92,7 +95,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 24,
   },

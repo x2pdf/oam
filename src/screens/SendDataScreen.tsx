@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
   Text,
   Button,
@@ -53,6 +55,7 @@ export default function SendDataScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
   const { state } = useAppContext();
   const { profile } = state;
@@ -463,11 +466,12 @@ export default function SendDataScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
+        style={[scrollFill, styles.container]}
+        contentContainerStyle={[styles.content, listContentStyle, { paddingBottom: insets.bottom + 20 }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
+        <ListColumn>
         <Text
           variant="labelLarge"
           style={[styles.fieldLabel, { color: theme.colors.onSurface }]}
@@ -624,6 +628,7 @@ export default function SendDataScreen() {
             {t('common.cancel')}
           </Button>
         </View>
+        </ListColumn>
       </ScrollView>
 
       <AppModal

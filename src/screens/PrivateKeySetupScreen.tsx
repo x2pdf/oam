@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +20,7 @@ export default function PrivateKeySetupScreen() {
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RoutePropType>();
   const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
   const { saveProfile } = useAppContext();
   const { privateKey } = route.params;
@@ -83,7 +86,8 @@ export default function PrivateKeySetupScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
+      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle, { paddingBottom: insets.bottom + 20 }]}>
+        <ListColumn>
         <Text variant="headlineSmall" style={styles.title}>{t('wallet.setupTitle')}</Text>
 
         <TextInput
@@ -135,6 +139,7 @@ export default function PrivateKeySetupScreen() {
         >
           {loading ? <ActivityIndicator color="#fff" /> : t('wallet.setupButtonRecover')}
         </Button>
+        </ListColumn>
       </ScrollView>
     </View>
   );

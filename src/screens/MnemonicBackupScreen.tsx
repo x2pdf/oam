@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Button, Checkbox, useTheme, Card } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,6 +16,7 @@ export default function MnemonicBackupScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
 
   const [mnemonic, setMnemonic] = useState('');
@@ -27,7 +30,8 @@ export default function MnemonicBackupScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
+      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle, { paddingBottom: insets.bottom + 20 }]}>
+        <ListColumn>
         <Text variant="headlineSmall" style={styles.title}>{t('wallet.mnemonicTitle')}</Text>
 
         <Text variant="bodyMedium" style={styles.subtitle}>
@@ -86,6 +90,7 @@ export default function MnemonicBackupScreen() {
         >
           {t('wallet.mnemonicButton')}
         </Button>
+        </ListColumn>
       </ScrollView>
     </View>
   );

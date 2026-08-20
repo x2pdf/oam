@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, TextInput, Button, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,6 +16,7 @@ export default function PrivateKeyInputScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
   const [privateKey, setPrivateKey] = useState('');
 
@@ -35,7 +38,8 @@ export default function PrivateKeyInputScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
+      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle, { paddingBottom: insets.bottom + 20 }]}>
+        <ListColumn>
         <Text variant="headlineSmall" style={styles.title}>{t('wallet.privateKeyInputTitle')}</Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
           {t('wallet.privateKeyInputSubtitle')}
@@ -68,6 +72,7 @@ export default function PrivateKeyInputScreen() {
         >
           {t('wallet.inputMnemonicButton')}
         </Button>
+        </ListColumn>
       </ScrollView>
     </View>
   );

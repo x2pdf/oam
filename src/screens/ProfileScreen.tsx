@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
   Text,
   Card,
@@ -61,6 +63,7 @@ export default function ProfileScreen() {
   const { state, setApiKey } = useAppContext();
   const { themeMode, setThemeMode } = useThemePreference();
   const { t, i18n } = useTranslation();
+  const { listContentStyle } = useListColumnLayout();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLanguageDialogVisible, setIsLanguageDialogVisible] = useState(false);
@@ -133,7 +136,11 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* 内容区 */}
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={[scrollFill, styles.content]}
+        contentContainerStyle={[styles.scrollContent, listContentStyle]}
+      >
+        <ListColumn>
         {/* 1. 我的地址信息 */}
         {state.profile ? (
           <>
@@ -399,6 +406,7 @@ export default function ProfileScreen() {
             </View>
           </Card.Content>
         </Card>
+        </ListColumn>
       </ScrollView>
 
       <AppModal
@@ -487,7 +495,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 16,
+    minHeight: 0,
     paddingTop: 16,
   },
   scrollContent: {

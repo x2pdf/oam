@@ -1,6 +1,7 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
+import { isDesktopOs } from '../theme/layout';
 
 export type AppModalAction = {
   label: string;
@@ -30,6 +31,9 @@ export function AppModal({
   scrollable = false,
 }: AppModalProps) {
   const theme = useTheme();
+  const { width, height } = useWindowDimensions();
+  const centered = isDesktopOs() && width > height;
+  const modalWidth = width * 0.4;
   const lastIndex = (actions?.length ?? 0) - 1;
   const hasActions = !!actions && actions.length > 0;
 
@@ -56,6 +60,12 @@ export function AppModal({
         contentContainerStyle={[
           styles.modalContent,
           { backgroundColor: theme.colors.surface },
+          centered && {
+            width: modalWidth,
+            maxWidth: modalWidth,
+            alignSelf: 'center',
+            marginHorizontal: 0,
+          },
         ]}
       >
         <Text variant="titleMedium" style={styles.modalTitle}>

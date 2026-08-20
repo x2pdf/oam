@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Button, TextInput, useTheme, HelperText } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,6 +19,7 @@ export default function MnemonicInputScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
   const [mnemonic, setMnemonic] = useState('');
 
@@ -58,7 +61,8 @@ export default function MnemonicInputScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
+      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle, { paddingBottom: insets.bottom + 20 }]}>
+        <ListColumn>
         <Text variant="headlineSmall" style={styles.title}>{t('wallet.inputMnemonicTitle')}</Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
           {t('wallet.inputMnemonicSubtitle')}
@@ -141,6 +145,7 @@ export default function MnemonicInputScreen() {
         >
           {t('wallet.inputMnemonicButton')}
         </Button>
+        </ListColumn>
       </ScrollView>
     </View>
   );

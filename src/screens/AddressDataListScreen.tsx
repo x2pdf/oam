@@ -5,8 +5,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  useWindowDimensions,
+  Platform,
 } from 'react-native';
+import { scrollFill } from '../theme/scroll';
+import { useListColumnLayout } from '../theme/layout';
 import { Text, useTheme, Snackbar } from 'react-native-paper';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -51,7 +53,7 @@ export default function AddressDataListScreen() {
   const { t } = useTranslation();
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavProp>();
-  const { width: screenWidth } = useWindowDimensions();
+  const { cardWidth, listContentStyle, columnStyle } = useListColumnLayout();
   const { state } = useAppContext();
   const { address, title, peerAddress } = route.params;
 
@@ -67,7 +69,6 @@ export default function AddressDataListScreen() {
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
 
-  const cardWidth = screenWidth - 32;
   const conversationMode = !!peerAddress;
 
   const processItems = useCallback(
@@ -217,23 +218,26 @@ export default function AddressDataListScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <FlatList
+        style={scrollFill}
         data={data}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, listContentStyle]}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadData(true)}
-            colors={[theme.colors.primary]}
-          />
+          Platform.OS !== 'web' ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadData(true)}
+              colors={[theme.colors.primary]}
+            />
+          ) : undefined
         }
         onEndReached={() => loadData(false, true)}
         onEndReachedThreshold={0.2}
         ListHeaderComponent={
-          <View style={styles.header}>
+          <View style={[styles.header, columnStyle]}>
             {title ? (
               <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 8 }}>
                 {conversationMode
@@ -313,7 +317,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listContent: {
-    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 24,
   },
