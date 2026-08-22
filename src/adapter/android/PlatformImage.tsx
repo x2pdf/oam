@@ -1,4 +1,5 @@
 import React from 'react';
+import { Pressable } from 'react-native';
 import { Image as ExpoImage, ImageContentFit } from 'expo-image';
 import { PlatformImageProps } from '../ImageRendererAdapter';
 import { RnPlatformImage } from '../RnPlatformImage';
@@ -15,18 +16,26 @@ function toContentFit(resizeMode: PlatformImageProps['resizeMode']): ImageConten
 }
 
 export const AndroidPlatformImage: React.FC<PlatformImageProps> = (props) => {
-  const { uri, style, resizeMode = 'contain', mimeType } = props;
+  const { uri, style, resizeMode = 'contain', mimeType, onLongPress } = props;
 
-  if (!isGifUri(uri, mimeType)) {
-    return <RnPlatformImage {...props} />;
-  }
-
-  return (
+  const inner = isGifUri(uri, mimeType) ? (
     <ExpoImage
       source={{ uri }}
       style={style}
       contentFit={toContentFit(resizeMode)}
       autoplay
     />
+  ) : (
+    <RnPlatformImage {...props} />
+  );
+
+  if (!onLongPress) {
+    return inner;
+  }
+
+  return (
+    <Pressable onLongPress={onLongPress} delayLongPress={400}>
+      {inner}
+    </Pressable>
   );
 };

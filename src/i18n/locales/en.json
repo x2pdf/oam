@@ -29,7 +29,7 @@
   },
   "nav": {
     "home": "Home",
-    "subscriptions": "Subscriptions",
+    "subscriptions": "Following",
     "profile": "Profile",
     "addInfoSelect": "Add Info Select",
     "addAddressForm": "Add Address (Read Only)",
@@ -46,7 +46,7 @@
     "privateKeySetup": "Private Key Setup",
     "sendData": "Send Data",
     "inputDataDetail": "Data Detail",
-    "subscriptionDetail": "Subscription Detail",
+    "subscriptionDetail": "Following Detail",
     "addressDataList": "Address Data",
     "conversation": "Conversation",
     "localFavorites": "Local Favorites"
@@ -56,7 +56,12 @@
       "square": "Square",
       "home": "Only Self",
       "sent": "Sent",
-      "messages": "Messages"
+      "messages": "Messages",
+      "filterSent": "Sent",
+      "filterReceived": "Received",
+      "filterAll": "All",
+      "filterOAMP": "OAMP",
+      "filterSubscribed": "Following"
     },
     "noApiKeyWarning": "Etherscan API Key not set, some data may be unavailable",
     "upToDate": "Data is up to date",
@@ -83,12 +88,22 @@
     "readOnlyCannotDecrypt": "This is a read-only wallet, so encrypted notes to yourself cannot be decrypted"
   },
   "subscriptions": {
-    "noSubscriptions": "No subscriptions yet",
-    "addHint": "Tap + to add a subscription address",
-    "viewAllData": "View all sent & received",
-    "viewConversation": "View conversation",
+    "noSubscriptions": "No following yet",
+    "addHint": "Tap + to add a following address",
+    "viewAllData": "All their data",
+    "viewConversation": "My conversation with them",
+    "sendToThem": "Send to them",
     "myAddress": "My address",
-    "needProfileForConversation": "Please set your address in Profile before viewing the conversation."
+    "needProfileForConversation": "Please set your address in Profile before viewing the conversation.",
+    "pin": "Pin",
+    "pinned": "Pinned (Weight: {{weight}})",
+    "pinTitle": "Set Pin Weight",
+    "pinHint": "Enter an integer from 1 to 1000. Higher numbers appear first.",
+    "pinCancel": "Remove Pin",
+    "pinConfirm": "Confirm",
+    "pinInvalid": "Please enter an integer between 1 and 1000",
+    "searchPlaceholder": "Search address or description (regex)",
+    "searchNoResult": "No matching results"
   },
   "favorites": {
     "empty": "No local favorites yet",
@@ -107,10 +122,14 @@
     "favorite": "Favorite",
     "unfavorite": "Remove Favorite",
     "favorited": "Saved to local favorites",
-    "unfavorited": "Removed from favorites"
+    "unfavorited": "Removed from favorites",
+    "savingImage": "Saving image…",
+    "imageSaved": "Image saved",
+    "imageSaveFailed": "Failed to save image",
+    "longPressSaveHint": "Long-press an image to save it"
   },
   "profile": {
-    "addHint": "Tap the + button to add profile info",
+    "addHint": "Tap here to add wallet info",
     "language": "Language",
     "selectLanguage": "Select Language",
     "localFavorites": "Local Favorites",
@@ -124,7 +143,7 @@
     "apiKeySetLabel": "Key Set",
     "fullFunction": "Full Function",
     "readOnly": "Read Only",
-    "upgradeWallet": "Change / Upgrade Wallet",
+    "upgradeWallet": "Change Wallet",
     "appInfo": "App Info",
     "appName": "App Name",
     "appVersion": "Version",
@@ -135,8 +154,8 @@
     "platformOther": "Other"
   },
   "form": {
-    "addSubscription": "Add Subscription",
-    "editSubscription": "Edit Subscription",
+    "addSubscription": "Add Following",
+    "editSubscription": "Edit Following",
     "addressRequired": "Address is required",
     "descriptionRequired": "Description is required",
     "addressPlaceholder": "Please enter address",
@@ -175,7 +194,7 @@
     "optionMnemonicHint": "Restore an existing wallet with a mnemonic",
     "optionPrivateKeyHint": "Restore an existing wallet with a private key",
     "mnemonicTitle": "Backup Mnemonic",
-    "mnemonicSubtitle": "Please copy the following 24 words accurately on paper and keep them in a safe place.",
+    "mnemonicSubtitle": "Please copy the following 12 words accurately on paper and keep them in a safe place.",
     "mnemonicWarning": "WARNING: Never reveal your mnemonic to anyone! Once lost, assets cannot be recovered.",
     "mnemonicCheckbox": "I have properly backed up the mnemonic and confirm its importance.",
     "mnemonicButton": "I've recorded it",
@@ -203,6 +222,7 @@
     "createDisclaimer3": "This app does not store my mnemonic or private key on any server. They are only encrypted with my payment password and stored locally on my device.",
     "createDisclaimer4": "If I uninstall the app without backing up my mnemonic, my wallet data will be permanently lost.",
     "createDisclaimer5": "This app does not support exporting or viewing your private key or mnemonic after wallet creation. You must back up your mnemonic in the next step — this is your only chance.",
+    "createDisclaimer6": "This wallet is not recommended for storing large amounts of assets. For holding significant assets, please use a more professional hardware wallet or cold storage solution.",
     "createDisclaimerCheckbox": "I have read and acknowledged the above statements and consequences, and agree to proceed with wallet creation.",
     "createDisclaimerButton": "Continue Creation",
     "mnemonicNoExportWarning": "IMPORTANT: The mnemonic is shown only once here. After wallet creation, this app does not support viewing or exporting your mnemonic or private key again.",

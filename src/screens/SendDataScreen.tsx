@@ -14,7 +14,7 @@ import {
   RadioButton,
   HelperText,
 } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,6 +35,7 @@ import { AppModal } from '../components/AppModal';
 import { AllRpcFailedError, withRpcFallback } from '../rpc/rpcClient';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
+type RouteProps = RouteProp<RootStackParamList, 'SendData'>;
 
 const PlatformImage = getImageRendererAdapter().Image;
 
@@ -54,6 +55,7 @@ function wrapLongHex(value: string): string {
 export default function SendDataScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
+  const route = useRoute<RouteProps>();
   const insets = useSafeAreaInsets();
   const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
@@ -62,7 +64,9 @@ export default function SendDataScreen() {
 
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageItem[]>([]);
-  const [recipientAddress, setRecipientAddress] = useState(BLACK_HOLE);
+  const [recipientAddress, setRecipientAddress] = useState(
+    route.params?.recipientAddress || BLACK_HOLE,
+  );
   const [encryptEnabled, setEncryptEnabled] = useState(false);
   const [recipientPublicKey, setRecipientPublicKey] = useState<string | null>(null);
   const [pubkeyLookupVisible, setPubkeyLookupVisible] = useState(false);

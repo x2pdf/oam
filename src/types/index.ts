@@ -15,6 +15,7 @@ export interface Subscription {
   description: string;
   chain: ChainSlug;
   walletType?: 'read' | 'write';
+  pinWeight?: number;
 }
 
 /** 补全旧数据缺失的 chain 字段 */
@@ -24,6 +25,7 @@ export function normalizeSubscription(
   return {
     ...item,
     chain: item.chain ?? DEFAULT_CHAIN,
+    pinWeight: item.pinWeight ?? 0,
   };
 }
 
@@ -77,7 +79,7 @@ export type RootStackParamList = {
   PrivateKeyInput: undefined;
   PrivateKeyVerify: { privateKey: string };
   PrivateKeySetup: { privateKey: string };
-  SendData: undefined;
+  SendData: { recipientAddress?: string } | undefined;
   InputDataDetail: { item: InputDataItem };
   SubscriptionDetail: { subscription: Subscription };
   AddressDataList: { address: string; title?: string; peerAddress?: string };

@@ -12,7 +12,7 @@ import {
 import { scrollFill } from '../theme/scroll';
 import { useListColumnLayout } from '../theme/layout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput } from 'react-native-paper';
+import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput, Checkbox } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import TabPager, { TabPagerRef } from '../components/TabPager';
@@ -22,10 +22,13 @@ import { useAppContext } from '../context/AppContext';
 import { dataSourceManager } from '../datasource/DataSourceManager';
 import { InputDataCard } from '../components/InputDataCard';
 import { CopyableAddress } from '../components/CopyableAddress';
-import { shortenAddress } from '../utils/address';
+import { shortenAddress, BLACK_HOLE_ADDRESS } from '../utils/address';
 import { OAMPClient } from '../oamp/client';
 import { applyDisplayPipeline, markAllRaw } from '../display';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FILTER_STATE_KEY } from '../constants';
+import { isBlackHoleAddress } from '../utils/address';
 import {
   isDesktopLockPolicy,
   useWalletSession,
@@ -45,8 +48,7 @@ type NavProp = NativeStackNavigationProp<RootStackParamList>;
 /*  常量与类型                                                         */
 /* ------------------------------------------------------------------ */
 
-const BLACK_HOLE_ADDRESS = '0x0000000000000000000000000000000000000000';
-const SELF_TAB_INDEX = 3;
+const SELF_TAB_INDEX = 2;
 
 function wipeDecryptedItems(items: InputDataItem[]): InputDataItem[] {
   return items.map((item) => {
@@ -82,10 +84,17 @@ export default function HomeScreen() {
 
   const TABS = useMemo(() => [
     t('home.tabs.square'),
-    t('home.tabs.sent'),
     t('home.tabs.messages'),
     t('home.tabs.home')
   ], [t]);
+
+  // ── 筛选状态 ──
+  const [showFilterSent, setShowFilterSent] = useState(true);
+  const [showFilterReceived, setShowFilterReceived] = useState(true);
+  const [showSquareAll, setShowSquareAll] = useState(true);
+  const [showSquareOamp, setShowSquareOamp] = useState(true);
+  const [showSquareSubscribed, setShowSquareSubscribed] = useState(true);
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   const [activeTab, setActiveTab] = useState(0);
   const pagerRef = useRef<TabPagerRef>(null);
@@ -101,10 +110,10 @@ export default function HomeScreen() {
   const [squareData, setSquareData] = useState<InputDataItem[]>([]);
   const [sentData, setSentData] = useState<InputDataItem[]>([]);
   const [inboxData, setInboxData] = useState<InputDataItem[]>([]);
-  const [loading, setLoading] = useState([false, false, false, false]);
-  const [refreshing, setRefreshing] = useState([false, false, false, false]);
-  const [loadingMore, setLoadingMore] = useState([false, false, false, false]);
-  const [hasMore, setHasMore] = useState([true, true, true, true]);
+  const [loading, setLoading] = useState([false, false, false]);
+  const [refreshing, setRefreshing] = useState([false, false, false]);
+  const [loadingMore, setLoadingMore] = useState([false, false, false]);
+  const [hasMore, setHasMore] = useState([true, true, true]);
   const [error, setError] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -115,60 +124,120 @@ export default function HomeScreen() {
   const [unlocking, setUnlocking] = useState(false);
 
   // 使用 Ref 存储分页参数和状态，避免 loadData 身份变化触发重复请求
+  const flatListRefs = useRef<(FlatList | null)[]>([null, null, null]);
   const nextPageParamsRef = useRef<any[]>([null, null, null, null]);
   const hasMoreRef = useRef<boolean[]>([true, true, true, true]);
   const loadingMoreRef = useRef<boolean[]>([false, false, false, false]);
   const initialLoadDoneRef = useRef(false);
 
-  const loadData = useCallback(async (tabIndex: number, isRefreshing = false, isLoadMore = false) => {
+  // 消息标签页合并显示已发送 + 收到（按 id 去重）
+  const messagesData = useMemo(() => {
+    const map = new Map<string, InputDataItem>();
+    if (showFilterSent) sentData.forEach(i => map.set(i.id, i));
+    if (showFilterReceived) inboxData.forEach(i => map.set(i.id, i));
+    return Array.from(map.values()).sort((a, b) =>
+      new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+    );
+  }, [sentData, inboxData, showFilterSent, showFilterReceived]);
+
+  // 广场 OAMP 筛选：仅接收地址为黑洞地址的交易
+  const oampFilteredData = useMemo(() => {
+    if (showSquareAll) return squareData;
+    return squareData.filter(item => isBlackHoleAddress(item.to || ''));
+  }, [squareData, showSquareAll]);
+
+  // 广场关注筛选：仅关注列表地址的交易（按 to 地址匹配）
+  const subscribedFilteredData = useMemo(() => {
+    if (showSquareAll) return squareData;
+    const subSet = new Set(subscriptions.map(s => s.address.toLowerCase()));
+    return squareData.filter(item => subSet.has((item.to || '').toLowerCase()));
+  }, [squareData, showSquareAll, subscriptions]);
+
+  // 根据广场勾选项决定当前显示的数据
+  const displayedSquareData = useMemo(() => {
+    if (showSquareAll) return squareData;
+    const map = new Map<string, InputDataItem>();
+    if (showSquareOamp) oampFilteredData.forEach(i => map.set(i.id, i));
+    if (showSquareSubscribed) subscribedFilteredData.forEach(i => map.set(i.id, i));
+    return Array.from(map.values()).sort((a, b) =>
+      new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+    );
+  }, [squareData, showSquareAll, showSquareOamp, showSquareSubscribed, oampFilteredData, subscribedFilteredData]);
+
+  // ── 筛选状态持久化 ──
+  useEffect(() => {
+    AsyncStorage.getItem(FILTER_STATE_KEY).then(raw => {
+      if (raw) {
+        try {
+          const s = JSON.parse(raw);
+          if (typeof s.showFilterSent === 'boolean') setShowFilterSent(s.showFilterSent);
+          if (typeof s.showFilterReceived === 'boolean') setShowFilterReceived(s.showFilterReceived);
+          if (typeof s.showSquareAll === 'boolean') setShowSquareAll(s.showSquareAll);
+          if (typeof s.showSquareOamp === 'boolean') setShowSquareOamp(s.showSquareOamp);
+          if (typeof s.showSquareSubscribed === 'boolean') setShowSquareSubscribed(s.showSquareSubscribed);
+        } catch { /* ignore */ }
+      }
+      setFiltersLoaded(true);
+    }).catch(() => setFiltersLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!filtersLoaded) return;
+    AsyncStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
+      showFilterSent, showFilterReceived,
+      showSquareAll, showSquareOamp, showSquareSubscribed,
+    })).catch(() => {});
+  }, [showFilterSent, showFilterReceived, showSquareAll, showSquareOamp, showSquareSubscribed, filtersLoaded]);
+
+  const _loadData = useCallback(async (internalIndex: number, uiIndex: number, isRefreshing = false, isLoadMore = false) => {
     const modeMap: ('square' | 'sent' | 'inbox' | 'self')[] = ['square', 'sent', 'inbox', 'self'];
-    const mode = modeMap[tabIndex];
+    const mode = modeMap[internalIndex];
 
     if (mode !== 'square' && !profile?.address) return;
 
     // 如果是加载更多，但已经没有更多了，或者正在加载中，则返回
-    if (isLoadMore && (!hasMoreRef.current[tabIndex] || loadingMoreRef.current[tabIndex])) return;
+    if (isLoadMore && (!hasMoreRef.current[internalIndex] || loadingMoreRef.current[internalIndex])) return;
 
     if (isRefreshing) {
       setRefreshing((prev) => {
         const next = [...prev];
-        next[tabIndex] = true;
+        next[internalIndex] = true;
         return next;
       });
       // 下拉刷新重置分页
-      nextPageParamsRef.current[tabIndex] = null;
-      hasMoreRef.current[tabIndex] = true;
+      nextPageParamsRef.current[internalIndex] = null;
+      hasMoreRef.current[internalIndex] = true;
       setHasMore(prev => {
         const next = [...prev];
-        next[tabIndex] = true;
+        next[uiIndex] = true;
         return next;
       });
     } else if (isLoadMore) {
-      loadingMoreRef.current[tabIndex] = true;
+      loadingMoreRef.current[internalIndex] = true;
       setLoadingMore(prev => {
         const next = [...prev];
-        next[tabIndex] = true;
+        next[uiIndex] = true;
         return next;
       });
     } else {
       setLoading((prev) => {
         const next = [...prev];
-        next[tabIndex] = true;
+        next[uiIndex] = true;
         return next;
       });
       // 初次加载重置分页
-      nextPageParamsRef.current[tabIndex] = null;
-      hasMoreRef.current[tabIndex] = true;
+      nextPageParamsRef.current[internalIndex] = null;
+      hasMoreRef.current[internalIndex] = true;
       setHasMore(prev => {
         const next = [...prev];
-        next[tabIndex] = true;
+        next[uiIndex] = true;
         return next;
       });
     }
 
     setError(null);
 
-    const params = nextPageParamsRef.current[tabIndex];
+    const params = nextPageParamsRef.current[internalIndex];
 
     try {
       let resultItems: InputDataItem[] = [];
@@ -176,16 +245,23 @@ export default function HomeScreen() {
       let allErrors: string[] = [];
 
       if (mode === 'square') {
-        // Square mode: fetch Black Hole + all subscriptions
-        const targetAddresses = [BLACK_HOLE_ADDRESS, ...subscriptions.map(s => s.address)];
-
-        // Concurrent fetch
-        const results = await Promise.all(
-          targetAddresses.map(addr => dataSourceManager.fetchAll(addr, mode, params).catch(e => {
+        // Black hole: mode='square' (仅接收，用于 OAMP)
+        // Subscriptions: mode='all' (收发，用于关注/全部)
+        const fetches = [
+          dataSourceManager.fetchAll(BLACK_HOLE_ADDRESS, 'square', params).catch(e => {
             const message = e instanceof Error ? e.message : String(e);
             return { items: [], next_page_params: null, errors: [message] };
-          }))
-        );
+          }),
+          ...subscriptions.map(s =>
+            dataSourceManager.fetchAll(s.address, 'all', params).catch(e => {
+              const message = e instanceof Error ? e.message : String(e);
+              return { items: [], next_page_params: null, errors: [message] };
+            })
+          ),
+        ];
+
+        // Concurrent fetch
+        const results = await Promise.all(fetches);
 
         // Merge and deduplicate by ID (tx hash)
         const map = new Map<string, InputDataItem>();
@@ -226,7 +302,7 @@ export default function HomeScreen() {
       let processedItems: InputDataItem[];
       try {
         let client: OAMPClient | null = null;
-        if (tabIndex === SELF_TAB_INDEX) {
+        if (internalIndex === 3) {
           const wallet = getUnlockedWallet();
           if (wallet) {
             client = new OAMPClient(wallet.privateKey, DEFAULT_RPC_NODE);
@@ -238,7 +314,7 @@ export default function HomeScreen() {
           client,
         });
 
-        if (tabIndex === SELF_TAB_INDEX) {
+        if (internalIndex === 3) {
           const latestWallet = getUnlockedWallet();
           if (!!latestWallet !== !!client) {
             processedItems = await applyDisplayPipeline(resultItems, {
@@ -264,15 +340,15 @@ export default function HomeScreen() {
       };
 
       if (isLoadMore) {
-        if (tabIndex === 0) setSquareData(updateData);
-        else if (tabIndex === 1) setSentData(updateData);
-        else if (tabIndex === 2) setInboxData(updateData);
-        else if (tabIndex === 3) setSelfData(updateData);
+        if (internalIndex === 0) setSquareData(updateData);
+        else if (internalIndex === 1) setSentData(updateData);
+        else if (internalIndex === 2) setInboxData(updateData);
+        else if (internalIndex === 3) setSelfData(updateData);
       } else {
-        if (tabIndex === 0) setSquareData(processedItems);
-        else if (tabIndex === 1) setSentData(processedItems);
-        else if (tabIndex === 2) setInboxData(processedItems);
-        else if (tabIndex === 3) setSelfData(processedItems);
+        if (internalIndex === 0) setSquareData(processedItems);
+        else if (internalIndex === 1) setSentData(processedItems);
+        else if (internalIndex === 2) setInboxData(processedItems);
+        else if (internalIndex === 3) setSelfData(processedItems);
 
         if (isRefreshing) {
           setSnackbarMessage(t('home.upToDate'));
@@ -280,12 +356,12 @@ export default function HomeScreen() {
         }
       }
 
-      nextPageParamsRef.current[tabIndex] = nextParams;
-      hasMoreRef.current[tabIndex] = !!nextParams;
+      nextPageParamsRef.current[internalIndex] = nextParams;
+      hasMoreRef.current[internalIndex] = !!nextParams;
 
       setHasMore(prev => {
         const next = [...prev];
-        next[tabIndex] = !!nextParams;
+        next[uiIndex] = !!nextParams;
         return next;
       });
     } catch (err: any) {
@@ -298,22 +374,33 @@ export default function HomeScreen() {
     } finally {
       setLoading((prev) => {
         const next = [...prev];
-        next[tabIndex] = false;
+        next[uiIndex] = false;
         return next;
       });
       setRefreshing((prev) => {
         const next = [...prev];
-        next[tabIndex] = false;
+        next[internalIndex] = false;
         return next;
       });
-      loadingMoreRef.current[tabIndex] = false;
+      loadingMoreRef.current[internalIndex] = false;
       setLoadingMore(prev => {
         const next = [...prev];
-        next[tabIndex] = false;
+        next[uiIndex] = false;
         return next;
       });
     }
   }, [profile?.address, apiKey, subscriptions, t]);
+
+  const loadData = useCallback(async (tabIndex: number, isRefreshing = false, isLoadMore = false) => {
+    // 消息标签页同时加载已发送(internal=1)和收到(internal=2)
+    if (tabIndex === 1) {
+      _loadData(1, 1, isRefreshing, isLoadMore);
+      _loadData(2, 1, isRefreshing, isLoadMore);
+      return;
+    }
+    const uiToInternal: number[] = [0, 1, 3];
+    _loadData(uiToInternal[tabIndex], tabIndex, isRefreshing, isLoadMore);
+  }, [_loadData]);
 
   const reclassifySelfData = useCallback(async (withClient: boolean) => {
     const gen = ++classifyGenRef.current;
@@ -428,13 +515,12 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    if (contextLoading || initialLoadDoneRef.current) return;
+    if (contextLoading || !filtersLoaded || initialLoadDoneRef.current) return;
     initialLoadDoneRef.current = true;
     loadData(0);
     loadData(1);
     loadData(2);
-    loadData(3);
-  }, [contextLoading, loadData]);
+  }, [contextLoading, filtersLoaded, loadData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -461,8 +547,13 @@ export default function HomeScreen() {
   );
 
   const onTabPress = (index: number) => {
+    const isSameTab = activeTabRef.current === index;
     applyTabIndex(index);
     pagerRef.current?.setPage(index);
+    // 仅在点击当前已激活的标签页时，列表回到顶部（类似双击行为）
+    if (isSameTab) {
+      flatListRefs.current[index]?.scrollToOffset({ offset: 0, animated: true });
+    }
   };
 
   const onPageSelected = (e: any) => {
@@ -492,6 +583,7 @@ export default function HomeScreen() {
         <InputDataCard
           item={{ ...item, name: displayDesc }}
           cardWidth={cardWidth}
+          highlightName={!!sub}
           onAddressCopied={showCopiedSnackbar}
           onPress={() => handleItemPress({ ...item, name: displayDesc })}
         />
@@ -504,9 +596,8 @@ export default function HomeScreen() {
 
   const renderList = (data: InputDataItem[], tabIndex: number) => {
     const isSquareList = tabIndex === 0;
-    const isSentList = tabIndex === 1;
-    const isInboxList = tabIndex === 2;
-    const isSelfList = tabIndex === 3;
+    const isMessagesList = tabIndex === 1;
+    const isSelfList = tabIndex === 2;
 
     if (!isSquareList && !profile?.address) {
       return (
@@ -545,7 +636,14 @@ export default function HomeScreen() {
       );
     }
 
-    if (loading[tabIndex] && !refreshing[tabIndex] && data.length === 0) {
+    const isMsgLoading = isMessagesList
+      ? (loading[1] || loading[2])
+      : loading[tabIndex];
+    const isMsgRefreshing = isMessagesList
+      ? (refreshing[1] || refreshing[2])
+      : refreshing[tabIndex];
+
+    if (isMsgLoading && !isMsgRefreshing && data.length === 0) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -556,6 +654,7 @@ export default function HomeScreen() {
 
     return (
       <FlatList
+        ref={(ref) => { flatListRefs.current[tabIndex] = ref; }}
         style={scrollFill}
         data={data}
         renderItem={renderItem}
@@ -566,7 +665,7 @@ export default function HomeScreen() {
         refreshControl={
           Platform.OS !== 'web' ? (
             <RefreshControl
-              refreshing={refreshing[tabIndex]}
+              refreshing={isMsgRefreshing}
               onRefresh={() => loadData(tabIndex, true)}
               colors={[theme.colors.primary]}
               enabled={true}
@@ -580,7 +679,7 @@ export default function HomeScreen() {
             <View style={styles.footerContainer}>
               {loadingMore[tabIndex] ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : !hasMore[tabIndex] ? (
+              ) : (isMessagesList ? (!hasMore[1] && !hasMoreRef.current[2]) : !hasMore[tabIndex]) ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('home.noMoreData')}
                 </Text>
@@ -594,35 +693,104 @@ export default function HomeScreen() {
           </View>
         }
         ListHeaderComponent={
-          <View style={[styles.headerRow, columnStyle]}>
-            <View>
-              {(isSelfList || isSentList || isInboxList) && profile?.address && (
-                <CopyableAddress
-                  address={profile.address}
-                  variant="labelSmall"
-                  style={{ color: theme.colors.primary }}
-                  onCopied={showCopiedSnackbar}
+          <View>
+            {isMessagesList && (
+              <View style={styles.filterRow}>
+                <TouchableOpacity
+                  style={styles.filterItem}
+                  onPress={() => setShowFilterSent(prev => !prev)}
                 >
-                  {shortenAddress(profile.address)}
-                </CopyableAddress>
-              )}
-              {isSquareList && (
-                <CopyableAddress
-                  address={BLACK_HOLE_ADDRESS}
-                  variant="labelSmall"
-                  style={{ color: theme.colors.secondary }}
-                  onCopied={showCopiedSnackbar}
+                  <Checkbox
+                    status={showFilterSent ? 'checked' : 'unchecked'}
+                    onPress={() => setShowFilterSent(prev => !prev)}
+                  />
+                  <Text variant="labelMedium">{t('home.tabs.filterSent')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.filterItem}
+                  onPress={() => setShowFilterReceived(prev => !prev)}
                 >
-                  {t('home.sentTo')}: {shortenAddress(BLACK_HOLE_ADDRESS)} {subscriptions.length > 0 ? `+ ${subscriptions.length} ${t('nav.subscriptions')}` : ''}
-                </CopyableAddress>
-              )}
+                  <Checkbox
+                    status={showFilterReceived ? 'checked' : 'unchecked'}
+                    onPress={() => setShowFilterReceived(prev => !prev)}
+                  />
+                  <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {isSquareList && (
+              <View style={styles.filterRow}>
+                <TouchableOpacity
+                  style={styles.filterItem}
+                  onPress={() => setShowSquareAll(prev => !prev)}
+                >
+                  <Checkbox
+                    status={showSquareAll ? 'checked' : 'unchecked'}
+                    onPress={() => setShowSquareAll(prev => !prev)}
+                  />
+                  <Text variant="labelMedium">{t('home.tabs.filterAll')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.filterItem}
+                  onPress={() => setShowSquareOamp(prev => !prev)}
+                >
+                  <Checkbox
+                    status={showSquareOamp ? 'checked' : 'unchecked'}
+                    onPress={() => setShowSquareOamp(prev => !prev)}
+                  />
+                  <Text variant="labelMedium">{t('home.tabs.filterOAMP')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.filterItem}
+                  onPress={() => setShowSquareSubscribed(prev => !prev)}
+                >
+                  <Checkbox
+                    status={showSquareSubscribed ? 'checked' : 'unchecked'}
+                    onPress={() => setShowSquareSubscribed(prev => !prev)}
+                  />
+                  <Text variant="labelMedium">{t('home.tabs.filterSubscribed')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <View style={[styles.headerRow, columnStyle]}>
+              <View>
+                {(isSelfList || isMessagesList) && profile?.address && (
+                  <CopyableAddress
+                    address={profile.address}
+                    variant="labelSmall"
+                    style={{ color: theme.colors.primary }}
+                    onCopied={showCopiedSnackbar}
+                  >
+                    {shortenAddress(profile.address)}
+                  </CopyableAddress>
+                )}
+                {isSquareList && (
+                  showSquareAll ? (
+                    <CopyableAddress
+                      address={BLACK_HOLE_ADDRESS}
+                      variant="labelSmall"
+                      style={{ color: theme.colors.secondary }}
+                      onCopied={showCopiedSnackbar}
+                    >
+                      {t('home.sentTo')}: {t('send.recipientBlackHole')} {subscriptions.length > 0 ? `+ ${subscriptions.length} ${t('nav.subscriptions')}` : ''}
+                    </CopyableAddress>
+                  ) : (
+                    <Text
+                      variant="labelSmall"
+                      style={{ color: theme.colors.onSurfaceVariant }}
+                    >
+                      {showSquareOamp && t('home.tabs.filterOAMP')}{showSquareOamp && showSquareSubscribed ? ' + ' : ''}{showSquareSubscribed && t('home.tabs.filterSubscribed')}
+                    </Text>
+                  )
+                )}
+              </View>
+              <Text
+                variant="bodySmall"
+                style={{ color: theme.colors.onSurfaceVariant }}
+              >
+                {t('home.totalItems', { count: data.length })}
+              </Text>
             </View>
-            <Text
-              variant="bodySmall"
-              style={{ color: theme.colors.onSurfaceVariant }}
-            >
-              {t('home.totalItems', { count: data.length })}
-            </Text>
           </View>
         }
       />
@@ -678,10 +846,9 @@ export default function HomeScreen() {
         initialPage={0}
         onPageSelected={onPageSelected}
       >
-        <View key="1" style={scrollFill}>{renderList(squareData, 0)}</View>
-        <View key="2" style={scrollFill}>{renderList(sentData, 1)}</View>
-        <View key="3" style={scrollFill}>{renderList(inboxData, 2)}</View>
-        <View key="4" style={scrollFill}>{renderList(selfData, 3)}</View>
+        <View key="1" style={scrollFill}>{renderList(displayedSquareData, 0)}</View>
+        <View key="2" style={scrollFill}>{renderList(messagesData, 1)}</View>
+        <View key="3" style={scrollFill}>{renderList(selfData, 2)}</View>
       </TabPager>
 
       {error && (
@@ -820,6 +987,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    gap: 16,
+  },
+  filterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   separator: {
     height: 12,

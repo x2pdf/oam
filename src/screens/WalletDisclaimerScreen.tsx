@@ -25,6 +25,7 @@ export default function WalletDisclaimerScreen() {
     t('wallet.createDisclaimer3'),
     t('wallet.createDisclaimer4'),
     t('wallet.createDisclaimer5'),
+    t('wallet.createDisclaimer6'),
   ];
 
   return (

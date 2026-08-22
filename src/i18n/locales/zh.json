@@ -29,7 +29,7 @@
   },
   "nav": {
     "home": "主页",
-    "subscriptions": "订阅列表",
+    "subscriptions": "关注列表",
     "profile": "我的",
     "addInfoSelect": "选择添加方式",
     "addAddressForm": "添加地址（仅查询）",
@@ -46,7 +46,7 @@
     "privateKeySetup": "钱包设定",
     "sendData": "发送数据",
     "inputDataDetail": "数据详情",
-    "subscriptionDetail": "订阅详情",
+    "subscriptionDetail": "关注详情",
     "addressDataList": "地址数据",
     "conversation": "双方对话",
     "localFavorites": "我的本地收藏"
@@ -56,7 +56,12 @@
       "square": "广场",
       "home": "仅自己",
       "sent": "已发送",
-      "messages": "消息"
+      "messages": "消息",
+      "filterSent": "已发出",
+      "filterReceived": "收到",
+      "filterAll": "全部",
+      "filterOAMP": "OAMP",
+      "filterSubscribed": "关注"
     },
     "noApiKeyWarning": "未设置 Etherscan API Key，部分数据可能无法获取",
     "upToDate": "已经是最新数据了",
@@ -83,12 +88,22 @@
     "readOnlyCannotDecrypt": "当前为仅查询钱包，无法解密仅自己的加密内容"
   },
   "subscriptions": {
-    "noSubscriptions": "暂无订阅",
-    "addHint": "点击右下角 + 添加订阅地址",
-    "viewAllData": "查看全部收发",
-    "viewConversation": "查看双方对话",
+    "noSubscriptions": "暂无关注",
+    "addHint": "点击右下角 + 添加关注地址",
+    "viewAllData": "他/她的全部数据",
+    "viewConversation": "我和他/她的对话数据",
+    "sendToThem": "给他/她发送",
     "myAddress": "我的地址",
-    "needProfileForConversation": "请先在「我的」页面填写当前地址，才能查看双方对话。"
+    "needProfileForConversation": "请先在「我的」页面填写当前地址，才能查看双方对话。",
+    "pin": "置顶",
+    "pinned": "已置顶 (权重: {{weight}})",
+    "pinTitle": "设置置顶权重",
+    "pinHint": "输入 1–1000 的整数，数字越大排名越靠前",
+    "pinCancel": "取消置顶",
+    "pinConfirm": "确认",
+    "pinInvalid": "请输入 1–1000 的整数",
+    "searchPlaceholder": "搜索地址或描述（支持正则）",
+    "searchNoResult": "没有匹配的结果"
   },
   "favorites": {
     "empty": "暂无本地收藏",
@@ -107,10 +122,14 @@
     "favorite": "收藏",
     "unfavorite": "取消收藏",
     "favorited": "已加入本地收藏",
-    "unfavorited": "已取消收藏"
+    "unfavorited": "已取消收藏",
+    "savingImage": "正在保存图片…",
+    "imageSaved": "图片已保存",
+    "imageSaveFailed": "图片保存失败",
+    "longPressSaveHint": "长按图片可保存到本地"
   },
   "profile": {
-    "addHint": "点击右上角 + 添加个人信息",
+    "addHint": "点击此处添加钱包信息",
     "language": "语言",
     "selectLanguage": "选择语言",
     "localFavorites": "我的本地收藏",
@@ -124,7 +143,7 @@
     "apiKeySetLabel": "已设置 Key",
     "fullFunction": "全功能",
     "readOnly": "仅查询",
-    "upgradeWallet": "更换 / 升级钱包",
+    "upgradeWallet": "更换钱包",
     "appInfo": "应用信息",
     "appName": "应用名称",
     "appVersion": "版本",
@@ -135,8 +154,8 @@
     "platformOther": "其他"
   },
   "form": {
-    "addSubscription": "添加订阅",
-    "editSubscription": "编辑订阅",
+    "addSubscription": "添加关注",
+    "editSubscription": "编辑关注",
     "addressRequired": "地址不能为空",
     "descriptionRequired": "描述不能为空",
     "addressPlaceholder": "请输入地址",
@@ -175,7 +194,7 @@
     "optionMnemonicHint": "用助记词恢复已有钱包",
     "optionPrivateKeyHint": "用私钥恢复已有钱包",
     "mnemonicTitle": "备份助记词",
-    "mnemonicSubtitle": "请在纸上准确抄写以下 24 个单词，并将其存放在安全的地方。",
+    "mnemonicSubtitle": "请在纸上准确抄写以下 12 个单词，并将其存放在安全的地方。",
     "mnemonicWarning": "警告：切勿向任何人透露助记词！一旦丢失，资产将无法找回。",
     "mnemonicCheckbox": "我已妥善备份助记词并确认已知悉其重要性。",
     "mnemonicButton": "我已记好",
@@ -203,6 +222,7 @@
     "createDisclaimer3": "本应用不会在任何服务器上存储我的助记词或私钥，它们仅经过支付密码加密后存储在我的设备本地。",
     "createDisclaimer4": "如果卸载应用且没有备份助记词，我的钱包数据将会永久丢失。",
     "createDisclaimer5": "本应用不支持在钱包创建完成后导出或再次查看私钥及助记词。请务必在下一步妥善备份助记词，这是您唯一的机会。",
+    "createDisclaimer6": "本钱包不推荐用来存放大量资产。如需持有大额资产，请使用更专业的硬件钱包或冷钱包方案。",
     "createDisclaimerCheckbox": "我已阅读并知悉上述声明及相关后果，并同意继续创建钱包。",
     "createDisclaimerButton": "继续创建",
     "mnemonicNoExportWarning": "重要：助记词仅在此处展示一次。钱包创建完成后，本应用不支持再次查看或导出助记词及私钥。",

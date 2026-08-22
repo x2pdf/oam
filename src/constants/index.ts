@@ -27,6 +27,9 @@ export const LEGACY_STORAGE_KEYS = {
   LANGUAGE: '@onchaindata_language',
 } as const;
 
+/** 筛选状态持久化键 */
+export const FILTER_STATE_KEY = '@oam_filter_state';
+
 /** 单次请求内，遍历所有数据源失败后的最大重试轮数 */
 export const MAX_DATA_SOURCE_CYCLES = 3;
 

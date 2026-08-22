@@ -2,7 +2,7 @@
   "expo": {
     "name": "OAM",
     "slug": "oam",
-    "version": "1.0.0",
+    "version": "26.1.0",
     "description": "Onchain Attachment Message",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,7 +33,8 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos",
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera"
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }

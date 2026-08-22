@@ -6,6 +6,8 @@ import { IosImagePickerAdapter, IosImageRendererAdapter } from './ios';
 import { MacImagePickerAdapter, MacImageRendererAdapter } from './mac';
 import { WindowsImagePickerAdapter, WindowsImageRendererAdapter } from './windows';
 
+export { saveImageToAlbum } from './saveImage';
+
 export function getImagePickerAdapter(): IImagePickerAdapter {
   if (Platform.OS === 'android') {
     return AndroidImagePickerAdapter;

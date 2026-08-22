@@ -9,11 +9,11 @@ export const PRIVATE_KEY_STORAGE_KEY = 'user_wallet_private_key';
 const KEYSTORE_SCRYPT_N = 8192;
 
 /**
- * Generates a 24-word mnemonic phrase.
+ * Generates a 12-word mnemonic phrase.
  */
-export function generate24WordMnemonic(): string {
-  // 32 bytes of entropy = 256 bits = 24 words in BIP39
-  const entropy = randomBytes(32);
+export function generate12WordMnemonic(): string {
+  // 16 bytes of entropy = 128 bits = 12 words in BIP39
+  const entropy = randomBytes(16);
   const mnemonic = Mnemonic.fromEntropy(entropy);
   return mnemonic.phrase;
 }

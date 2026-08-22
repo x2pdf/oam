@@ -1,8 +1,11 @@
 import { IDataSource, FetchMode, DataSourceResult, OutgoingTxResult } from './types';
+import { isBlackHoleAddress } from '../utils/address';
 
 export abstract class BaseDataSource implements IDataSource {
   abstract name: string;
   abstract weight: number;
+  /** 子类可覆盖此属性以声明 API Key 支持 */
+  readonly apiKey?: string;
 
   abstract fetchMessages(address: string, mode: FetchMode, params?: any): Promise<DataSourceResult>;
   abstract fetchOutgoingTransactions(address: string, params?: any): Promise<OutgoingTxResult>;
@@ -43,6 +46,7 @@ export abstract class BaseDataSource implements IDataSource {
   }
 
   protected shortenAddress(address: string): string {
+    if (isBlackHoleAddress(address)) return '黑洞地址';
     if (address.length <= 12) return address;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   }

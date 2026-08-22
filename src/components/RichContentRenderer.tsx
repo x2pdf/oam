@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { Text, Portal, Snackbar, useTheme } from 'react-native-paper';
 import { ContentItem } from '../mypayload';
-import { getImageRendererAdapter } from '../adapter';
+import { getImageRendererAdapter, saveImageToAlbum } from '../adapter';
+import { useTranslation } from 'react-i18next';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
@@ -13,6 +14,26 @@ interface Props {
 
 export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const [saving, setSaving] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  const handleSaveImage = useCallback(async (dataUri: string) => {
+    if (saving) return;
+    setSaving(true);
+    setSnackbarMessage(t('detail.savingImage'));
+    setSnackbarVisible(true);
+    try {
+      await saveImageToAlbum(dataUri);
+      setSnackbarMessage(t('detail.imageSaved'));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setSnackbarMessage(`${t('detail.imageSaveFailed')}: ${message}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [saving, t]);
 
   return (
     <View style={styles.container}>
@@ -35,11 +56,22 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
               uri={item.data}
               style={[styles.image, { backgroundColor: theme.colors.surfaceVariant }]}
               resizeMode="contain"
+              onLongPress={() => handleSaveImage(item.data)}
             />
           );
         }
         return null;
       })}
+
+      <Portal>
+        <Snackbar
+          visible={snackbarVisible}
+          onDismiss={() => setSnackbarVisible(false)}
+          duration={2000}
+        >
+          {snackbarMessage}
+        </Snackbar>
+      </Portal>
     </View>
   );
 };

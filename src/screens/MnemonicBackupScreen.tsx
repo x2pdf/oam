@@ -8,7 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { generate24WordMnemonic } from '../wallet/walletManager';
+import { generate12WordMnemonic } from '../wallet/walletManager';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -23,7 +23,7 @@ export default function MnemonicBackupScreen() {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    setMnemonic(generate24WordMnemonic());
+    setMnemonic(generate12WordMnemonic());
   }, []);
 
   const words = mnemonic.split(' ');

@@ -5,22 +5,30 @@ import { useTranslation } from 'react-i18next';
 import { InputDataItem } from '../types';
 import { RichContentRenderer } from './RichContentRenderer';
 import { CopyableAddress } from './CopyableAddress';
-import { shortenAddress } from '../utils/address';
+import { shortenAddress, isBlackHoleAddress } from '../utils/address';
 import { CONTENT_KIND_I18N_KEY } from '../display';
+import { useAppContext } from '../context/AppContext';
 
 interface InputDataCardProps {
   item: InputDataItem;
   cardWidth?: number;
+  highlightName?: boolean;
   onAddressCopied?: () => void;
   onPress?: () => void;
 }
 
 export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
-  ({ item, cardWidth, onAddressCopied, onPress }) => {
+  ({ item, cardWidth, highlightName, onAddressCopied, onPress }) => {
     const theme = useTheme();
     const { t } = useTranslation();
+    const { state } = useAppContext();
     const kind = item.contentKind ?? 'RAW';
     const rawHex = item.rawInput || item.description || '';
+
+    const isBlackHole = isBlackHoleAddress(item.address);
+    const isSelf = !isBlackHole && state.profile?.address?.toLowerCase() === item.address?.toLowerCase();
+    const nameHighlighted = isBlackHole || isSelf || highlightName;
+    const nameText = isBlackHole ? t('send.recipientBlackHole') : isSelf ? t('send.recipientSelf') : item.name;
 
     const renderBody = () => {
       if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
@@ -69,7 +77,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
               style={[styles.addressLabel, { color: theme.colors.primary, flex: 1 }]}
               onCopied={onAddressCopied}
             >
-              {shortenAddress(item.address)} ({item.name})
+              {shortenAddress(item.address)} ({nameHighlighted ? <Text style={{ color: theme.colors.secondary, fontWeight: '700' }}>{nameText}</Text> : nameText})
             </CopyableAddress>
             <Text
               variant="labelSmall"
