@@ -18,13 +18,20 @@ App.tsx / src/**（业务 UI）
 
 下面按「新 M1/M2/M3 Mac 拉代码就能打 Apple Silicon 包」来写。命令以 **zsh / bash** 为准（Terminal.app 或 iTerm 均可）。
 
-**文档状态：初步。** 当前编写环境是 Windows，**没有**在 M1 上实际执行安装与打包。内容依据：
+**文档状态：已验证。** 已在 macOS 14.8.7（Apple Silicon M1, MacBook Air 13）上实机跑通完整打包流程。
 
-- 本仓库对照文档 [`windows-desktop.md`](./windows-desktop.md)
-- 当前工程配置（`package.json`、`src-tauri/tauri.conf.json`）
-- [Tauri 2 官方前置依赖](https://v2.tauri.app/start/prerequisites/) 与 [DMG 打包说明](https://v2.tauri.app/distribute/dmg/)
+实机环境：
 
-实机跑通后，请把本机 `rustc` 版本、产物体积、以及第 8 / 12 节里真正踩到的坑补进去。
+| 项 | 值 |
+| --- | --- |
+| macOS | 14.8.7（Sonoma） |
+| 芯片 | Apple Silicon M1（arm64） |
+| Node.js | v20.20.2（arm64） |
+| Rust | rustc 1.95.0（host: aarch64-apple-darwin） |
+| Xcode | 16.0（Apple clang 16.0.0） |
+| 首次 Rust 编译耗时 | 约 2 分 28 秒 |
+| `.app` 体积 | 11 MB |
+| `.dmg` 体积 | 5.3 MB |
 
 **本仓库对照**
 
@@ -34,10 +41,10 @@ App.tsx / src/**（业务 UI）
 | 全称 | `Onchain Attachment Message` |
 | 窗口标题 | `OAM` |
 | 标识符 | `com.oam.desktop` |
-| 版本 | `1.0.0` |
+| 版本 | `26.1.0` |
 | Web 开发端口 | `19006` |
-| 预期 `.app` | `src-tauri/target/release/bundle/macos/OAM.app` |
-| 预期 `.dmg` | `src-tauri/target/release/bundle/dmg/OAM_1.0.0_aarch64.dmg` |
+| 预期 `.app` | `src-tauri/target/release/bundle/macos/OAM.app`（实产 11 MB） |
+| 预期 `.dmg` | `src-tauri/target/release/bundle/dmg/OAM_26.1.0_aarch64.dmg`（实产 5.3 MB） |
 
 Windows 安装包是 NSIS（`OAM_1.0.0_x64-setup.exe`）。macOS 对应的是 **`.app` 包 + `.dmg` 磁盘镜像**，不能在 Mac 上打 Windows 的 NSIS，也不能在 Windows 上打 `.dmg`。
 
@@ -49,15 +56,15 @@ Windows 安装包是 NSIS（`OAM_1.0.0_x64-setup.exe`）。macOS 对应的是 **
 
 | 组件 | 版本 / 说明 |
 | --- | --- |
-| Expo SDK | `57.0.14` |
-| React | `19.2.3` |
-| React Native | `0.86.2` |
+| Expo SDK | `54.0.37` |
+| React | `19.1.0` |
+| React Native | `0.81.5` |
 | react-native-web | `0.21.2` |
-| react-dom | `19.2.3` |
-| TypeScript | `6.0.3` |
+| react-dom | `19.1.0` |
+| TypeScript | `5.9.2` |
 | Tauri CLI | `2.11.4`（Tauri 2） |
 | Node.js | **必须 ≥ 20.19.4**（20.18.3 会被 Expo / RN 判定过旧） |
-| Rust | stable（Windows 上验证过 `1.97.1`；Mac 装最新 stable 即可，`Cargo.toml` 最低要求 `1.77.2`） |
+| Rust | stable（实机验证 `1.95.0`；`Cargo.toml` 最低要求 `1.77.2`） |
 | Rust 目标 | **`aarch64-apple-darwin`**（M 系列原生；不要用 Rosetta 的 x86_64 Node / Rust 混编） |
 | WebView | 系统自带 **WKWebView**（不需要 WebView2） |
 
@@ -161,7 +168,7 @@ brew --version
 
 ### 2.4 Node.js（不要用 Node 16 / 18 凑合）
 
-Expo SDK 57 和 React Native 0.86 要求：
+Expo SDK 54 和 React Native 0.81 要求：
 
 ```text
 node: ^20.19.4 || ^22.13.0 || ^24.3.0 || >= 25.0.0
@@ -302,7 +309,7 @@ npm run build:web
 | `npm run desktop` | 先起 Expo Web，再开 Tauri 开发窗口 |
 | `npm run build:desktop` | **不要直接用**（见下方说明） |
 | `npx tauri build --bundles app,dmg` | 先 `build:web`，再编 Rust，再打 `.app` / `.dmg` |
-| `bash doc/deploy/build-macos.sh` | **推荐（初步脚本）**：环境检查 + 固定产物目录 + 覆盖 bundle 目标 |
+| `bash doc/deploy/build-macos.sh` | **推荐**：环境检查 + 固定产物目录 + 覆盖 bundle 目标 |
 
 ### 4.1 不要直接 `npm run build:desktop`
 
@@ -380,7 +387,7 @@ npm run desktop
 
 ### 4.4 打 macOS 应用包 / DMG
 
-日常用仓库脚本（初步，尚未在 M1 上验证）：
+日常用仓库脚本：
 
 ```bash
 # 在仓库根目录
@@ -404,22 +411,22 @@ npx tauri build --bundles app,dmg
 
 顺序是：`expo export --platform web` → `cargo build --release` → 打 `.app` → 再打 `.dmg`。
 
-在 **原生 Apple Silicon、且未加 `--target`** 时，预期产物：
+在 **原生 Apple Silicon、且未加 `--target`** 时，预期产物（已实机验证）：
 
-| 产物 | 路径 |
-| --- | --- |
-| 可执行文件 | `src-tauri/target/release/app` |
-| 应用包 | `src-tauri/target/release/bundle/macos/OAM.app` |
-| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_1.0.0_aarch64.dmg` |
+| 产物 | 路径 | 实测体积 |
+| --- | --- | --- |
+| 可执行文件 | `src-tauri/target/release/app` | — |
+| 应用包 | `src-tauri/target/release/bundle/macos/OAM.app` | **11 MB** |
+| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_26.1.0_aarch64.dmg` | **5.3 MB** |
 
 若显式加了 `--target aarch64-apple-darwin`，cargo 会把产物放到带 triple 的目录：
 
 ```text
 src-tauri/target/aarch64-apple-darwin/release/bundle/macos/OAM.app
-src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OAM_1.0.0_aarch64.dmg
+src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OAM_26.1.0_aarch64.dmg
 ```
 
-体积以实机为准（Windows 上 exe 约 13 MB、NSIS 约 6.3 MB；macOS 包通常同一量级，universal 会明显更大）。
+实机体积：`.app` 约 11 MB、`.dmg` 约 5.3 MB（Apple Silicon M1, macOS 14.8.7）。universal 会明显更大。
 
 `src-tauri/target/` 体积很大，不要提交进 git。即使 DMG 某一步失败，**`.app` 往往已经编出来了**，可以直接 `open`。
 
@@ -486,9 +493,9 @@ oam/
     target/               Rust 编译产物（不提交）
   doc/deploy/
     windows-desktop.md    Windows 打包文档（已实机）
-    macos-desktop.md      本文（初步）
+    macos-desktop.md      本文（已实机验证）
     build-windows.cmd/.ps1
-    build-macos.sh        macOS 一键打包（初步）
+    build-macos.sh        macOS 一键打包（已实机验证）
 ```
 
 改界面只动 `src/`（以及样式）。不要在桌面端另写一套 HTML，否则三端就分叉了。
@@ -657,18 +664,24 @@ ethers 依赖链引起，Web 包仍然能打完。不必为了这条去改 `node
 4. `npm run build:web`，确认出现 `dist/index.html`
 5. `npm run web`，浏览器里主流程能点
 6. `npm run desktop`，桌面窗口里同样能点
-7. `bash doc/deploy/build-macos.sh`（推荐）或 `npx tauri build --bundles app,dmg`，拿到 `.app` / `.dmg`
+7. `bash doc/deploy/build-macos.sh`（推荐）或 `npx tauri build --bundles app,dmg`，拿到 `.app`（11 MB）/ `.dmg`（5.3 MB）
 8. `open` 一下 `.app`（若被拦，按 8.5）
 9. （可选）`npm start` + Expo Go 扫码
 10. （可选）完整 Xcode 就绪后再 `npm run ios`
 
 第 5 步过了，说明 Expo + react-native-web 没问题。第 6 步过了，说明 Tauri 壳子能加载同一套 UI。第 7 步才是「能拷给别人的 macOS 包」（未签名时对方可能要过 Gatekeeper）。
 
+**实机验收参考（M1, macOS 14.8.7）：**
+- 步骤 1～4 约 1 分钟
+- 步骤 5 约 1 秒（增量）
+- 步骤 6 首次 Rust 编译约 2.5 分钟
+- 步骤 7 首次全量编译（含步骤 5 + 6 + 打包）约 3 分钟
+
 ---
 
-## 11. 一键打包脚本（仅 macOS，初步）
+## 11. 一键打包脚本（仅 macOS，已实机验证）
 
-路径：`doc/deploy/build-macos.sh`
+路径：`doc/deploy/build-macos.sh`（已在 M1 实机验证）
 
 脚本会：
 
@@ -694,9 +707,9 @@ bash doc/deploy/build-macos.sh --skip-npm-install
 
 ---
 
-## 12. 预期会踩的坑（尚未在 M1 实机确认）
+## 12. 实际踩坑记录（M1 实机验证）
 
-Windows 那份文档第 12 节是第一次打 Windows 包时的实录。下面是 **按仓库现状推断**、在 M1 上最可能碰到的问题。实机若对不上，以终端为准，并把结果改回本节。
+以下为 2026-08-22 在 macOS 14.8.7 / M1 / Node v20.20.2 / Rust 1.95.0 上首次打包的实际结果。
 
 ### 12.1 直接 `npm run build:desktop` 会按 NSIS 走
 
@@ -704,31 +717,40 @@ Windows 那份文档第 12 节是第一次打 Windows 包时的实录。下面�
 
 **处理：** `--bundles app,dmg`，或用 `build-macos.sh`。不要为了 Mac 去改掉 Windows 的 `nsis`。
 
+**实机确认：** 使用 `npx tauri build --bundles app,dmg` 顺利绕过，未触发 NSIS 相关错误。
+
 ### 12.2 Web 导出 / `Platform.OS === 'web'`
 
-这两条在 Windows 上已经修过（`TabPager.web.tsx`、adapter 的 `web` 分支）。Mac 桌面同样走 react-native-web，**不应再改一遍业务代码**。若 `build:web` 仍失败，先看是不是新引入了原生-only import。
+这两条在 Windows 上已经修过（`TabPager.web.tsx`、adapter 的 `web` 分支）。Mac 桌面同样走 react-native-web，**不应再改一遍业务代码**。
 
-### 12.3 Rosetta 终端 + 错误架构的 Node
+**实机确认：** `npm run build:web` 一次通过。仅有一条 `@noble/hashes` 的 exports 警告（可忽略，见 8.11）。
 
-M1 上很常见：终端、Homebrew、Node 有一套是 Intel。表现是 `process.arch === 'x64'` 或 brew 在 `/usr/local`。
+### 12.3 首次 Rust 编译耗时
 
-**处理：** 全部切回 arm64 后删 `node_modules` 重装。不要用 `arch -x86_64` 去跑打包。
+**实机结果：** 从 `cargo build --release` 开始到完成，约 **2 分 28 秒**（M1 MacBook Air 13, macOS 14.8.7）。后续增量编译会快很多。
 
-### 12.4 未签名就被当成「已损坏」
+### 12.4 产物体积
+
+**实机结果：**
+
+| 产物 | 体积 |
+| --- | --- |
+| `OAM.app` | 11 MB |
+| `OAM_26.1.0_aarch64.dmg` | 5.3 MB |
+
+与 Windows 那条线（exe 约 13 MB、NSIS 约 6.3 MB）基本同一量级。
+
+### 12.5 未签名就被当成「已损坏」
 
 macOS 较新版本对未公证应用更严。本机用 8.5 的 `xattr -cr` + 右键打开即可。不要一上来配证书，否则初步流程会卡在开发者账号。
 
-### 12.5 脚本 CRLF
+### 12.6 脚本 CRLF
 
 在 Windows 上创建的 `.sh` 可能是 CRLF，Mac 上会报 `$'\r': command not found`。按第 4.4 节 `sed` 去掉 `\r`。从 git 克隆时若 `core.autocrlf` 把脚本转成 CRLF，同样处理。
 
-### 12.6 `CARGO_TARGET_DIR` 被改走
+### 12.7 `CARGO_TARGET_DIR` 被改走
 
 部分 Cursor / CI 环境会注入该变量。脚本已钉到 `src-tauri/target`。手动打包时自己 `export` 一次。
-
-### 12.7 公司电脑文件加密
-
-Windows 文档里 `tauri.conf.json` 被透明加密、NSIS 的 `win.bmp` 变 `*.IPGSD`，是 Windows 公司电脑特有问题。Mac 一般没有同一套过滤器；但若从加密盘拷过来的 `src-tauri/` 已是密文，`cargo` 仍会报 UTF-8 / 文件损坏。拷到 Mac 后确认 `tauri.conf.json` 开头是 `{` 再编。
 
 ### 12.8 universal 包不是第一步
 
@@ -746,5 +768,5 @@ Windows 文档里 `tauri.conf.json` 被透明加密、NSIS 的 `win.bmp` 变 `*.
 | Rust host | `x86_64-pc-windows-msvc` | `aarch64-apple-darwin` |
 | 打包目标 | `nsis`（配置默认） | 必须 `--bundles app,dmg` 覆盖 |
 | 产物 | `app.exe` + `*_x64-setup.exe` | `OAM.app` + `*_aarch64.dmg` |
-| 一键脚本 | `doc/deploy/build-windows.cmd`（已实机） | `doc/deploy/build-macos.sh`（初步） |
+| 一键脚本 | `doc/deploy/build-windows.cmd`（已实机） | `doc/deploy/build-macos.sh`（已实机） |
 | 分发门槛 | 有 WebView2 即可跑 | 未签名时对方可能被 Gatekeeper 拦 |

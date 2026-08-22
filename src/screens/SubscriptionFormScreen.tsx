@@ -12,6 +12,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
+import { useThemePreference } from '../context/ThemeContext';
 import { RootStackParamList, Subscription } from '../types';
 import { MAX_ADDRESS_LENGTH, MAX_DESCRIPTION_LENGTH, DEFAULT_CHAIN } from '../constants';
 
@@ -24,9 +25,11 @@ type Props = NativeStackScreenProps<RootStackParamList, 'SubscriptionForm'>;
 export default function SubscriptionFormScreen({ route, navigation }: Props) {
   const { mode, source, subscription } = route.params;
   const theme = useTheme();
+  const { fontScale } = useThemePreference();
   const { t } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
   const {
+    state,
     addSubscription,
     updateSubscription,
     deleteSubscription,
@@ -62,9 +65,30 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
     return Object.keys(newErrors).length === 0;
   }, [address, description, t]);
 
+  /* ---------- 地址查重 ---------- */
+  const checkDuplicate = useCallback((): Subscription | null => {
+    if (isEdit) return null;
+    const trimmed = address.trim().toLowerCase();
+    if (!trimmed) return null;
+    return state.subscriptions.find(
+      (s) => s.address.toLowerCase() === trimmed,
+    ) ?? null;
+  }, [isEdit, address, state.subscriptions]);
+
   /* ---------- 保存 ---------- */
   const handleSave = useCallback(async () => {
     if (!validate()) return;
+
+    // 新增时检查地址是否已存在
+    const duplicate = checkDuplicate();
+    if (duplicate) {
+      Alert.alert(
+        t('common.tip'),
+        t('form.addressDuplicate', { desc: duplicate.description }),
+        [{ text: t('common.ok') }],
+      );
+      return;
+    }
 
     const item: Subscription = {
       id: subscription?.id ?? Date.now().toString(),
@@ -96,6 +120,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
     source,
     isEdit,
     validate,
+    checkDuplicate,
     addSubscription,
     updateSubscription,
     saveProfile,
@@ -163,7 +188,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
       <HelperText
         type="info"
         visible
-        style={styles.counter}
+        style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}
       >
         {address.length} / {MAX_ADDRESS_LENGTH}
       </HelperText>
@@ -197,7 +222,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
       <HelperText
         type="info"
         visible
-        style={styles.counter}
+        style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}
       >
         {description.length} / {MAX_DESCRIPTION_LENGTH}
       </HelperText>

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
@@ -12,17 +12,21 @@ import {
   Avatar,
   RadioButton,
   Snackbar,
+  ActivityIndicator,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../context/AppContext';
-import { useThemePreference, ThemeMode } from '../context/ThemeContext';
+import { useThemePreference, ThemeMode, FONT_SCALE_PRESETS } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
 import { LANGUAGE_KEY } from '../i18n';
 import { CopyableAddress } from '../components/CopyableAddress';
 import { AppModal } from '../components/AppModal';
+import { withRpcFallback } from '../rpc/rpcClient';
+import { fetchEthUsdPrice, formatUsd } from '../rpc/ethPrice';
+import { formatEther } from 'ethers';
 import appConfig from '../../app.json';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -61,15 +65,20 @@ export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
   const { state, setApiKey } = useAppContext();
-  const { themeMode, setThemeMode } = useThemePreference();
+  const { themeMode, setThemeMode, fontScale, setFontScale } = useThemePreference();
   const { t, i18n } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLanguageDialogVisible, setIsLanguageDialogVisible] = useState(false);
   const [isThemeDialogVisible, setIsThemeDialogVisible] = useState(false);
+  const [isFontSizeDialogVisible, setIsFontSizeDialogVisible] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [balanceEth, setBalanceEth] = useState<string | null>(null);
+  const [balanceUsd, setBalanceUsd] = useState<string | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState(false);
 
   const currentLanguage = i18n.language?.startsWith('zh') ? 'zh' : 'en';
   const platformLabel = useMemo(() => getPlatformLabel(t), [t]);
@@ -90,6 +99,14 @@ export default function ProfileScreen() {
     setIsThemeDialogVisible(false);
   }, []);
 
+  const showFontSizeDialog = useCallback(() => {
+    setIsFontSizeDialogVisible(true);
+  }, []);
+
+  const hideFontSizeDialog = useCallback(() => {
+    setIsFontSizeDialogVisible(false);
+  }, []);
+
   const changeLanguage = useCallback(async (lng: string) => {
     await i18n.changeLanguage(lng);
     await AsyncStorage.setItem(LANGUAGE_KEY, lng);
@@ -100,6 +117,17 @@ export default function ProfileScreen() {
     await setThemeMode(mode);
     hideThemeDialog();
   }, [setThemeMode, hideThemeDialog]);
+
+  const changeFontScale = useCallback(async (scale: number) => {
+    await setFontScale(scale);
+    hideFontSizeDialog();
+  }, [setFontScale, hideFontSizeDialog]);
+
+  const currentFontScaleLabel = useMemo(() => {
+    const preset = FONT_SCALE_PRESETS.find((p) => p.value === fontScale)
+      ?? FONT_SCALE_PRESETS.find((p) => p.value === 1.0)!;
+    return t(preset.labelKey);
+  }, [fontScale, t]);
 
   const handleAdd = useCallback(() => {
     navigation.navigate('AddInfoSelect');
@@ -132,6 +160,43 @@ export default function ProfileScreen() {
   const showCopiedSnackbar = useCallback(() => {
     setSnackbarVisible(true);
   }, []);
+
+  const loadBalance = useCallback(async (address: string) => {
+    setBalanceLoading(true);
+    setBalanceError(false);
+    try {
+      const [balanceWei, price] = await Promise.all([
+        withRpcFallback((provider) => provider.getBalance(address)),
+        fetchEthUsdPrice(),
+      ]);
+      const ethStr = formatEther(balanceWei);
+      setBalanceEth(ethStr);
+      if (price != null) {
+        setBalanceUsd(formatUsd(parseFloat(ethStr) * price));
+      }
+    } catch (err) {
+      console.warn('loadBalance failed:', err);
+      setBalanceError(true);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (state.profile?.address) {
+      loadBalance(state.profile.address);
+    }
+  }, [state.profile?.address, loadBalance]);
+
+  const balanceDisplayText = useMemo(() => {
+    if (balanceLoading) return t('profile.balanceLoading');
+    if (balanceError || balanceEth == null) return balanceError ? t('profile.balanceFailed') : '';
+    const ethDisplay = parseFloat(balanceEth);
+    const formatted = ethDisplay < 0.000001
+      ? '< 0.000001'
+      : ethDisplay.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+    return t('profile.balanceEthValue', { balance: formatted });
+  }, [balanceLoading, balanceError, balanceEth, t]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -172,7 +237,7 @@ export default function ProfileScreen() {
                         ]}>
                           <Text style={[
                             styles.typeTagText,
-                            { color: state.profile.walletType === 'write' ? theme.colors.primary : theme.colors.secondary }
+                            { color: state.profile.walletType === 'write' ? theme.colors.primary : theme.colors.secondary, fontSize: Math.round(10 * fontScale) }
                           ]}>
                             {state.profile.walletType === 'write' ? t('profile.fullFunction') : t('profile.readOnly')}
                           </Text>
@@ -194,6 +259,35 @@ export default function ProfileScreen() {
                         numberOfLines={1}
                       >
                         {state.profile.description}
+                      </Text>
+                    ) : null}
+                    {/* Balance & USD estimate */}
+                    <View style={styles.balanceRow}>
+                      {balanceLoading ? (
+                        <ActivityIndicator size={12} style={{ marginRight: 6 }} />
+                      ) : null}
+                      <Text
+                        variant="bodySmall"
+                        style={{ color: theme.colors.onSurfaceVariant, flex: 1 }}
+                        numberOfLines={1}
+                      >
+                        {balanceDisplayText}
+                        {balanceUsd ? `  ·  ${t('profile.balanceUsdEstimate', { usd: balanceUsd })}` : ''}
+                      </Text>
+                      <IconButton
+                        icon="refresh"
+                        size={16}
+                        onPress={() => state.profile?.address && loadBalance(state.profile.address)}
+                        style={styles.refreshButton}
+                        disabled={balanceLoading}
+                      />
+                    </View>
+                    {balanceUsd ? (
+                      <Text
+                        variant="bodySmall"
+                        style={{ color: theme.colors.onSurfaceVariant, fontSize: Math.round(10 * fontScale) }}
+                      >
+                        {t('profile.balanceEstimateHint')}
                       </Text>
                     ) : null}
                   </View>
@@ -330,6 +424,37 @@ export default function ProfileScreen() {
                 </Text>
               </View>
               <IconButton icon="chevron-right" onPress={showThemeDialog} />
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* 4.5 字体大小 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={showFontSizeDialog}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="format-size"
+                style={{ backgroundColor: theme.colors.secondaryContainer }}
+                color={theme.colors.secondary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.fontSize')}
+                </Text>
+                <Text variant="titleMedium">
+                  {currentFontScaleLabel}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={showFontSizeDialog} />
             </View>
           </Card.Content>
         </Card>
@@ -474,6 +599,27 @@ export default function ProfileScreen() {
         </RadioButton.Group>
       </AppModal>
 
+      <AppModal
+        visible={isFontSizeDialogVisible}
+        onDismiss={hideFontSizeDialog}
+        title={t('profile.selectFontSize')}
+        actions={[{ label: t('common.cancel'), onPress: hideFontSizeDialog }]}
+      >
+        <RadioButton.Group
+          onValueChange={(value) => changeFontScale(parseFloat(value))}
+          value={String(fontScale)}
+        >
+          {FONT_SCALE_PRESETS.map((preset) => (
+            <RadioButton.Item
+              key={preset.value}
+              label={t(preset.labelKey)}
+              value={String(preset.value)}
+              style={styles.radioItem}
+            />
+          ))}
+        </RadioButton.Group>
+      </AppModal>
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -546,5 +692,15 @@ const styles = StyleSheet.create({
   radioItem: {
     paddingHorizontal: 0,
     borderRadius: 8,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  refreshButton: {
+    margin: 0,
+    marginLeft: 4,
+    padding: 0,
   },
 });

@@ -137,6 +137,13 @@
     "selectAppearance": "选择外观",
     "themeLight": "浅色",
     "themeDark": "深色",
+    "fontSize": "字体大小",
+    "selectFontSize": "选择字体大小",
+    "fontSizeSmaller": "较小",
+    "fontSizeSmall": "小",
+    "fontSizeDefault": "标准",
+    "fontSizeLarge": "大",
+    "fontSizeLarger": "较大",
     "updateApiKey": "更新 Etherscan API Key",
     "addApiKey": "添加 Etherscan API Key",
     "setApiKeyTitle": "设置 Etherscan API Key",
@@ -151,7 +158,12 @@
     "platformIos": "iOS",
     "platformAndroid": "Android",
     "platformWeb": "Web",
-    "platformOther": "其他"
+    "platformOther": "其他",
+    "balanceLoading": "正在估算余额…",
+    "balanceFailed": "无法获取余额",
+    "balanceEthValue": "{{balance}} ETH",
+    "balanceUsdEstimate": "约 {{usd}} 美元",
+    "balanceEstimateHint": "基于 Chainlink 预言机价格的估算值"
   },
   "form": {
     "addSubscription": "添加关注",
@@ -172,7 +184,8 @@
     "walletNameMaxLength": "钱包名字最长64位",
     "payPasswordMinLength": "支付密码最少6位",
     "payPasswordMaxLength": "支付密码最多16位",
-    "payPasswordMismatch": "两次输入的支付密码不一致"
+    "payPasswordMismatch": "两次输入的支付密码不一致",
+    "addressDuplicate": "该地址已在关注列表中（{{desc}}），请勿重复添加。"
   },
   "wallet": {
     "selectAddMethod": "选择添加方式",
@@ -313,6 +326,8 @@
     "feeEstimateValue": "约 {{fee}} ETH",
     "confirmBalance": "账户余额",
     "balanceValue": "约 {{balance}} ETH",
+    "balanceUsdValue": "约 {{usd}} 美元",
+    "feeUsdValue": "约 {{usd}} 美元",
     "insufficientBalance": "余额不足，无法支付预估手续费。请先充值后再试。",
     "feeDisclaimer": "应用本身不收取任何费用。发送数据可能产生额外且可能超高的区块链网络手续费，金额随网络拥堵与数据量变化。建议使用小资金账户以控制意外风险。",
     "submitNotMinedDisclaimer": "应用在 RPC 节点收下交易并返回哈希后即提示已提交，不保证交易一定会被打包上链。网络拥堵、节点未继续广播等都可能导致交易长时间等待或最终失败。请自行用哈希在区块浏览器核对状态。",

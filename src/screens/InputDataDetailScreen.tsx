@@ -11,11 +11,13 @@ import { AddressWithActions } from '../components/AddressWithActions';
 import { RichContentRenderer } from '../components/RichContentRenderer';
 import { CONTENT_KIND_I18N_KEY } from '../display';
 import { useAppContext } from '../context/AppContext';
+import { useThemePreference } from '../context/ThemeContext';
 
 type RouteProps = RouteProp<RootStackParamList, 'InputDataDetail'>;
 
 export default function InputDataDetailScreen() {
   const theme = useTheme();
+  const { fontScale } = useThemePreference();
   const { t } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
   const route = useRoute<RouteProps>();
@@ -57,6 +59,18 @@ export default function InputDataDetailScreen() {
     showCopiedSnackbar();
   }, [copyableContent, showCopiedSnackbar]);
 
+  const handleCopyTxHash = useCallback(async () => {
+    if (!item.id) return;
+    await Clipboard.setStringAsync(item.id);
+    showCopiedSnackbar();
+  }, [item.id, showCopiedSnackbar]);
+
+  const handleCopyTime = useCallback(async () => {
+    if (!item.lastActive) return;
+    await Clipboard.setStringAsync(item.lastActive);
+    showCopiedSnackbar();
+  }, [item.lastActive, showCopiedSnackbar]);
+
   const handleToggleFavorite = useCallback(async () => {
     if (favorited) {
       await removeFavorite(item.id);
@@ -90,7 +104,7 @@ export default function InputDataDetailScreen() {
             {t('home.encryptedHint')}
           </Text>
         ) : null}
-        <Text variant="bodyMedium" style={styles.rawHexText} selectable>
+        <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} selectable>
           {rawHex}
         </Text>
       </View>
@@ -103,45 +117,25 @@ export default function InputDataDetailScreen() {
         <ListColumn>
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
-            <View style={styles.metaRow}>
-              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                {t('detail.txHash')}
-              </Text>
-              <Text variant="bodySmall" style={styles.monoText} selectable>
-                {item.id}
-              </Text>
-            </View>
-
-            <View style={styles.metaRow}>
-              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                {t('detail.time')}
-              </Text>
-              <Text variant="bodyMedium">{item.lastActive}</Text>
-            </View>
-
-            <View style={styles.metaRow}>
-              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                {t('detail.type')}
-              </Text>
+            <View style={styles.sectionHeader}>
               <Text
-                variant="labelSmall"
-                style={[
-                  styles.kindBadge,
-                  { color: theme.colors.primary, borderColor: theme.colors.outline },
-                ]}
+                variant="titleSmall"
+                style={[styles.sectionTitle, styles.sectionHeaderTitle, { color: theme.colors.primary }]}
               >
-                {t(CONTENT_KIND_I18N_KEY[kind])}
+                {t('detail.content')}
               </Text>
+              {copyableContent ? (
+                <IconButton
+                  icon="content-copy"
+                  size={18}
+                  onPress={handleCopyContent}
+                  iconColor={theme.colors.primary}
+                  style={styles.copyBtn}
+                  accessibilityLabel={t('common.copy')}
+                />
+              ) : null}
             </View>
-
-            {item.balance ? (
-              <View style={styles.metaRow}>
-                <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                  {t('detail.value')}
-                </Text>
-                <Text variant="bodyMedium">{item.balance}</Text>
-              </View>
-            ) : null}
+            {renderBody()}
           </Card.Content>
         </Card>
 
@@ -179,25 +173,65 @@ export default function InputDataDetailScreen() {
 
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
-            <View style={styles.sectionHeader}>
-              <Text
-                variant="titleSmall"
-                style={[styles.sectionTitle, styles.sectionHeaderTitle, { color: theme.colors.primary }]}
-              >
-                {t('detail.content')}
+            <View style={styles.metaRow}>
+              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                {t('detail.txHash')}
               </Text>
-              {copyableContent ? (
+              <View style={styles.valueRow}>
+                <Text variant="bodySmall" style={[styles.monoText, styles.valueText, { fontSize: Math.round(12 * fontScale) }]} selectable>
+                  {item.id}
+                </Text>
                 <IconButton
                   icon="content-copy"
                   size={18}
-                  onPress={handleCopyContent}
+                  onPress={handleCopyTxHash}
                   iconColor={theme.colors.primary}
-                  style={styles.copyBtn}
+                  style={styles.copyIconBtn}
                   accessibilityLabel={t('common.copy')}
                 />
-              ) : null}
+              </View>
             </View>
-            {renderBody()}
+
+            <View style={styles.metaRow}>
+              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                {t('detail.time')}
+              </Text>
+              <View style={styles.valueRow}>
+                <Text variant="bodyMedium">{item.lastActive}</Text>
+                <IconButton
+                  icon="content-copy"
+                  size={18}
+                  onPress={handleCopyTime}
+                  iconColor={theme.colors.primary}
+                  style={styles.copyIconBtn}
+                  accessibilityLabel={t('common.copy')}
+                />
+              </View>
+            </View>
+
+            <View style={styles.metaRow}>
+              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                {t('detail.type')}
+              </Text>
+              <Text
+                variant="labelSmall"
+                style={[
+                  styles.kindBadge,
+                  { color: theme.colors.primary, borderColor: theme.colors.outline, fontSize: Math.round(10 * fontScale) },
+                ]}
+              >
+                {t(CONTENT_KIND_I18N_KEY[kind])}
+              </Text>
+            </View>
+
+            {item.balance ? (
+              <View style={styles.metaRow}>
+                <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {t('detail.value')}
+                </Text>
+                <Text variant="bodyMedium">{item.balance}</Text>
+              </View>
+            ) : null}
           </Card.Content>
         </Card>
 
@@ -237,6 +271,20 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     marginBottom: 10,
+  },
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  valueText: {
+    flex: 1,
+  },
+  copyIconBtn: {
+    margin: 0,
+    width: 32,
+    height: 32,
   },
   sectionHeader: {
     flexDirection: 'row',

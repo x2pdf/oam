@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-click macOS (Apple Silicon) desktop packager for this Expo + Tauri repo.
-# Preliminary: written on Windows, not yet verified on a real M1 machine.
+# Verified on M1 MacBook Air 13, macOS 14.8.7, Node v20.20.2, Rust 1.95.0.
 #
 # Usage:
 #   bash doc/deploy/build-macos.sh

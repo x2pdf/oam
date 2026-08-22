@@ -44,9 +44,10 @@ export default function RecoverDisclaimerScreen() {
         </Card>
 
         <View style={styles.checkboxContainer}>
-          <Checkbox
+          <Checkbox.Android
             status={checked ? 'checked' : 'unchecked'}
             onPress={() => setChecked(!checked)}
+            uncheckedColor={theme.colors.outline}
           />
           <Text
             variant="bodyMedium"

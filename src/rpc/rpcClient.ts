@@ -87,6 +87,8 @@ export type RpcFallbackOptions<T> = {
   isValueOk?: (value: T) => boolean;
   /** Override MAX_RPC_CYCLES for this call. */
   cycles?: number;
+  /** When true, skip fatal-error detection and retry every node. Useful for read-only contract calls. */
+  noFatal?: boolean;
 };
 
 /**
@@ -115,7 +117,7 @@ export async function withRpcFallback<T>(
         }
         return value;
       } catch (err) {
-        if (isFatalRpcError(err)) {
+        if (!options?.noFatal && isFatalRpcError(err)) {
           throw err;
         }
         lastError = err;

@@ -1,7 +1,7 @@
 import {
   Wallet,
   formatEther,
-  TransactionRequest
+  TransactionRequest,
 } from "ethers";
 import { MessageType, CryptoScheme, OAMPMessage, DecryptedMessage } from "./types";
 import { serializeMessage, deserializeMessage, getMessageHeader, BLACK_HOLE } from "./protocol";
@@ -77,21 +77,58 @@ function buildPlaceholderEncryptedTx(
   };
 }
 
+/**
+ * Estimate gas manually when estimateGas reverts (e.g. RPC treats data sent to
+ * the zero-address as a contract-creation attempt and reverts with "missing
+ * revert data").  Formula: 21 000 base + 16 per data-byte, with a 1.25×
+ * safety margin.
+ */
+function manualGasEstimate(txData: string): bigint {
+  const dataHex = txData.startsWith("0x") ? txData.slice(2) : txData;
+  const dataBytes = dataHex.length / 2;
+  const baseGas = 21000n;
+  const dataGas = BigInt(Math.ceil(dataBytes)) * 16n;
+  const rawGas = baseGas + dataGas;
+  return (rawGas * 125n) / 100n;
+}
+
 async function estimateFeeEth(
   fromAddress: string,
   tx: TransactionRequest
 ): Promise<string> {
   return withRpcFallback(async (provider) => {
-    const [gasLimit, feeData] = await Promise.all([
-      provider.estimateGas({
+    let gasLimit: bigint;
+    let gasEstimateFailed = false;
+
+    try {
+      gasLimit = await provider.estimateGas({
         ...tx,
         from: fromAddress,
-      }),
-      provider.getFeeData(),
-    ]);
+      });
+    } catch (estErr: any) {
+      console.warn(
+        'estimateGas failed, falling back to manual calculation:',
+        estErr?.shortMessage || estErr?.message,
+      );
+      gasEstimateFailed = true;
+      gasLimit = manualGasEstimate(String(tx.data || '0x'));
+    }
+
+    let feeData;
+    try {
+      feeData = await provider.getFeeData();
+    } catch (feeErr) {
+      if (gasEstimateFailed) {
+        throw new Error('Gas estimation and fee data fetch both failed');
+      }
+      throw feeErr;
+    }
 
     const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
     if (!gasPrice) {
+      if (gasEstimateFailed) {
+        throw new Error('Gas estimation and gas price fetch both failed');
+      }
       throw new Error("Unable to fetch gas price");
     }
 
@@ -145,11 +182,30 @@ export class OAMPClient {
   }
 
   private async sendBuilt(built: BuiltTxRequest, nonce?: number): Promise<string> {
+    // Pre-estimate gas with fallback so populateTransaction skips its internal
+    // estimateGas (which can fail, e.g. when broadcasting to the zero-address).
+    const gasLimit = await withRpcFallback(async (provider) => {
+      try {
+        return await provider.estimateGas({
+          to: built.to,
+          data: built.data,
+          from: this.wallet.address,
+        });
+      } catch (err: any) {
+        console.warn(
+          'sendBuilt: estimateGas failed, using manual fallback:',
+          err?.shortMessage || err?.message,
+        );
+        return manualGasEstimate(String(built.data || '0x'));
+      }
+    });
+
     const populated = await withRpcFallback(async (provider) => {
       const connected = this.wallet.connect(provider);
       return connected.populateTransaction({
         to: built.to,
         data: built.data,
+        gasLimit,
         ...(nonce !== undefined ? { nonce } : {}),
       });
     });

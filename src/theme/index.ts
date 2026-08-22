@@ -1,4 +1,4 @@
-import { MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
+import { MD3LightTheme, MD3DarkTheme, MD3Theme } from 'react-native-paper';
 
 /** 应用主色调（Twitter / X 经典蓝） */
 const PRIMARY_COLOR = '#1DA1F2';
@@ -47,4 +47,26 @@ export function getHeaderChrome(theme: {
     backgroundColor: theme.dark ? theme.colors.background : theme.colors.primary,
     tintColor: theme.dark ? theme.colors.onSurface : '#FFFFFF',
   };
+}
+
+/**
+ * 基于基础主题与缩放因子生成字体缩放后的主题。
+ * 仅缩放 typography variants 的 fontSize 与 lineHeight，
+ * `default` 条目（无 fontSize/lineHeight）保持不变。
+ */
+export function buildScaledTheme(base: typeof lightTheme, fontScale: number): MD3Theme {
+  if (fontScale === 1) return base as unknown as MD3Theme;
+  const scaledFonts = { ...(base as any).fonts };
+  for (const key of Object.keys(scaledFonts)) {
+    if (key === 'default') continue;
+    const entry = scaledFonts[key];
+    if (entry && typeof entry.fontSize === 'number') {
+      scaledFonts[key] = {
+        ...entry,
+        fontSize: Math.round(entry.fontSize * fontScale),
+        lineHeight: Math.round((entry.lineHeight || 0) * fontScale),
+      };
+    }
+  }
+  return { ...base, fonts: scaledFonts } as unknown as MD3Theme;
 }

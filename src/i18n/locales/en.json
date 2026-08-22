@@ -137,6 +137,13 @@
     "selectAppearance": "Select Appearance",
     "themeLight": "Light",
     "themeDark": "Dark",
+    "fontSize": "Font Size",
+    "selectFontSize": "Select Font Size",
+    "fontSizeSmaller": "Smaller",
+    "fontSizeSmall": "Small",
+    "fontSizeDefault": "Default",
+    "fontSizeLarge": "Large",
+    "fontSizeLarger": "Larger",
     "updateApiKey": "Update Etherscan API Key",
     "addApiKey": "Add Etherscan API Key",
     "setApiKeyTitle": "Set Etherscan API Key",
@@ -151,7 +158,12 @@
     "platformIos": "iOS",
     "platformAndroid": "Android",
     "platformWeb": "Web",
-    "platformOther": "Other"
+    "platformOther": "Other",
+    "balanceLoading": "Estimating balance…",
+    "balanceFailed": "Unable to fetch balance",
+    "balanceEthValue": "{{balance}} ETH",
+    "balanceUsdEstimate": "≈ {{usd}} USD",
+    "balanceEstimateHint": "Estimated value based on Chainlink oracle price"
   },
   "form": {
     "addSubscription": "Add Following",
@@ -172,7 +184,8 @@
     "walletNameMaxLength": "Wallet name cannot exceed 64 characters",
     "payPasswordMinLength": "Payment password must be at least 6 digits",
     "payPasswordMaxLength": "Payment password cannot exceed 16 digits",
-    "payPasswordMismatch": "Payment passwords do not match"
+    "payPasswordMismatch": "Payment passwords do not match",
+    "addressDuplicate": "This address is already in your following list ({{desc}}). Please do not add it again."
   },
   "wallet": {
     "selectAddMethod": "Select Add Method",
@@ -313,6 +326,8 @@
     "feeEstimateValue": "Approx. {{fee}} ETH",
     "confirmBalance": "Account balance",
     "balanceValue": "Approx. {{balance}} ETH",
+    "balanceUsdValue": "≈ {{usd}} USD",
+    "feeUsdValue": "≈ {{usd}} USD",
     "insufficientBalance": "Insufficient balance to cover the estimated fee. Please add funds and try again.",
     "feeDisclaimer": "This app charges no fees. Sending data may incur additional and potentially very high blockchain network fees, which vary with congestion and data size. Use a small-balance account to limit unexpected risk.",
     "submitNotMinedDisclaimer": "The app reports submitted once an RPC node accepts the transaction and returns a hash. This does not guarantee that the transaction will be mined. Congestion or a node that does not gossip the transaction may leave it pending or dropped. Check the hash on a block explorer.",

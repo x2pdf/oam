@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   THEME: '@oam_theme',
   FAVORITES: '@oam_favorites',
   LANGUAGE: '@oam_language',
+  FONT_SCALE: '@oam_font_scale',
 } as const;
 
 /** 旧版 OnchainData 存储键，仅用于一次性迁移 */

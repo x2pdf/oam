@@ -9,11 +9,13 @@ import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generate12WordMnemonic } from '../wallet/walletManager';
+import { useThemePreference } from '../context/ThemeContext';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function MnemonicBackupScreen() {
   const theme = useTheme();
+  const { fontScale } = useThemePreference();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
   const { listContentStyle } = useListColumnLayout();
@@ -42,10 +44,10 @@ export default function MnemonicBackupScreen() {
           <Card.Content style={styles.mnemonicGrid}>
             {words.map((word, index) => (
               <View key={index} style={styles.wordBox}>
-                <Text style={[styles.wordIndex, { color: theme.colors.onSurfaceVariant }]}>
+                <Text style={[styles.wordIndex, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(10 * fontScale) }]}>
                   {index + 1}
                 </Text>
-                <Text style={styles.wordText}>{word}</Text>
+                <Text style={[styles.wordText, { fontSize: Math.round(14 * fontScale) }]}>{word}</Text>
               </View>
             ))}
           </Card.Content>
@@ -60,18 +62,19 @@ export default function MnemonicBackupScreen() {
             },
           ]}
         >
-          <Text style={[styles.warningText, { color: theme.colors.error }]}>
+          <Text style={[styles.warningText, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
             {t('wallet.mnemonicWarning')}
           </Text>
-          <Text style={[styles.warningText, styles.noExportWarning, { color: theme.colors.error }]}>
+          <Text style={[styles.warningText, styles.noExportWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
             {t('wallet.mnemonicNoExportWarning')}
           </Text>
         </View>
 
         <View style={styles.checkboxContainer}>
-          <Checkbox
+          <Checkbox.Android
             status={checked ? 'checked' : 'unchecked'}
             onPress={() => setChecked(!checked)}
+            uncheckedColor={theme.colors.outline}
           />
           <Text
             variant="bodyMedium"

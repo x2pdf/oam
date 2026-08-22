@@ -22,6 +22,7 @@ import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR } from '../wal
 import { isAddress, parseEther, formatEther } from 'ethers';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
+import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
 import { ContentItem, createJpegItem, createPngItem, createGifItem } from '../mypayload';
 import { estimateSendFeeFromAddress, OAMPClient } from '../oamp/client';
@@ -33,6 +34,7 @@ import {
 } from '../oamp/recoverPublicKey';
 import { AppModal } from '../components/AppModal';
 import { AllRpcFailedError, withRpcFallback } from '../rpc/rpcClient';
+import { fetchEthUsdPrice, ethToUsdDisplay } from '../rpc/ethPrice';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'SendData'>;
@@ -54,6 +56,7 @@ function wrapLongHex(value: string): string {
 
 export default function SendDataScreen() {
   const theme = useTheme();
+  const { fontScale } = useThemePreference();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteProps>();
   const insets = useSafeAreaInsets();
@@ -65,7 +68,7 @@ export default function SendDataScreen() {
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageItem[]>([]);
   const [recipientAddress, setRecipientAddress] = useState(
-    route.params?.recipientAddress || BLACK_HOLE,
+    route.params?.recipientAddress || profile?.address || BLACK_HOLE,
   );
   const [encryptEnabled, setEncryptEnabled] = useState(false);
   const [recipientPublicKey, setRecipientPublicKey] = useState<string | null>(null);
@@ -130,6 +133,7 @@ export default function SendDataScreen() {
   const [feeEstimatePubKey, setFeeEstimatePubKey] = useState<string | null | undefined>(undefined);
   const [balanceEth, setBalanceEth] = useState<string | null>(null);
   const [insufficientBalance, setInsufficientBalance] = useState(false);
+  const [ethUsdPrice, setEthUsdPrice] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -151,6 +155,17 @@ export default function SendDataScreen() {
     }
     return items;
   }, [text, images]);
+
+  // Default to own address when profile becomes available (profile loads async)
+  useEffect(() => {
+    if (
+      profile?.address &&
+      !route.params?.recipientAddress &&
+      recipientAddress.toLowerCase() === BLACK_HOLE.toLowerCase()
+    ) {
+      setRecipientAddress(profile.address);
+    }
+  }, [profile?.address]);
 
   useEffect(() => {
     setRecipientPublicKey(null);
@@ -205,7 +220,7 @@ export default function SendDataScreen() {
       const items = buildContentItems();
       const target = recipientAddress.trim() || BLACK_HOLE;
       const resolvedKey = pubKey ?? recipientPublicKey;
-      const [{ feeEth }, balanceWei] = await Promise.all([
+      const [{ feeEth }, balanceWei, price] = await Promise.all([
         estimateSendFeeFromAddress(
           fromAddress,
           target,
@@ -217,10 +232,12 @@ export default function SendDataScreen() {
           },
         ),
         withRpcFallback((provider) => provider.getBalance(fromAddress)),
+        fetchEthUsdPrice(),
       ]);
       setFeeEstimate(feeEth);
       setBalanceEth(formatEther(balanceWei));
       setInsufficientBalance(balanceWei < parseEther(feeEth));
+      if (price != null) setEthUsdPrice(price);
     } catch (error) {
       console.error('Fee estimate error:', error);
       setFeeError(true);
@@ -425,6 +442,7 @@ export default function SendDataScreen() {
 
       setText('');
       setImages([]);
+      setPassword('');
     } catch (error: any) {
       console.error('Send error:', error);
       setLoading(false);
@@ -444,6 +462,7 @@ export default function SendDataScreen() {
             text: t('common.ok'),
             onPress: () => {
               setPasswordVisible(false);
+              setPassword('');
             },
           },
         ]);
@@ -452,6 +471,7 @@ export default function SendDataScreen() {
 
       setSnackbarMessage(t('send.sendFailed', { error: message }));
       setSnackbarVisible(true);
+      setPassword('');
     }
   };
 
@@ -466,6 +486,9 @@ export default function SendDataScreen() {
     : balanceEth
       ? t('send.balanceValue', { balance: balanceEth })
       : '—';
+
+  const balanceUsdText = ethToUsdDisplay(balanceEth, ethUsdPrice);
+  const feeUsdText = feeEstimate ? ethToUsdDisplay(feeEstimate, ethUsdPrice) : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -490,13 +513,13 @@ export default function SendDataScreen() {
           multiline
           numberOfLines={6}
           blurOnSubmit={false}
-          scrollEnabled={false}
+          scrollEnabled={true}
           style={styles.textArea}
-          contentStyle={styles.textAreaContent}
+          contentStyle={[styles.textAreaContent, { color: theme.colors.onSurface }]}
           outlineColor={theme.colors.outline}
           activeOutlineColor={theme.colors.primary}
         />
-        <HelperText type="info" visible style={styles.counter}>
+        <HelperText type="info" visible style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}>
           {t('send.charCount', { count: text.length })}
         </HelperText>
 
@@ -566,7 +589,7 @@ export default function SendDataScreen() {
             compact
             onPress={() => setRecipientAddress(BLACK_HOLE)}
             style={styles.shortcutButton}
-            labelStyle={styles.shortcutLabel}
+            labelStyle={[styles.shortcutLabel, { fontSize: Math.round(12 * fontScale) }]}
           >
             {t('send.recipientBlackHole')}
           </Button>
@@ -576,7 +599,7 @@ export default function SendDataScreen() {
               compact
               onPress={() => setRecipientAddress(profile.address)}
               style={styles.shortcutButton}
-              labelStyle={styles.shortcutLabel}
+              labelStyle={[styles.shortcutLabel, { fontSize: Math.round(12 * fontScale) }]}
             >
               {t('send.recipientSelf')}
             </Button>
@@ -599,13 +622,13 @@ export default function SendDataScreen() {
                 label={t('send.encryptNo')}
                 value="no"
                 style={styles.radioItem}
-                labelStyle={styles.radioLabel}
+                labelStyle={[styles.radioLabel, { fontSize: Math.round(14 * fontScale) }]}
               />
               <RadioButton.Item
                 label={t('send.encryptYes')}
                 value="yes"
                 style={styles.radioItem}
-                labelStyle={styles.radioLabel}
+                labelStyle={[styles.radioLabel, { fontSize: Math.round(14 * fontScale) }]}
               />
             </RadioButton.Group>
           </View>
@@ -692,51 +715,61 @@ export default function SendDataScreen() {
         ]}
       >
         <View style={styles.confirmRow}>
-          <Text style={styles.confirmLabel}>{t('send.confirmRecipient')}</Text>
-          <Text style={[styles.confirmValue, styles.addressText]} selectable>
+          <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmRecipient')}</Text>
+          <Text style={[styles.confirmValue, styles.addressText, { fontSize: Math.round(14 * fontScale) }]} selectable>
             {wrapLongHex(recipientAddress.trim() || BLACK_HOLE)}
           </Text>
         </View>
 
         <View style={styles.confirmRow}>
-          <Text style={styles.confirmLabel}>{t('send.confirmMode')}</Text>
-          <Text style={styles.confirmValue}>{sendModeLabel}</Text>
+          <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmMode')}</Text>
+          <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{sendModeLabel}</Text>
         </View>
 
         <View style={styles.confirmRow}>
-          <Text style={styles.confirmLabel}>{t('send.confirmData')}</Text>
-          <Text style={styles.confirmValue}>{dataSummary}</Text>
+          <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmData')}</Text>
+          <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{dataSummary}</Text>
         </View>
 
         <View style={styles.confirmRow}>
-          <Text style={styles.confirmLabel}>{t('send.confirmBalance')}</Text>
+          <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmBalance')}</Text>
           <View style={styles.feeRow}>
             {feeLoading && (
               <ActivityIndicator size="small" style={styles.feeSpinner} />
             )}
-            <Text style={styles.confirmValue}>{balanceDisplay}</Text>
+            <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{balanceDisplay}</Text>
           </View>
+          {balanceUsdText && (
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: Math.round(12 * fontScale), marginTop: 2 }}>
+              {t('send.balanceUsdValue', { usd: balanceUsdText })}
+            </Text>
+          )}
         </View>
 
         <View style={styles.confirmRow}>
-          <Text style={styles.confirmLabel}>{t('send.confirmFee')}</Text>
+          <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmFee')}</Text>
           <View style={styles.feeRow}>
             {feeLoading && (
               <ActivityIndicator size="small" style={styles.feeSpinner} />
             )}
-            <Text style={styles.confirmValue}>{feeDisplay}</Text>
+            <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{feeDisplay}</Text>
           </View>
+          {feeUsdText && (
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: Math.round(12 * fontScale), marginTop: 2 }}>
+              {t('send.feeUsdValue', { usd: feeUsdText })}
+            </Text>
+          )}
         </View>
 
         {insufficientBalance && (
-          <Text style={[styles.confirmWarning, { color: theme.colors.error }]}>
+          <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
             {t('send.insufficientBalance')}
           </Text>
         )}
 
         {feeError && !feeLoading && (
           <>
-            <Text style={[styles.confirmWarning, { color: theme.colors.error }]}>
+            <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
               {t('send.feeEstimateFailedHint')}
             </Text>
             <Button
@@ -750,15 +783,15 @@ export default function SendDataScreen() {
           </>
         )}
 
-        <Text style={[styles.feeDisclaimer, { color: theme.colors.error }]}>
+        <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
           {t('send.feeDisclaimer')}
         </Text>
 
-        <Text style={[styles.feeDisclaimer, { color: theme.colors.error }]}>
+        <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
           {t('send.submitNotMinedDisclaimer')}
         </Text>
 
-        <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant }]}>
+        <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(12 * fontScale), lineHeight: Math.round(17 * fontScale) }]}>
           {t('send.safetyTipMsg')}
         </Text>
       </AppModal>
@@ -768,6 +801,7 @@ export default function SendDataScreen() {
         onDismiss={() => {
           if (!loading) {
             setPasswordVisible(false);
+            setPassword('');
           }
         }}
         dismissable={!loading}
@@ -778,6 +812,7 @@ export default function SendDataScreen() {
             disabled: loading,
             onPress: () => {
               setPasswordVisible(false);
+              setPassword('');
             },
           },
           {
@@ -834,12 +869,12 @@ export default function SendDataScreen() {
           { label: t('send.noPubkeyConfirm'), onPress: handleManualPubkeyConfirm },
         ]}
       >
-        <Text style={styles.dialogBody}>
+        <Text style={[styles.dialogBody, { fontSize: Math.round(14 * fontScale), lineHeight: Math.round(20 * fontScale) }]}>
           {noPubkeyReason === 'no-history'
             ? t('send.noPubkeyMsg')
             : t('send.noPubkeyRecoverFailed')}
         </Text>
-        <Text style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}>
+        <Text style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
           {t('send.noPubkeyManualHint')}
         </Text>
         <TextInput
@@ -857,7 +892,7 @@ export default function SendDataScreen() {
           activeOutlineColor={theme.colors.primary}
         />
         {!!manualPubkeyError && (
-          <Text style={[styles.dialogError, { color: theme.colors.error }]}>
+          <Text style={[styles.dialogError, { color: theme.colors.error, fontSize: Math.round(13 * fontScale) }]}>
             {manualPubkeyError}
           </Text>
         )}
@@ -902,10 +937,10 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   textArea: {
-    minHeight: 140,
+    minHeight: 210,
   },
   textAreaContent: {
-    minHeight: 120,
+    minHeight: 180,
     textAlignVertical: 'top',
     paddingTop: 8,
   },

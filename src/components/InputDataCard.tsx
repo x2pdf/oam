@@ -7,6 +7,7 @@ import { RichContentRenderer } from './RichContentRenderer';
 import { shortenAddress, isBlackHoleAddress } from '../utils/address';
 import { CONTENT_KIND_I18N_KEY } from '../display';
 import { useAppContext } from '../context/AppContext';
+import { useThemePreference } from '../context/ThemeContext';
 
 interface InputDataCardProps {
   item: InputDataItem;
@@ -20,6 +21,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
     const theme = useTheme();
     const { t } = useTranslation();
     const { state } = useAppContext();
+    const { fontScale } = useThemePreference();
     const kind = item.contentKind ?? 'RAW';
     const rawHex = item.rawInput || item.description || '';
 
@@ -51,7 +53,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
               {t('home.encryptedHint')}
             </Text>
           ) : null}
-          <Text variant="bodyMedium" style={styles.rawHexText} numberOfLines={8}>
+          <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} numberOfLines={8}>
             {rawHex}
           </Text>
         </View>
@@ -80,7 +82,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
               variant="labelSmall"
               style={[
                 styles.kindBadge,
-                { color: theme.colors.primary, borderColor: theme.colors.outline },
+                { color: theme.colors.primary, borderColor: theme.colors.outline, fontSize: Math.round(10 * fontScale) },
               ]}
             >
               {t(CONTENT_KIND_I18N_KEY[kind])}
@@ -91,7 +93,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
 
           <Text
             variant="labelSmall"
-            style={[styles.timeText, { color: theme.colors.onSurfaceVariant }]}
+            style={[styles.timeText, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) }]}
           >
             {item.lastActive}
           </Text>

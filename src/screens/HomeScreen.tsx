@@ -28,6 +28,7 @@ import { applyDisplayPipeline, markAllRaw } from '../display';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FILTER_STATE_KEY } from '../constants';
+import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
 import {
   isDesktopLockPolicy,
@@ -68,6 +69,7 @@ function wipeDecryptedItems(items: InputDataItem[]): InputDataItem[] {
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const { fontScale } = useThemePreference();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
   const { cardWidth, listContentStyle, columnStyle } = useListColumnLayout();
@@ -699,9 +701,10 @@ export default function HomeScreen() {
                   style={styles.filterItem}
                   onPress={() => setShowFilterSent(prev => !prev)}
                 >
-                  <Checkbox
+                  <Checkbox.Android
                     status={showFilterSent ? 'checked' : 'unchecked'}
                     onPress={() => setShowFilterSent(prev => !prev)}
+                    uncheckedColor={theme.colors.outline}
                   />
                   <Text variant="labelMedium">{t('home.tabs.filterSent')}</Text>
                 </TouchableOpacity>
@@ -709,9 +712,10 @@ export default function HomeScreen() {
                   style={styles.filterItem}
                   onPress={() => setShowFilterReceived(prev => !prev)}
                 >
-                  <Checkbox
+                  <Checkbox.Android
                     status={showFilterReceived ? 'checked' : 'unchecked'}
                     onPress={() => setShowFilterReceived(prev => !prev)}
+                    uncheckedColor={theme.colors.outline}
                   />
                   <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
                 </TouchableOpacity>
@@ -723,9 +727,10 @@ export default function HomeScreen() {
                   style={styles.filterItem}
                   onPress={() => setShowSquareAll(prev => !prev)}
                 >
-                  <Checkbox
+                  <Checkbox.Android
                     status={showSquareAll ? 'checked' : 'unchecked'}
                     onPress={() => setShowSquareAll(prev => !prev)}
+                    uncheckedColor={theme.colors.outline}
                   />
                   <Text variant="labelMedium">{t('home.tabs.filterAll')}</Text>
                 </TouchableOpacity>
@@ -733,9 +738,10 @@ export default function HomeScreen() {
                   style={styles.filterItem}
                   onPress={() => setShowSquareOamp(prev => !prev)}
                 >
-                  <Checkbox
+                  <Checkbox.Android
                     status={showSquareOamp ? 'checked' : 'unchecked'}
                     onPress={() => setShowSquareOamp(prev => !prev)}
+                    uncheckedColor={theme.colors.outline}
                   />
                   <Text variant="labelMedium">{t('home.tabs.filterOAMP')}</Text>
                 </TouchableOpacity>
@@ -743,14 +749,16 @@ export default function HomeScreen() {
                   style={styles.filterItem}
                   onPress={() => setShowSquareSubscribed(prev => !prev)}
                 >
-                  <Checkbox
+                  <Checkbox.Android
                     status={showSquareSubscribed ? 'checked' : 'unchecked'}
                     onPress={() => setShowSquareSubscribed(prev => !prev)}
+                    uncheckedColor={theme.colors.outline}
                   />
                   <Text variant="labelMedium">{t('home.tabs.filterSubscribed')}</Text>
                 </TouchableOpacity>
               </View>
             )}
+            {/* headerRow 已隐藏
             <View style={[styles.headerRow, columnStyle]}>
               <View>
                 {(isSelfList || isMessagesList) && profile?.address && (
@@ -790,6 +798,7 @@ export default function HomeScreen() {
                 {t('home.totalItems', { count: data.length })}
               </Text>
             </View>
+            */}
           </View>
         }
       />
@@ -828,7 +837,7 @@ export default function HomeScreen() {
               <Text
                 style={[
                   styles.tabText,
-                  { color: activeTab === index ? tabActiveColor : tabInactiveColor },
+                  { color: activeTab === index ? tabActiveColor : tabInactiveColor, fontSize: Math.round(14 * fontScale) },
                   activeTab === index && styles.activeTabText,
                 ]}
               >

@@ -16,6 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
+import { useThemePreference } from '../context/ThemeContext';
 import { Subscription, RootStackParamList } from '../types';
 import { useNavigation } from '@react-navigation/native';
 import { CopyableAddress } from '../components/CopyableAddress';
@@ -29,6 +30,7 @@ type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function SubscriptionsScreen() {
   const theme = useTheme();
+  const { fontScale } = useThemePreference();
   const navigation = useNavigation<NavProp>();
   const { state } = useAppContext();
   const { t } = useTranslation();
@@ -156,7 +158,7 @@ export default function SubscriptionsScreen() {
                   </Text>
                   {isPinned && (
                     <View style={[styles.pinTag, { backgroundColor: theme.colors.errorContainer }]}>
-                      <Text style={[styles.pinTagText, { color: theme.colors.error }]}>
+                      <Text style={[styles.pinTagText, { color: theme.colors.error, fontSize: Math.round(10 * fontScale) }]}>
                         {t('subscriptions.pin')}
                       </Text>
                     </View>
@@ -195,7 +197,7 @@ export default function SubscriptionsScreen() {
           onChangeText={setSearchQuery}
           value={searchQuery}
           style={[styles.searchbar, { backgroundColor: theme.colors.elevation.level2 }]}
-          inputStyle={styles.searchbarInput}
+          inputStyle={[styles.searchbarInput, { fontSize: Math.round(14 * fontScale) }]}
           autoFocus
         />
       )}

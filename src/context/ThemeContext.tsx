@@ -8,17 +8,30 @@ import React, {
   ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PaperProvider, MD3Theme } from 'react-native-paper';
-import { lightTheme, darkTheme } from '../theme';
+import { PaperProvider } from 'react-native-paper';
+import { lightTheme, darkTheme, buildScaledTheme } from '../theme';
 import { STORAGE_KEYS } from '../constants';
 import { migrateLegacyStorage } from '../storage/migrate';
 
 export type ThemeMode = 'light' | 'dark';
 
+/** 字体缩放预设档位 */
+export const FONT_SCALE_PRESETS = [
+  { value: 0.8, labelKey: 'profile.fontSizeSmaller' },
+  { value: 0.9, labelKey: 'profile.fontSizeSmall' },
+  { value: 1.0, labelKey: 'profile.fontSizeDefault' },
+  { value: 1.15, labelKey: 'profile.fontSizeLarge' },
+  { value: 1.3, labelKey: 'profile.fontSizeLarger' },
+] as const;
+
+/** 默认字体缩放因子 */
+const DEFAULT_FONT_SCALE = 1.0;
+
 interface ThemeContextType {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
-  theme: MD3Theme;
+  fontScale: number;
+  setFontScale: (scale: number) => Promise<void>;
   isDark: boolean;
 }
 
@@ -30,6 +43,7 @@ interface Props {
 
 export const ThemeProvider: React.FC<Props> = ({ children }) => {
   const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
+  const [fontScale, setFontScaleState] = useState<number>(DEFAULT_FONT_SCALE);
 
   useEffect(() => {
     (async () => {
@@ -38,6 +52,13 @@ export const ThemeProvider: React.FC<Props> = ({ children }) => {
         const saved = await AsyncStorage.getItem(STORAGE_KEYS.THEME);
         if (saved === 'light' || saved === 'dark') {
           setThemeModeState(saved);
+        }
+        const savedScale = await AsyncStorage.getItem(STORAGE_KEYS.FONT_SCALE);
+        if (savedScale !== null) {
+          const parsed = parseFloat(savedScale);
+          if (!isNaN(parsed) && parsed >= 0.5 && parsed <= 2.0) {
+            setFontScaleState(parsed);
+          }
         }
       } catch (error) {
         console.warn('Failed to load theme preference:', error);
@@ -54,17 +75,31 @@ export const ThemeProvider: React.FC<Props> = ({ children }) => {
     }
   }, []);
 
-  const theme = themeMode === 'dark' ? darkTheme : lightTheme;
+  const setFontScale = useCallback(async (scale: number) => {
+    setFontScaleState(scale);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.FONT_SCALE, String(scale));
+    } catch (error) {
+      console.warn('Failed to save font scale:', error);
+    }
+  }, []);
+
+  const baseTheme = themeMode === 'dark' ? darkTheme : lightTheme;
   const isDark = themeMode === 'dark';
 
+  const scaledTheme = useMemo(
+    () => buildScaledTheme(baseTheme, fontScale),
+    [baseTheme, fontScale],
+  );
+
   const value = useMemo<ThemeContextType>(
-    () => ({ themeMode, setThemeMode, theme, isDark }),
-    [themeMode, setThemeMode, theme, isDark],
+    () => ({ themeMode, setThemeMode, fontScale, setFontScale, isDark }),
+    [themeMode, setThemeMode, fontScale, setFontScale, isDark],
   );
 
   return (
     <ThemeContext.Provider value={value}>
-      <PaperProvider theme={theme}>{children}</PaperProvider>
+      <PaperProvider theme={scaledTheme}>{children}</PaperProvider>
     </ThemeContext.Provider>
   );
 };

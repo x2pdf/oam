@@ -3,6 +3,7 @@ import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme } from 'react-native-paper';
+import { useThemePreference } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +41,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function MainTabNavigator() {
   const theme = useTheme();
+  const { fontScale } = useThemePreference();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const headerChrome = getHeaderChrome(theme);
@@ -55,7 +57,7 @@ function MainTabNavigator() {
         headerTintColor: headerChrome.tintColor,
         headerTitleStyle: {
           fontWeight: '600',
-          fontSize: 16,
+          fontSize: Math.round(16 * fontScale),
         },
         headerShadowVisible: !theme.dark,
         tabBarActiveTintColor: theme.colors.primary,
