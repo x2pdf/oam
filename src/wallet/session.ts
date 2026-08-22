@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
-import * as SecureStore from 'expo-secure-store';
-import { PRIVATE_KEY_STORAGE_KEY } from './walletManager';
+import { loadEncryptedKeystore } from './walletManager';
 
 export const NO_KEYSTORE_ERROR = 'NO_KEYSTORE';
 export const INVALID_PASSWORD_ERROR = 'INVALID_PASSWORD';
@@ -26,7 +25,7 @@ export function subscribeSession(listener: SessionListener): () => void {
  * Does not persist the password or write the session.
  */
 export async function decryptKeystore(password: string): Promise<ethers.Wallet> {
-  const keystoreJson = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
+  const keystoreJson = await loadEncryptedKeystore();
   if (!keystoreJson) {
     const err = new Error(NO_KEYSTORE_ERROR);
     err.name = NO_KEYSTORE_ERROR;

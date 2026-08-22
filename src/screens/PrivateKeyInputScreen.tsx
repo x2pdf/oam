@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, TextInput, Button, useTheme } from 'react-native-paper';
@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EthereumWalletManager } from '../wallet/walletManager';
+import { showAlert } from '../utils/alert';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -23,7 +24,7 @@ export default function PrivateKeyInputScreen() {
   const handleNext = () => {
     const trimmedKey = privateKey.trim();
     if (!trimmedKey) {
-      Alert.alert(t('common.error'), t('wallet.privateKeyInputError'));
+      showAlert(t('common.error'), t('wallet.privateKeyInputError'));
       return;
     }
 
@@ -32,7 +33,7 @@ export default function PrivateKeyInputScreen() {
       EthereumWalletManager.importFromPrivateKey(trimmedKey);
       navigation.navigate('PrivateKeyVerify', { privateKey: trimmedKey });
     } catch (error) {
-      Alert.alert(t('wallet.privateKeyInputTitle'), t('wallet.privateKeyInputInvalid'));
+      showAlert(t('wallet.privateKeyInputTitle'), t('wallet.privateKeyInputInvalid'));
     }
   };
 

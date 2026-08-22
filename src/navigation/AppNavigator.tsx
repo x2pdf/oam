@@ -29,6 +29,7 @@ import InputDataDetailScreen from '../screens/InputDataDetailScreen';
 import AddressDataListScreen from '../screens/AddressDataListScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
 import LocalFavoritesScreen from '../screens/LocalFavoritesScreen';
+import AppInfoScreen from '../screens/AppInfoScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { getHeaderChrome } from '../theme';
 
@@ -274,6 +275,13 @@ export default function AppNavigator() {
               ? t('nav.conversation')
               : route.params?.title || t('nav.addressDataList'),
           })}
+        />
+        <Stack.Screen
+          name="AppInfo"
+          component={AppInfoScreen}
+          options={{
+            title: t('nav.appInfo'),
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>

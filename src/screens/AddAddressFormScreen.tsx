@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { showConfirm } from '../utils/alert';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
@@ -91,17 +92,17 @@ export default function AddAddressFormScreen({ route, navigation }: Props) {
 
   /* ---------- 删除 ---------- */
   const handleDelete = useCallback(() => {
-    Alert.alert(t('common.confirmDelete'), t('common.confirmDeleteMsg'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteProfile();
-          navigation.goBack();
-        },
+    showConfirm(
+      t('common.confirmDelete'),
+      t('common.confirmDeleteMsg'),
+      async () => {
+        await deleteProfile();
+        navigation.goBack();
       },
-    ]);
+      undefined,
+      t('common.delete'),
+      t('common.cancel'),
+    );
   }, [deleteProfile, navigation, t]);
 
   /* ---------- 取消 ---------- */

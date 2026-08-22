@@ -5,11 +5,12 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  TouchableOpacity,
   Platform,
 } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { useListColumnLayout } from '../theme/layout';
-import { Text, useTheme, Snackbar } from 'react-native-paper';
+import { Text, useTheme, Snackbar, IconButton, Button } from 'react-native-paper';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -274,6 +275,10 @@ export default function AddressDataListScreen() {
             <View style={styles.footerContainer}>
               {loadingMore ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : Platform.OS === 'web' && hasMore ? (
+                <Button mode="text" onPress={() => loadData(false, true)}>
+                  {t('home.loadMore')}
+                </Button>
               ) : !hasMore ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('home.noMoreData')}
@@ -288,6 +293,17 @@ export default function AddressDataListScreen() {
           </View>
         }
       />
+
+      {/* Web 端刷新按钮 */}
+      {Platform.OS === 'web' && (
+        <TouchableOpacity
+          style={[styles.webRefreshBtn, { backgroundColor: theme.colors.surface }]}
+          onPress={() => loadData(true)}
+          activeOpacity={0.7}
+        >
+          <IconButton icon="refresh" size={20} iconColor={theme.colors.onSurfaceVariant} />
+        </TouchableOpacity>
+      )}
 
       {error ? (
         <View style={[styles.errorBar, { backgroundColor: theme.colors.errorContainer }]}>
@@ -336,5 +352,20 @@ const styles = StyleSheet.create({
   errorBar: {
     padding: 8,
     paddingHorizontal: 16,
+  },
+  webRefreshBtn: {
+    position: 'absolute',
+    right: 22,
+    bottom: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
 });

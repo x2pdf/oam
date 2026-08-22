@@ -84,6 +84,7 @@ export type RootStackParamList = {
   SubscriptionDetail: { subscription: Subscription };
   AddressDataList: { address: string; title?: string; peerAddress?: string };
   LocalFavorites: undefined;
+  AppInfo: undefined;
 };
 
 export type MainTabParamList = {

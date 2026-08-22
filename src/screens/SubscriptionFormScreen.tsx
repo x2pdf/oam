@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { showAlert, showConfirm } from '../utils/alert';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
@@ -82,7 +83,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
     // 新增时检查地址是否已存在
     const duplicate = checkDuplicate();
     if (duplicate) {
-      Alert.alert(
+      showAlert(
         t('common.tip'),
         t('form.addressDuplicate', { desc: duplicate.description }),
         [{ text: t('common.ok') }],
@@ -130,21 +131,21 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
 
   /* ---------- 删除（仅编辑模式 + profile 来源） ---------- */
   const handleDelete = useCallback(() => {
-    Alert.alert(t('common.confirmDelete'), t('common.confirmDeleteMsg'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          if (source === 'profile') {
-            await deleteProfile();
-          } else if (subscription) {
-            await deleteSubscription(subscription.id);
-          }
-          navigation.goBack();
-        },
+    showConfirm(
+      t('common.confirmDelete'),
+      t('common.confirmDeleteMsg'),
+      async () => {
+        if (source === 'profile') {
+          await deleteProfile();
+        } else if (subscription) {
+          await deleteSubscription(subscription.id);
+        }
+        navigation.goBack();
       },
-    ]);
+      undefined,
+      t('common.delete'),
+      t('common.cancel'),
+    );
   }, [source, subscription, deleteProfile, deleteSubscription, navigation, t]);
 
   /* ---------- 取消 ---------- */

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Button, TextInput, useTheme, HelperText } from 'react-native-paper';
@@ -10,6 +10,7 @@ import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { validateMnemonic } from '../wallet/walletManager';
 import { ethers } from 'ethers';
+import { showAlert } from '../utils/alert';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -47,12 +48,12 @@ export default function MnemonicInputScreen() {
     const trimmedMnemonic = words.join(' ');
 
     if (!wordCountValid) {
-      Alert.alert(t('common.tip'), t('wallet.inputMnemonicCountInvalid', { count: words.length }));
+      showAlert(t('common.tip'), t('wallet.inputMnemonicCountInvalid', { count: words.length }));
       return;
     }
 
     if (!validateMnemonic(trimmedMnemonic)) {
-      Alert.alert(t('common.error'), t('wallet.inputMnemonicInvalid'));
+      showAlert(t('common.error'), t('wallet.inputMnemonicInvalid'));
       return;
     }
 

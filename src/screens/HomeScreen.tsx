@@ -93,7 +93,8 @@ export default function HomeScreen() {
   // ── 筛选状态 ──
   const [showFilterSent, setShowFilterSent] = useState(true);
   const [showFilterReceived, setShowFilterReceived] = useState(true);
-  const [showSquareAll, setShowSquareAll] = useState(true);
+  const [showSquareAll, setShowSquareAll] = useState(false);
+  const [showSquareUtf8, setShowSquareUtf8] = useState(true);
   const [showSquareOamp, setShowSquareOamp] = useState(true);
   const [showSquareSubscribed, setShowSquareSubscribed] = useState(true);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
@@ -148,6 +149,12 @@ export default function HomeScreen() {
     return squareData.filter(item => isBlackHoleAddress(item.to || ''));
   }, [squareData, showSquareAll]);
 
+  // 广场 UTF-8 筛选：contentKind 为 UTF-8 的交易
+  const utf8FilteredData = useMemo(() => {
+    if (showSquareAll) return squareData;
+    return squareData.filter(item => item.contentKind === 'UTF-8');
+  }, [squareData, showSquareAll]);
+
   // 广场关注筛选：仅关注列表地址的交易（按 to 地址匹配）
   const subscribedFilteredData = useMemo(() => {
     if (showSquareAll) return squareData;
@@ -159,12 +166,13 @@ export default function HomeScreen() {
   const displayedSquareData = useMemo(() => {
     if (showSquareAll) return squareData;
     const map = new Map<string, InputDataItem>();
+    if (showSquareUtf8) utf8FilteredData.forEach(i => map.set(i.id, i));
     if (showSquareOamp) oampFilteredData.forEach(i => map.set(i.id, i));
     if (showSquareSubscribed) subscribedFilteredData.forEach(i => map.set(i.id, i));
     return Array.from(map.values()).sort((a, b) =>
       new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
     );
-  }, [squareData, showSquareAll, showSquareOamp, showSquareSubscribed, oampFilteredData, subscribedFilteredData]);
+  }, [squareData, showSquareAll, showSquareUtf8, showSquareOamp, showSquareSubscribed, utf8FilteredData, oampFilteredData, subscribedFilteredData]);
 
   // ── 筛选状态持久化 ──
   useEffect(() => {
@@ -175,6 +183,7 @@ export default function HomeScreen() {
           if (typeof s.showFilterSent === 'boolean') setShowFilterSent(s.showFilterSent);
           if (typeof s.showFilterReceived === 'boolean') setShowFilterReceived(s.showFilterReceived);
           if (typeof s.showSquareAll === 'boolean') setShowSquareAll(s.showSquareAll);
+          if (typeof s.showSquareUtf8 === 'boolean') setShowSquareUtf8(s.showSquareUtf8);
           if (typeof s.showSquareOamp === 'boolean') setShowSquareOamp(s.showSquareOamp);
           if (typeof s.showSquareSubscribed === 'boolean') setShowSquareSubscribed(s.showSquareSubscribed);
         } catch { /* ignore */ }
@@ -187,9 +196,9 @@ export default function HomeScreen() {
     if (!filtersLoaded) return;
     AsyncStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
       showFilterSent, showFilterReceived,
-      showSquareAll, showSquareOamp, showSquareSubscribed,
+      showSquareAll, showSquareUtf8, showSquareOamp, showSquareSubscribed,
     })).catch(() => {});
-  }, [showFilterSent, showFilterReceived, showSquareAll, showSquareOamp, showSquareSubscribed, filtersLoaded]);
+  }, [showFilterSent, showFilterReceived, showSquareAll, showSquareUtf8, showSquareOamp, showSquareSubscribed, filtersLoaded]);
 
   const _loadData = useCallback(async (internalIndex: number, uiIndex: number, isRefreshing = false, isLoadMore = false) => {
     const modeMap: ('square' | 'sent' | 'inbox' | 'self')[] = ['square', 'sent', 'inbox', 'self'];
@@ -248,19 +257,29 @@ export default function HomeScreen() {
 
       if (mode === 'square') {
         // Black hole: mode='square' (仅接收，用于 OAMP)
-        // Subscriptions: mode='all' (收发，用于关注/全部)
-        const fetches = [
+        // User + Subscriptions: mode='all' (收发，用于 UTF-8 / 关注 / 全部)
+        const fetches: Promise<{ items: InputDataItem[]; next_page_params: any; errors?: string[] }>[] = [
           dataSourceManager.fetchAll(BLACK_HOLE_ADDRESS, 'square', params).catch(e => {
             const message = e instanceof Error ? e.message : String(e);
             return { items: [], next_page_params: null, errors: [message] };
           }),
-          ...subscriptions.map(s =>
+        ];
+        if (profile?.address) {
+          fetches.push(
+            dataSourceManager.fetchAll(profile.address, 'all', params).catch(e => {
+              const message = e instanceof Error ? e.message : String(e);
+              return { items: [], next_page_params: null, errors: [message] };
+            }),
+          );
+        }
+        subscriptions.forEach(s => {
+          fetches.push(
             dataSourceManager.fetchAll(s.address, 'all', params).catch(e => {
               const message = e instanceof Error ? e.message : String(e);
               return { items: [], next_page_params: null, errors: [message] };
-            })
-          ),
-        ];
+            }),
+          );
+        });
 
         // Concurrent fetch
         const results = await Promise.all(fetches);
@@ -736,6 +755,17 @@ export default function HomeScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.filterItem}
+                  onPress={() => setShowSquareUtf8(prev => !prev)}
+                >
+                  <Checkbox.Android
+                    status={showSquareUtf8 ? 'checked' : 'unchecked'}
+                    onPress={() => setShowSquareUtf8(prev => !prev)}
+                    uncheckedColor={theme.colors.outline}
+                  />
+                  <Text variant="labelMedium">{t('home.tabs.filterUTF8')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.filterItem}
                   onPress={() => setShowSquareOamp(prev => !prev)}
                 >
                   <Checkbox.Android
@@ -804,6 +834,12 @@ export default function HomeScreen() {
       />
     );
   };
+
+  const isCurrentRefreshing = useMemo(() => {
+    if (activeTab === 1) return refreshing[1] || refreshing[2];
+    if (activeTab === 2) return !!refreshing[3];
+    return refreshing[0];
+  }, [activeTab, refreshing]);
 
   const onFabPress = () => {
     if (!profile) {
@@ -930,6 +966,14 @@ export default function HomeScreen() {
       </AppModal>
 
       <FAB
+        icon={isCurrentRefreshing ? 'autorenew' : 'refresh'}
+        style={[styles.fabRefresh, { backgroundColor: theme.colors.secondaryContainer }]}
+        onPress={() => loadData(activeTab, true)}
+        disabled={isCurrentRefreshing}
+        color={theme.colors.onSecondaryContainer}
+        small
+      />
+      <FAB
         icon="plus"
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
         onPress={onFabPress}
@@ -1024,6 +1068,11 @@ const styles = StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  fabRefresh: {
+    position: 'absolute',
+    right: 16,
+    bottom: 72,
   },
 });
 

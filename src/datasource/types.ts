@@ -6,6 +6,8 @@ export interface DataSourceResult {
   items: InputDataItem[];
   next_page_params: any;
   errors?: string[];
+  /** 本次实际扫描的区块数（供 UI 展示回溯范围） */
+  blocksScanned?: number;
 }
 
 /** 发出交易索引：只需 hash，完整签名通过 RPC 获取。 */

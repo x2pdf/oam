@@ -1,9 +1,14 @@
 import { encryptKeystoreJson, HDNodeWallet, Mnemonic, Wallet, randomBytes } from 'ethers';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 export { EthereumWalletManager } from './ethereum';
 
 export const PRIVATE_KEY_STORAGE_KEY = 'user_wallet_private_key';
+
+/** Web/Tauri 环境下 SecureStore 不可用，回退到 AsyncStorage */
+const USE_ASYNC_STORAGE = Platform.OS === 'web';
 
 /** Mobile-friendly scrypt cost. Default ethers N=2^17 is too slow on Android emulators. */
 const KEYSTORE_SCRYPT_N = 8192;
@@ -48,7 +53,34 @@ export async function encryptWallet(
 
 /**
  * Persists keystore ciphertext only. Never store a plaintext private key.
+ * Web/Tauri: SecureStore stub 为空，回退到 AsyncStorage。
  */
 export async function saveEncryptedKeystore(keystoreJson: string): Promise<void> {
-  await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, keystoreJson);
+  if (USE_ASYNC_STORAGE) {
+    await AsyncStorage.setItem(PRIVATE_KEY_STORAGE_KEY, keystoreJson);
+  } else {
+    await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, keystoreJson);
+  }
+}
+
+/**
+ * Reads the stored keystore ciphertext.
+ * Web/Tauri: 从 AsyncStorage 读取。
+ */
+export async function loadEncryptedKeystore(): Promise<string | null> {
+  if (USE_ASYNC_STORAGE) {
+    return AsyncStorage.getItem(PRIVATE_KEY_STORAGE_KEY);
+  }
+  return SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
+}
+
+/**
+ * Removes the stored keystore ciphertext.
+ */
+export async function removeEncryptedKeystore(): Promise<void> {
+  if (USE_ASYNC_STORAGE) {
+    await AsyncStorage.removeItem(PRIVATE_KEY_STORAGE_KEY);
+  } else {
+    await SecureStore.deleteItemAsync(PRIVATE_KEY_STORAGE_KEY);
+  }
 }

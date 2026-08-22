@@ -497,6 +497,7 @@ export default function ProfileScreen() {
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
           mode="elevated"
+          onPress={() => navigation.navigate('AppInfo')}
         >
           <Card.Content style={styles.cardContent}>
             <View style={styles.row}>
@@ -528,6 +529,7 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               </View>
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('AppInfo')} />
             </View>
           </Card.Content>
         </Card>

@@ -61,7 +61,19 @@ function isNonceTooLow(err: unknown): boolean {
   return msg.includes("nonce too low") || msg.includes("nonce has already been used");
 }
 
+function isRateLimited(err: unknown): boolean {
+  const msg = errorText(err).toLowerCase();
+  return (
+    msg.includes("429") ||
+    msg.includes("too many requests") ||
+    msg.includes("rate limit") ||
+    msg.includes("throttled") ||
+    msg.includes("throttling")
+  );
+}
+
 function isFatalRpcError(err: unknown): boolean {
+  if (isRateLimited(err)) return true;
   const code = errorCode(err);
   if (
     code === "INSUFFICIENT_FUNDS" ||
@@ -171,7 +183,10 @@ async function broadcastToNode(
     if (isNonceTooLow(err)) {
       throw err;
     }
-    if (isFatalRpcError(err)) {
+    // Rate-limit (429) during broadcast: don't treat as fatal — the node may
+    // have accepted the tx before rate-limiting the response.  Fall through to
+    // "retry" so the caller can try the next node or probe for inclusion.
+    if (!isRateLimited(err) && isFatalRpcError(err)) {
       throw err;
     }
 
@@ -194,10 +209,15 @@ export async function broadcastRawTx(signedTx: string): Promise<string> {
 
   for (let cycle = 1; cycle <= MAX_RPC_CYCLES && acceptedIndex < 0; cycle++) {
     for (let i = 0; i < RPC_NODES.length; i++) {
-      const result = await broadcastToNode(RPC_NODES[i], signedTx, hash, i, true);
-      if (result === "accepted") {
-        acceptedIndex = i;
-        break;
+      try {
+        const result = await broadcastToNode(RPC_NODES[i], signedTx, hash, i, true);
+        if (result === "accepted") {
+          acceptedIndex = i;
+          break;
+        }
+      } catch (err) {
+        // Fatal errors (insufficient funds, nonce too low, etc.) bubble up.
+        throw err;
       }
     }
   }

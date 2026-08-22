@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-native-paper';
@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EthereumWalletManager, encryptWallet, saveEncryptedKeystore } from '../wallet/walletManager';
 import { useAppContext } from '../context/AppContext';
 import { DEFAULT_CHAIN } from '../constants';
+import { showAlert } from '../utils/alert';
 
 type RoutePropType = RouteProp<RootStackParamList, 'PrivateKeySetup'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -32,23 +33,23 @@ export default function PrivateKeySetupScreen() {
 
   const handleFinish = async () => {
     if (!name.trim()) {
-      Alert.alert(t('common.error'), t('form.walletNameRequired'));
+      showAlert(t('common.error'), t('form.walletNameRequired'));
       return;
     }
     if (name.length > 64) {
-      Alert.alert(t('common.error'), t('form.walletNameMaxLength'));
+      showAlert(t('common.error'), t('form.walletNameMaxLength'));
       return;
     }
     if (password.length < 6) {
-      Alert.alert(t('common.error'), t('form.payPasswordMinLength'));
+      showAlert(t('common.error'), t('form.payPasswordMinLength'));
       return;
     }
     if (password.length > 16) {
-      Alert.alert(t('common.error'), t('form.payPasswordMaxLength'));
+      showAlert(t('common.error'), t('form.payPasswordMaxLength'));
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert(t('common.error'), t('form.payPasswordMismatch'));
+      showAlert(t('common.error'), t('form.payPasswordMismatch'));
       return;
     }
 
@@ -67,7 +68,7 @@ export default function PrivateKeySetupScreen() {
         walletType: 'write',
       });
 
-      Alert.alert(t('common.success'), t('wallet.setupSuccess'), [
+      showAlert(t('common.success'), t('wallet.setupSuccess'), [
         {
           text: t('common.ok'),
           onPress: () => navigation.reset({
@@ -78,7 +79,7 @@ export default function PrivateKeySetupScreen() {
       ]);
     } catch (error) {
       console.error(error);
-      Alert.alert(t('common.failed'), t('wallet.setupFailed'));
+      showAlert(t('common.failed'), t('wallet.setupFailed'));
     } finally {
       setLoading(false);
     }

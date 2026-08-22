@@ -49,7 +49,8 @@
     "subscriptionDetail": "Following Detail",
     "addressDataList": "Address Data",
     "conversation": "Conversation",
-    "localFavorites": "Local Favorites"
+    "localFavorites": "Local Favorites",
+    "appInfo": "App Info"
   },
   "home": {
     "tabs": {
@@ -60,6 +61,7 @@
       "filterSent": "Sent",
       "filterReceived": "Received",
       "filterAll": "All",
+      "filterUTF8": "UTF-8",
       "filterOAMP": "OAMP",
       "filterSubscribed": "Following"
     },
@@ -348,5 +350,20 @@
     "pickImageFromFiles": "Files",
     "pickImageFailed": "Failed to pick image",
     "noPrivateKey": "Private key not found, please re-import wallet"
+  },
+  "appInfo": {
+    "disclaimerTitle": "Disclaimer",
+    "disclaimerRiskHint": "Risk Notice: This project involves cryptocurrency and related technologies (e.g., private key management, on-chain transactions). The cryptocurrency market carries extremely high risk and may result in total loss of funds.",
+    "disclaimerNotAdvice": "Not Investment Advice",
+    "disclaimerNotAdviceBody": "This project is for learning, research, and development demonstration purposes only. It does not constitute any form of investment, financial, or legal advice.",
+    "disclaimerSecurity": "Security Risk",
+    "disclaimerSecurityBody": "Users are responsible for their own private key management and wallet interaction security. The developers are not liable for any asset loss resulting from the use of this project (including but not limited to software vulnerabilities, operational errors, hacking, etc.).",
+    "disclaimerLegal": "Legal Compliance",
+    "disclaimerLegalBody": "Users should ensure they use this project in compliance with applicable local laws and regulations.",
+    "disclaimerOnChain": "Permanent & Public On-Chain Data",
+    "disclaimerOnChainBody": "Blockchain technology is immutable. Once information is sent to the blockchain through this project, it will be permanently stored on-chain and publicly visible worldwide. Developers cannot modify, hide, or delete any data already on-chain, nor can they prevent any third party from accessing it. Please ensure that no sensitive information is included before sending.",
+    "disclaimerEncryption": "Encryption Disclaimer",
+    "disclaimerEncryptionBody": "The encryption features provided by this project are for technical demonstration only. Developers are not responsible for any content stored or distributed by users using this feature. Encryption does not equate to absolute security. Developers assume no responsibility for compromised encryption due to user error, private key leakage, algorithm limitations, or future technological advances.",
+    "disclaimerAgree": "Continuing to use this project means you fully understand and agree to assume the associated risks."
   }
 }

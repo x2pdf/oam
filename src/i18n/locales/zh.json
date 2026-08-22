@@ -49,7 +49,8 @@
     "subscriptionDetail": "关注详情",
     "addressDataList": "地址数据",
     "conversation": "双方对话",
-    "localFavorites": "我的本地收藏"
+    "localFavorites": "我的本地收藏",
+    "appInfo": "应用信息"
   },
   "home": {
     "tabs": {
@@ -60,6 +61,7 @@
       "filterSent": "已发出",
       "filterReceived": "收到",
       "filterAll": "全部",
+      "filterUTF8": "UTF-8",
       "filterOAMP": "OAMP",
       "filterSubscribed": "关注"
     },
@@ -348,5 +350,20 @@
     "pickImageFromFiles": "文件",
     "pickImageFailed": "选择图片失败",
     "noPrivateKey": "未找到钱包私钥，请重新导入钱包"
+  },
+  "appInfo": {
+    "disclaimerTitle": "免责声明",
+    "disclaimerRiskHint": "风险提示：本项目涉及加密货币及其相关技术（如私钥管理、链上交易等）。加密货币市场具有极高的风险，可能导致资金完全损失。",
+    "disclaimerNotAdvice": "非投资建议",
+    "disclaimerNotAdviceBody": "本项目仅供学习、研究及开发演示用途，不构成任何形式性投资建议、财务建议或法律建议。",
+    "disclaimerSecurity": "安全性风险",
+    "disclaimerSecurityBody": "用户需自行承担私钥管理及钱包交互的安全责任。开发者不对因使用本项目（包括但不限于软件漏洞、操作失误、黑客攻击等）导致的任何资产损失负责。",
+    "disclaimerLegal": "法律合规",
+    "disclaimerLegalBody": "用户应确保在遵守当地法律法规的前提下使用本项目。",
+    "disclaimerOnChain": "信息永存与公开",
+    "disclaimerOnChainBody": "区块链技术具有不可篡改性。一旦信息通过本项目发送至区块链，该信息将永久保存在链上，且对全球公开可见。开发者无法修改、隐藏或删除已上链的任何数据，亦无法阻止任何第三方访问这些数据。请在发送前确保不包含任何不宜公开的敏感信息。",
+    "disclaimerEncryption": "加密功能免责",
+    "disclaimerEncryptionBody": "本项目提供的信息加密功能仅为技术展示。开发者不对用户利用该功能存储或传播的任何内容负责。加密并不等同于绝对安全，开发者不承担因用户误操作、私钥泄漏、算法局限性或未来技术进步导致的加密信息被破解所产生的任何责任。",
+    "disclaimerAgree": "继续使用本项目即代表您已充分理解并同意承担相关风险。"
   }
 }
