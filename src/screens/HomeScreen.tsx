@@ -584,12 +584,11 @@ export default function HomeScreen() {
           item={{ ...item, name: displayDesc }}
           cardWidth={cardWidth}
           highlightName={!!sub}
-          onAddressCopied={showCopiedSnackbar}
           onPress={() => handleItemPress({ ...item, name: displayDesc })}
         />
       );
     },
-    [cardWidth, subscriptions, showCopiedSnackbar, handleItemPress],
+    [cardWidth, subscriptions, handleItemPress],
   );
 
   const keyExtractor = useCallback((item: InputDataItem) => item.id, []);

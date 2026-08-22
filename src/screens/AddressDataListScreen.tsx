@@ -197,11 +197,10 @@ export default function AddressDataListScreen() {
       <InputDataCard
         item={item}
         cardWidth={cardWidth}
-        onAddressCopied={showCopiedSnackbar}
         onPress={() => handleItemPress(item)}
       />
     ),
-    [cardWidth, showCopiedSnackbar, handleItemPress],
+    [cardWidth, handleItemPress],
   );
 
   const keyExtractor = useCallback((item: InputDataItem) => item.id, []);

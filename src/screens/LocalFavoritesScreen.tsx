@@ -1,8 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { View, FlatList, StyleSheet } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { useListColumnLayout } from '../theme/layout';
-import { Text, useTheme, Snackbar } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -18,13 +18,8 @@ export default function LocalFavoritesScreen() {
   const navigation = useNavigation<NavProp>();
   const { cardWidth, listContentStyle } = useListColumnLayout();
   const { state } = useAppContext();
-  const [snackbarVisible, setSnackbarVisible] = useState(false);
 
   const favorites = state.favorites;
-
-  const showCopiedSnackbar = useCallback(() => {
-    setSnackbarVisible(true);
-  }, []);
 
   const handleItemPress = useCallback(
     (item: InputDataItem) => {
@@ -38,11 +33,10 @@ export default function LocalFavoritesScreen() {
       <InputDataCard
         item={item.item}
         cardWidth={cardWidth}
-        onAddressCopied={showCopiedSnackbar}
         onPress={() => handleItemPress(item.item)}
       />
     ),
-    [cardWidth, showCopiedSnackbar, handleItemPress],
+    [cardWidth, handleItemPress],
   );
 
   const keyExtractor = useCallback((entry: FavoriteItem) => entry.item.id, []);
@@ -78,14 +72,6 @@ export default function LocalFavoritesScreen() {
           </View>
         }
       />
-
-      <Snackbar
-        visible={snackbarVisible}
-        onDismiss={() => setSnackbarVisible(false)}
-        duration={2000}
-      >
-        {t('common.copied')}
-      </Snackbar>
     </View>
   );
 }
