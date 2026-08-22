@@ -12,9 +12,7 @@ export class EtherscanDataSource extends BaseDataSource {
   name = 'Etherscan';
   weight = DATA_SOURCE_WEIGHTS.ETHERSCAN;
 
-  get apiKey(): string {
-    return API_CONFIG.ETHERSCAN_API_KEY;
-  }
+  readonly apiKey = API_CONFIG.ETHERSCAN_API_KEY;
 
   private buildUrl(address: string, params: any, defaultOffset: string): string {
     if (!API_CONFIG.ETHERSCAN_API_KEY) {
