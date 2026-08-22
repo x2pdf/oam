@@ -132,6 +132,7 @@ export default function AppNavigator() {
           headerTintColor: headerChrome.tintColor,
           headerTitleStyle: { fontWeight: '600' },
           headerShadowVisible: !theme.dark,
+          headerBackButtonDisplayMode: 'minimal',
         }}
       >
         <Stack.Screen
