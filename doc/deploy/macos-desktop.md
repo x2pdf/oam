@@ -18,6 +18,35 @@ App.tsx / src/**（业务 UI）
 
 下面按「新 M1/M2/M3 Mac 拉代码就能打 Apple Silicon 包」来写。命令以 **zsh / bash** 为准（Terminal.app 或 iTerm 均可）。
 
+---
+
+## 快速打包（环境已就绪）
+
+如果你的 Mac 已经装好 Node ≥ 20.19.4、Rust、Xcode CLT，并且 `npm install` 也跑过了：
+
+```bash
+# 一键打包（环境检查 + web 导出 + Rust 编译 + 打 .app/.dmg）
+bash doc/deploy/build-macos.sh --skip-npm-install
+```
+
+约 3 分钟（首次 Rust 编译约 2.5 分钟，增量编译约 30 秒）。产物：
+
+| 产物 | 路径 | 体积 |
+| --- | --- | --- |
+| 应用包 | `src-tauri/target/release/bundle/macos/OAM.app` | 11 MB |
+| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_26.1.0_aarch64.dmg` | 5.2 MB |
+
+打开 `.app` 若被 Gatekeeper 拦截：
+
+```bash
+xattr -cr src-tauri/target/release/bundle/macos/OAM.app
+open src-tauri/target/release/bundle/macos/OAM.app
+```
+
+> **已知坑：** 首次打包后 DMG 安装打开可能白屏——这是 `react-native-quick-crypto` 在 Web 环境（WKWebView）中调用原生 TurboModule 导致的。修复方法见 [12.2 白屏问题](#122-首次打包后白屏web-crypto-api-turbomoduleregistry)。当前代码已修复。
+
+---
+
 **文档状态：已验证。** 已在 macOS 14.8.7（Apple Silicon M1, MacBook Air 13）上实机跑通完整打包流程。
 
 实机环境：
@@ -31,7 +60,7 @@ App.tsx / src/**（业务 UI）
 | Xcode | 16.0（Apple clang 16.0.0） |
 | 首次 Rust 编译耗时 | 约 2 分 28 秒 |
 | `.app` 体积 | 11 MB |
-| `.dmg` 体积 | 5.3 MB |
+| `.dmg` 体积 | 5.2 MB（修复白屏后从 5.3 MB 降至 5.2 MB） |
 
 **本仓库对照**
 
@@ -44,7 +73,7 @@ App.tsx / src/**（业务 UI）
 | 版本 | `26.1.0` |
 | Web 开发端口 | `19006` |
 | 预期 `.app` | `src-tauri/target/release/bundle/macos/OAM.app`（实产 11 MB） |
-| 预期 `.dmg` | `src-tauri/target/release/bundle/dmg/OAM_26.1.0_aarch64.dmg`（实产 5.3 MB） |
+| 预期 `.dmg` | `src-tauri/target/release/bundle/dmg/OAM_26.1.0_aarch64.dmg`（实产 5.2 MB） |
 
 Windows 安装包是 NSIS（`OAM_1.0.0_x64-setup.exe`）。macOS 对应的是 **`.app` 包 + `.dmg` 磁盘镜像**，不能在 Mac 上打 Windows 的 NSIS，也不能在 Windows 上打 `.dmg`。
 
@@ -417,7 +446,7 @@ npx tauri build --bundles app,dmg
 | --- | --- | --- |
 | 可执行文件 | `src-tauri/target/release/app` | — |
 | 应用包 | `src-tauri/target/release/bundle/macos/OAM.app` | **11 MB** |
-| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_26.1.0_aarch64.dmg` | **5.3 MB** |
+| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_26.1.0_aarch64.dmg` | **5.2 MB** |
 
 若显式加了 `--target aarch64-apple-darwin`，cargo 会把产物放到带 triple 的目录：
 
@@ -426,7 +455,7 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/macos/OAM.app
 src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OAM_26.1.0_aarch64.dmg
 ```
 
-实机体积：`.app` 约 11 MB、`.dmg` 约 5.3 MB（Apple Silicon M1, macOS 14.8.7）。universal 会明显更大。
+实机体积：`.app` 约 11 MB、`.dmg` 约 5.2 MB（Apple Silicon M1, macOS 14.8.7）。universal 会明显更大。
 
 `src-tauri/target/` 体积很大，不要提交进 git。即使 DMG 某一步失败，**`.app` 往往已经编出来了**，可以直接 `open`。
 
@@ -464,7 +493,7 @@ Tauri 窗口里跑的是 **react-native-web**，在 Mac 上同样是 `Platform.O
 生产：npx tauri build --bundles app,dmg
   → expo export --platform web  →  dist/index.html + JS
   → cargo 编出 app 二进制，把 dist 打进 OAM.app
-  → 再打成 OAM_1.0.0_aarch64.dmg
+  → 再打成 OAM_26.1.0_aarch64.dmg
 ```
 
 手机侧全程不经过 `dist/` 和 `src-tauri/`。迁桌面是**加一条发行通道**，不是把 iOS/Android 工程改掉。
@@ -646,6 +675,25 @@ npx tauri build --bundles app,dmg
 
 ethers 依赖链引起，Web 包仍然能打完。不必为了这条去改 `node_modules`。
 
+### 8.12 打开 .app / DMG 后白屏（Web Crypto API）
+
+症状：双击 `.app` 或安装 DMG 后打开应用，窗口一片空白，无任何 UI。
+
+原因：`index.js` 无条件加载 `react-native-quick-crypto`，该模块在 import 时立即调用 `TurboModuleRegistry.getEnforcing('QuickBase64')`。Tauri 的 WKWebView 是 Web 环境，没有 TurboModuleRegistry，直接崩溃。
+
+处理：确保 `index.js` 用 `Platform.OS !== 'web'` 条件守卫，仅在原生平台加载：
+
+```javascript
+if (Platform.OS !== 'web') {
+  const { subtle } = require('react-native-quick-crypto');
+  // ...
+}
+```
+
+**关键细节：** 必须用 `require()` 而非 `import`——Metro 对 `import` 做静态分析，即使有 `Platform` 检查仍会把原生代码打包进 Web bundle。Web 环境自带 `crypto.subtle`，不需要 polyfill。
+
+验证方法：用 HTTP 服务器 serve `dist/` 目录，浏览器打开看控制台有无 `getEnforcing` 错误。
+
 ---
 
 ## 9. 这条链路是怎么接到现有 Expo 工程上的
@@ -664,7 +712,7 @@ ethers 依赖链引起，Web 包仍然能打完。不必为了这条去改 `node
 4. `npm run build:web`，确认出现 `dist/index.html`
 5. `npm run web`，浏览器里主流程能点
 6. `npm run desktop`，桌面窗口里同样能点
-7. `bash doc/deploy/build-macos.sh`（推荐）或 `npx tauri build --bundles app,dmg`，拿到 `.app`（11 MB）/ `.dmg`（5.3 MB）
+7. `bash doc/deploy/build-macos.sh`（推荐）或 `npx tauri build --bundles app,dmg`，拿到 `.app`（11 MB）/ `.dmg`（5.2 MB）
 8. `open` 一下 `.app`（若被拦，按 8.5）
 9. （可选）`npm start` + Expo Go 扫码
 10. （可选）完整 Xcode 就绪后再 `npm run ios`
@@ -675,7 +723,7 @@ ethers 依赖链引起，Web 包仍然能打完。不必为了这条去改 `node
 - 步骤 1～4 约 1 分钟
 - 步骤 5 约 1 秒（增量）
 - 步骤 6 首次 Rust 编译约 2.5 分钟
-- 步骤 7 首次全量编译（含步骤 5 + 6 + 打包）约 3 分钟
+- 步骤 7 首次全量编译（含步骤 5 + 6 + 打包）约 3 分钟；修复白屏后增量编译仅约 30 秒
 
 ---
 
@@ -709,9 +757,57 @@ bash doc/deploy/build-macos.sh --skip-npm-install
 
 ## 12. 实际踩坑记录（M1 实机验证）
 
-以下为 2026-08-22 在 macOS 14.8.7 / M1 / Node v20.20.2 / Rust 1.95.0 上首次打包的实际结果。
+以下为 2026-08-22 在 macOS 14.8.7 / M1 / Node v20.20.2 / Rust 1.95.0 上首次打包的**完整实际过程**。
 
-### 12.1 直接 `npm run build:desktop` 会按 NSIS 走
+### 12.1 第一次打包流程
+
+按本文档顺序执行：
+
+1. **环境确认**：`uname -m` → `arm64`，`node -v` → `v20.20.2`，`rustc` → `1.95.0`，`clang` → `16.0.0`
+2. **Web 导出**：`npm run build:web` 一次通过，仅一条 `@noble/hashes` exports 警告（可忽略）
+3. **Tauri 打包**：`npx tauri build --bundles app,dmg`，Rust 首次编译约 **2 分 28 秒**
+4. **产物**：`OAM.app`（11 MB）、`OAM_26.1.0_aarch64.dmg`（5.3 MB）
+
+到此打包本身是成功的。但安装 DMG 后打开应用遇到了白屏问题（见 12.2）。
+
+### 12.2 首次打包后白屏（Web Crypto API + TurboModuleRegistry）
+
+**现象：** DMG 安装后双击打开 OAM.app，窗口完全空白，无任何 UI 渲染。
+
+**诊断过程：**
+
+1. 用 HTTP 服务器 serve `dist/` 目录，浏览器打开 → 控制台报错：`Cannot read properties of undefined (reading 'getEnforcing')`
+2. 追踪到 `index.js` 无条件 `import` 了 `react-native-quick-crypto`
+3. 该模块加载时立即调用 `TurboModuleRegistry.getEnforcing('QuickBase64')`
+4. Tauri 窗口底层是 WKWebView（Web 环境），`TurboModuleRegistry` 不存在 → 崩溃白屏
+
+**修复：** 改 `index.js`，用 `Platform.OS !== 'web'` 条件守卫 + `require()` 动态加载：
+
+```javascript
+import { Platform } from 'react-native';
+
+if (Platform.OS !== 'web') {
+  const { subtle } = require('react-native-quick-crypto');
+  if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.subtle) {
+    globalThis.crypto = { subtle };
+  }
+}
+```
+
+**为什么必须 `require()` 不能用 `import`：** Metro bundler 对 `import` 做静态分析，即使外面有 `Platform.OS` 判断，仍会将原生模块代码打包进 Web bundle。`require()` 是运行时求值，配合条件判断才能真正在 Web 端跳过。
+
+**修复后效果：**
+
+| 项 | 修复前 | 修复后 |
+| --- | --- | --- |
+| Web bundle 大小 | 3.12 MB | 2.65 MB（减少 470 KB，排除 207 个原生模块） |
+| DMG 体积 | 5.3 MB | 5.2 MB |
+| 增量 Tauri 编译 | — | 约 26 秒 |
+| 白屏 | 是 | 否 |
+
+**验证：** 用 HTTP 服务器 serve 修复后的 `dist/`，浏览器正常渲染；重新打包 DMG 安装后同样正常。
+
+### 12.3 直接 `npm run build:desktop` 会按 NSIS 走
 
 **原因：** `bundle.targets` 锁定 `nsis`，这是 Windows 安装包格式。
 
@@ -719,40 +815,34 @@ bash doc/deploy/build-macos.sh --skip-npm-install
 
 **实机确认：** 使用 `npx tauri build --bundles app,dmg` 顺利绕过，未触发 NSIS 相关错误。
 
-### 12.2 Web 导出 / `Platform.OS === 'web'`
+### 12.4 首次 Rust 编译耗时
 
-这两条在 Windows 上已经修过（`TabPager.web.tsx`、adapter 的 `web` 分支）。Mac 桌面同样走 react-native-web，**不应再改一遍业务代码**。
+**实机结果：** 从 `cargo build --release` 开始到完成，约 **2 分 28 秒**（M1 MacBook Air 13, macOS 14.8.7）。修复白屏后的增量编译仅 **26 秒**。
 
-**实机确认：** `npm run build:web` 一次通过。仅有一条 `@noble/hashes` 的 exports 警告（可忽略，见 8.11）。
+### 12.5 最终产物体积
 
-### 12.3 首次 Rust 编译耗时
-
-**实机结果：** 从 `cargo build --release` 开始到完成，约 **2 分 28 秒**（M1 MacBook Air 13, macOS 14.8.7）。后续增量编译会快很多。
-
-### 12.4 产物体积
-
-**实机结果：**
+**实机结果（修复白屏后）：**
 
 | 产物 | 体积 |
 | --- | --- |
 | `OAM.app` | 11 MB |
-| `OAM_26.1.0_aarch64.dmg` | 5.3 MB |
+| `OAM_26.1.0_aarch64.dmg` | 5.2 MB |
 
 与 Windows 那条线（exe 约 13 MB、NSIS 约 6.3 MB）基本同一量级。
 
-### 12.5 未签名就被当成「已损坏」
+### 12.6 未签名就被当成「已损坏」
 
 macOS 较新版本对未公证应用更严。本机用 8.5 的 `xattr -cr` + 右键打开即可。不要一上来配证书，否则初步流程会卡在开发者账号。
 
-### 12.6 脚本 CRLF
+### 12.7 脚本 CRLF
 
 在 Windows 上创建的 `.sh` 可能是 CRLF，Mac 上会报 `$'\r': command not found`。按第 4.4 节 `sed` 去掉 `\r`。从 git 克隆时若 `core.autocrlf` 把脚本转成 CRLF，同样处理。
 
-### 12.7 `CARGO_TARGET_DIR` 被改走
+### 12.8 `CARGO_TARGET_DIR` 被改走
 
 部分 Cursor / CI 环境会注入该变量。脚本已钉到 `src-tauri/target`。手动打包时自己 `export` 一次。
 
-### 12.8 universal 包不是第一步
+### 12.9 universal 包不是第一步
 
 `universal-apple-darwin` 要同时编 `x86_64-apple-darwin` 和 `aarch64-apple-darwin` 再 `lipo`。M1 本机验证请先打 `aarch64` 单架构。Intel Mac 用户不够时再补 universal。
 
@@ -760,13 +850,14 @@ macOS 较新版本对未公证应用更严。本机用 8.5 的 `xattr -cr` + 右
 
 一句话对照：
 
-| 项 | Windows | macOS（M1） |
+| 产物 | Windows | macOS（M1） |
 | --- | --- | --- |
 | C 工具链 | VS 2022 Build Tools（MSVC） | Xcode Command Line Tools（clang） |
 | WebView | WebView2 | 系统 WKWebView |
 | Node | nvm-windows，x64 | nvm，**arm64** |
 | Rust host | `x86_64-pc-windows-msvc` | `aarch64-apple-darwin` |
 | 打包目标 | `nsis`（配置默认） | 必须 `--bundles app,dmg` 覆盖 |
-| 产物 | `app.exe` + `*_x64-setup.exe` | `OAM.app` + `*_aarch64.dmg` |
+| 产物 | `app.exe` + `*_x64-setup.exe` | `OAM.app`（11 MB）+ `*_aarch64.dmg`（5.2 MB） |
 | 一键脚本 | `doc/deploy/build-windows.cmd`（已实机） | `doc/deploy/build-macos.sh`（已实机） |
 | 分发门槛 | 有 WebView2 即可跑 | 未签名时对方可能被 Gatekeeper 拦 |
+| 已知坑 | — | `react-native-quick-crypto` 需 `Platform.OS` 守卫，否则白屏 |

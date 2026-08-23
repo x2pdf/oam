@@ -107,7 +107,7 @@ else
 fi
 
 NAME="OAM"
-VER="1.0.0"
+VER="26.1.0"
 META="$(node -e 'const fs=require("fs"); let name="OAM", ver="1.0.0"; try { const p=JSON.parse(fs.readFileSync("package.json","utf8")); if (p.name) name=String(p.name); if (p.version) ver=String(p.version);} catch(e) {} try { const c=JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json","utf8")); if (c.productName) name=String(c.productName); if (c.version) ver=String(c.version);} catch(e) {} process.stdout.write(name+"\n"+ver);')"
 NAME="$(printf '%s\n' "$META" | sed -n '1p')"
 VER="$(printf '%s\n' "$META" | sed -n '2p')"
