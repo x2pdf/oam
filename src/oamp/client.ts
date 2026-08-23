@@ -134,7 +134,7 @@ async function estimateFeeEth(
 
     const feeWei = gasLimit * gasPrice;
     return formatEther(feeWei);
-  });
+  }, { noFatal: true });
 }
 
 /**
@@ -176,8 +176,9 @@ export class OAMPClient {
   }
 
   private async getPendingNonce(): Promise<number> {
-    return withRpcFallback((provider) =>
-      provider.getTransactionCount(this.wallet.address, "pending")
+    return withRpcFallback(
+      (provider) => provider.getTransactionCount(this.wallet.address, "pending"),
+      { noFatal: true },
     );
   }
 
@@ -198,7 +199,7 @@ export class OAMPClient {
         );
         return manualGasEstimate(String(built.data || '0x'));
       }
-    });
+    }, { noFatal: true });
 
     const populated = await withRpcFallback(async (provider) => {
       const connected = this.wallet.connect(provider);
@@ -208,7 +209,7 @@ export class OAMPClient {
         gasLimit,
         ...(nonce !== undefined ? { nonce } : {}),
       });
-    });
+    }, { noFatal: true });
     const signed = await this.wallet.signTransaction(populated);
     return broadcastRawTx(signed);
   }

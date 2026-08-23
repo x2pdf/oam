@@ -73,7 +73,8 @@ function isRateLimited(err: unknown): boolean {
 }
 
 function isFatalRpcError(err: unknown): boolean {
-  if (isRateLimited(err)) return true;
+  // Rate-limit (429) is transient — let the caller decide whether to retry.
+  // Read paths should use { noFatal: true }; broadcast already special-cases it.
   const code = errorCode(err);
   if (
     code === "INSUFFICIENT_FUNDS" ||

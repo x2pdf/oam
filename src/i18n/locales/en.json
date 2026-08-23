@@ -364,6 +364,6 @@
     "disclaimerOnChainBody": "Blockchain technology is immutable. Once information is sent to the blockchain through this project, it will be permanently stored on-chain and publicly visible worldwide. Developers cannot modify, hide, or delete any data already on-chain, nor can they prevent any third party from accessing it. Please ensure that no sensitive information is included before sending.",
     "disclaimerEncryption": "Encryption Disclaimer",
     "disclaimerEncryptionBody": "The encryption features provided by this project are for technical demonstration only. Developers are not responsible for any content stored or distributed by users using this feature. Encryption does not equate to absolute security. Developers assume no responsibility for compromised encryption due to user error, private key leakage, algorithm limitations, or future technological advances.",
-    "disclaimerAgree": "Continuing to use this project means you fully understand and agree to assume the associated risks."
+    "disclaimerAgree": "Continuing to use this program means you fully understand and agree to assume the associated risks."
   }
 }

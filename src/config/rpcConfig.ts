@@ -4,26 +4,26 @@
  * Organized: Tier 1 (top providers) → Tier 2 (reputable) → Tier 3 (smaller) → unstable → dead
  */
 export const RPC_NODES = [
-  // ── Tier 1: Top-tier infrastructure providers (long-running, high uptime) ──
-  "https://cloudflare-eth.com",                               // Cloudflare
-  "https://rpc.ankr.com/eth",                                 // Ankr
+  // ── Tier 1: Verified working (fast & reliable) ─────────────────────────
   "https://ethereum.publicnode.com",                          // PublicNode (Geodetic)
+  "https://ethereum-rpc.publicnode.com",                      // PublicNode (alt domain)
   "https://eth-mainnet.public.blastapi.io",                   // BlastAPI
   "https://mainnet.gateway.tenderly.co",                      // Tenderly
   "https://gateway.tenderly.co/public/mainnet",               // Tenderly (alt)
-  "https://1rpc.io/eth",                                      // Automata 1RPC
-  "https://rpc.flashbots.net",                                // Flashbots
+  "https://eth.drpc.org",                                     // dRPC
   "https://rpc.mevblocker.io",                                // MEVBlocker (Flashbots)
+  "https://rpc.flashbots.net",                                // Flashbots
 
   // ── Tier 2: Well-known, reputable providers ────────────────────────
-  "https://eth.drpc.org",                                     // dRPC
+  "https://cloudflare-eth.com",                               // Cloudflare
+  "https://rpc.ankr.com/eth",                                 // Ankr
+  "https://1rpc.io/eth",                                      // Automata 1RPC
   "https://eth-pokt.nodies.app",                              // Pocket Network
   "https://ethereum.public.blockpi.network/v1/rpc/public",    // BlockPI
   "https://eth-mainnet.nodereal.io/v1/1659dfb40aa24bbb8153a677b98064d7", // NodeReal
   "https://public-eth.nownodes.io",                           // Nownodes
   "https://eth.api.onfinality.io/public",                     // OnFinality
   "https://ethereum-mainnet.gateway.tatum.io",                // Tatum
-  "https://ethereum-rpc.publicnode.com",                      // PublicNode (alt domain)
   "https://public.1rpc.io/eth",                               // 1RPC (alt domain)
   "https://eth.rpc.blxrbdn.com",                              // bloXroute
   "https://ethereum-public.nodies.app",                       // Nodies (alt)

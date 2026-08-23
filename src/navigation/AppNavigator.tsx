@@ -7,6 +7,7 @@ import { useThemePreference } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useListColumnLayout } from '../theme/layout';
 
 import HomeScreen from '../screens/HomeScreen';
 import SubscriptionsScreen from '../screens/SubscriptionsScreen';
@@ -46,6 +47,7 @@ function MainTabNavigator() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const headerChrome = getHeaderChrome(theme);
+  const { centered } = useListColumnLayout();
 
   return (
     <Tab.Navigator
@@ -66,6 +68,7 @@ function MainTabNavigator() {
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outline + '20',
+          ...(centered ? { width: '50%', alignSelf: 'center' } : {}),
         },
       }}
     >

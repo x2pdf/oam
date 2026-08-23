@@ -72,7 +72,7 @@ export default function HomeScreen() {
   const { fontScale } = useThemePreference();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
-  const { cardWidth, listContentStyle, columnStyle } = useListColumnLayout();
+  const { centered, cardWidth, listContentStyle, columnStyle } = useListColumnLayout();
   const { state } = useAppContext();
   const { t } = useTranslation();
   const { apiKey, profile, subscriptions, isLoading: contextLoading } = state;
@@ -860,7 +860,11 @@ export default function HomeScreen() {
       <StatusBar barStyle="light-content" backgroundColor={headerChrome.backgroundColor} translucent />
       {/* 自定义 TabBar */}
       <View style={{ backgroundColor: headerChrome.backgroundColor, paddingTop: insets.top }}>
-        <View style={[styles.tabBar, { backgroundColor: headerChrome.backgroundColor, borderBottomColor: theme.colors.outline + '20' }]}>
+        <View style={[
+          styles.tabBar,
+          { backgroundColor: headerChrome.backgroundColor, borderBottomColor: theme.colors.outline + '20' },
+          centered && { width: '50%', alignSelf: 'center' },
+        ]}>
           {TABS.map((tab, index) => (
             <TouchableOpacity
               key={index}
@@ -967,7 +971,7 @@ export default function HomeScreen() {
 
       <FAB
         icon={isCurrentRefreshing ? 'autorenew' : 'refresh'}
-        style={[styles.fabRefresh, { backgroundColor: theme.colors.secondaryContainer }]}
+        style={[styles.fabRefresh, { backgroundColor: theme.colors.secondaryContainer }, centered && { marginRight: '25%' }]}
         onPress={() => loadData(activeTab, true)}
         disabled={isCurrentRefreshing}
         color={theme.colors.onSecondaryContainer}
@@ -975,7 +979,7 @@ export default function HomeScreen() {
       />
       <FAB
         icon="plus"
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        style={[styles.fab, { backgroundColor: theme.colors.primary }, centered && { marginRight: '25%' }]}
         onPress={onFabPress}
         color="white"
         small
@@ -1071,8 +1075,9 @@ const styles = StyleSheet.create({
   },
   fabRefresh: {
     position: 'absolute',
-    right: 16,
-    bottom: 72,
+    margin: 16,
+    right: 0,
+    bottom: 56,
   },
 });
 
