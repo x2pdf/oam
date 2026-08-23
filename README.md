@@ -111,6 +111,12 @@ npm run ios
 
 # 运行到 Android
 npm run android
+
+# 运行 Web 端（浏览器访问 http://localhost:19006）
+npm run web
+
+# 构建 Web 生产版本（输出到 dist/ 目录）
+npm run build:web
 ```
 
 ---
