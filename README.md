@@ -1,7 +1,7 @@
 # OAM (Onchain Attachment Message)
 **以太坊链上附件消息数据互操作程序**
 
-OAM 是一款专注于以太坊 Calldata 消息交互的开源工具。它实现了 **OAMP (Onchain Attachment Message Protocol)**，支持公开广播、个人加密笔记以及端到端加密通信，并提供富文本还原显示功能。
+OAM 是一款专注于以太坊  `input data`  消息交互的开源工具。它实现了 **OAMP (Onchain Attachment Message Protocol)**，支持公开广播、个人加密笔记以及端到端加密通信，并提供富文本还原显示功能。
 
 ---
 
