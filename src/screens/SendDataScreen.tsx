@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
@@ -35,6 +35,7 @@ import {
 import { AppModal } from '../components/AppModal';
 import { AllRpcFailedError, withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, ethToUsdDisplay } from '../rpc/ethPrice';
+import { showAlert } from '../utils/alert';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'SendData'>;
@@ -432,7 +433,7 @@ export default function SendDataScreen() {
 
       setLoading(false);
       setPasswordVisible(false);
-      Alert.alert(
+      showAlert(
         t('send.sendSuccess'),
         `${t('send.txHash', { hash: txHash })}\n\n${t('send.submitNotMinedHint')}`,
         [
@@ -457,7 +458,7 @@ export default function SendDataScreen() {
         error?.name === NO_KEYSTORE_ERROR || error?.name === INVALID_PASSWORD_ERROR;
 
       if (!isAuthError && (error instanceof AllRpcFailedError || error?.name === 'AllRpcFailedError')) {
-        Alert.alert(t('send.networkFaultTitle'), t('send.networkFaultMsg'), [
+        showAlert(t('send.networkFaultTitle'), t('send.networkFaultMsg'), [
           {
             text: t('common.ok'),
             onPress: () => {
