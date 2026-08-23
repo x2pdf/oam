@@ -61,7 +61,7 @@
       "filterSent": "Sent",
       "filterReceived": "Received",
       "filterAll": "All",
-      "filterUTF8": "UTF-8",
+      "filterUTF8": "Plain Text",
       "filterOAMP": "OAMP",
       "filterSubscribed": "Following"
     },

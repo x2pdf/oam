@@ -61,7 +61,7 @@
       "filterSent": "已发出",
       "filterReceived": "收到",
       "filterAll": "全部",
-      "filterUTF8": "UTF-8",
+      "filterUTF8": "纯文本",
       "filterOAMP": "OAMP",
       "filterSubscribed": "关注"
     },
