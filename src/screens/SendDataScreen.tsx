@@ -19,13 +19,13 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR } from '../wallet/session';
-import { isAddress, parseEther, formatEther } from 'ethers';
+import { isAddress, parseEther, formatEther, parseUnits, formatUnits } from 'ethers';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
 import { ContentItem, createJpegItem, createPngItem, createGifItem } from '../mypayload';
-import { estimateSendFeeFromAddress, OAMPClient } from '../oamp/client';
+import { estimateSendFeeFromAddress, OAMPClient, getFeeSuggestions, FeeOption, FeeSuggestions } from '../oamp/client';
 import { BLACK_HOLE } from '../oamp/protocol';
 import {
   lookupRecipientPublicKey,
@@ -136,6 +136,12 @@ export default function SendDataScreen() {
   const [insufficientBalance, setInsufficientBalance] = useState(false);
   const [ethUsdPrice, setEthUsdPrice] = useState<number | null>(null);
 
+  const [feeOption, setFeeOption] = useState<FeeOption | null>(null);
+  const [feeSuggestions, setFeeSuggestions] = useState<FeeSuggestions | null>(null);
+  const [feeAdjustmentVisible, setFeeAdjustmentVisible] = useState(false);
+  const [customMaxFee, setCustomMaxFee] = useState('');
+  const [customMaxPriority, setCustomMaxPriority] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -186,6 +192,8 @@ export default function SendDataScreen() {
     setFeeEstimatePubKey(undefined);
     setBalanceEth(null);
     setInsufficientBalance(false);
+    setFeeOption(null);
+    setFeeSuggestions(null);
   };
 
   const canConfirmSend = useMemo(
@@ -207,7 +215,7 @@ export default function SendDataScreen() {
     resetFeeState();
   };
 
-  const estimateFee = async (pubKey?: string | null) => {
+  const estimateFee = async (pubKey?: string | null, manualFeeOption?: FeeOption | null) => {
     setFeeLoading(true);
     setFeeEstimate(null);
     setFeeError(false);
@@ -221,6 +229,8 @@ export default function SendDataScreen() {
       const items = buildContentItems();
       const target = recipientAddress.trim() || BLACK_HOLE;
       const resolvedKey = pubKey ?? recipientPublicKey;
+      const currentFeeOption = manualFeeOption !== undefined ? manualFeeOption : feeOption;
+
       const [{ feeEth }, balanceWei, price] = await Promise.all([
         estimateSendFeeFromAddress(
           fromAddress,
@@ -230,6 +240,7 @@ export default function SendDataScreen() {
           {
             encrypt: encryptEnabled && !!resolvedKey,
             recipientPublicKey: resolvedKey || undefined,
+            feeOption: currentFeeOption || undefined,
           },
         ),
         withRpcFallback((provider) => provider.getBalance(fromAddress)),
@@ -247,10 +258,58 @@ export default function SendDataScreen() {
     }
   };
 
+  const loadFeeSuggestions = async () => {
+    try {
+      const suggestions = await getFeeSuggestions();
+      setFeeSuggestions(suggestions);
+      if (!feeOption) {
+        setFeeOption(suggestions.normal);
+      }
+    } catch (err) {
+      console.warn('Failed to load fee suggestions', err);
+    }
+  };
+
   const openConfirmAndEstimate = (pubKey?: string | null) => {
     setFeeEstimatePubKey(pubKey);
     setConfirmSendVisible(true);
     estimateFee(pubKey);
+    loadFeeSuggestions();
+  };
+
+  const handleSelectFeeLevel = (level: "slow" | "normal" | "fast") => {
+    if (!feeSuggestions) return;
+    const selected = feeSuggestions[level];
+    setFeeOption(selected);
+    estimateFee(feeEstimatePubKey, selected);
+  };
+
+  const handleApplyCustomFee = () => {
+    try {
+      const maxFee = parseUnits(customMaxFee, 'gwei');
+      const maxPriority = parseUnits(customMaxPriority, 'gwei');
+      const selected: FeeOption = {
+        maxFeePerGas: maxFee,
+        maxPriorityFeePerGas: maxPriority,
+        level: 'custom',
+      };
+      setFeeOption(selected);
+      setFeeAdjustmentVisible(false);
+      estimateFee(feeEstimatePubKey, selected);
+    } catch (err) {
+      showAlert(t('common.error'), t('send.invalidFeeInput'));
+    }
+  };
+
+  const openFeeAdjustment = () => {
+    if (feeOption?.level === 'custom') {
+      setCustomMaxFee(formatUnits(feeOption.maxFeePerGas || 0n, 'gwei'));
+      setCustomMaxPriority(formatUnits(feeOption.maxPriorityFeePerGas || 0n, 'gwei'));
+    } else if (feeOption) {
+      setCustomMaxFee(formatUnits(feeOption.maxFeePerGas || 0n, 'gwei'));
+      setCustomMaxPriority(formatUnits(feeOption.maxPriorityFeePerGas || 0n, 'gwei'));
+    }
+    setFeeAdjustmentVisible(true);
   };
 
   const retryFeeEstimate = () => {
@@ -419,16 +478,16 @@ export default function SendDataScreen() {
       const target = recipientAddress.trim() || BLACK_HOLE;
 
       if (isSelf) {
-        txHash = await client.sendPersonalNote(items);
+        txHash = await client.sendPersonalNote(items, feeOption || undefined);
       } else if (target.toLowerCase() === BLACK_HOLE.toLowerCase()) {
-        txHash = await client.sendBroadcast(items);
+        txHash = await client.sendBroadcast(items, feeOption || undefined);
       } else if (encryptEnabled) {
         if (!recipientPublicKey) {
           throw new Error(t('send.encryptUnavailableTitle'));
         }
-        txHash = await client.sendP2PMessage(target, recipientPublicKey, items);
+        txHash = await client.sendP2PMessage(target, recipientPublicKey, items, feeOption || undefined);
       } else {
-        txHash = await client.sendUnencryptedMessage(target, items);
+        txHash = await client.sendUnencryptedMessage(target, items, feeOption || undefined);
       }
 
       setLoading(false);
@@ -754,7 +813,19 @@ export default function SendDataScreen() {
         </View>
 
         <View style={styles.confirmRow}>
-          <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmFee')}</Text>
+          <View style={styles.confirmLabelRow}>
+            <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmFee')}</Text>
+            {!feeLoading && !feeError && (
+              <Button
+                mode="text"
+                compact
+                onPress={openFeeAdjustment}
+                labelStyle={{ fontSize: Math.round(12 * fontScale) }}
+              >
+                {t('send.feeSettings')}
+              </Button>
+            )}
+          </View>
           <View style={styles.feeRow}>
             {feeLoading && (
               <ActivityIndicator size="small" style={styles.feeSpinner} />
@@ -914,6 +985,59 @@ export default function SendDataScreen() {
         <Text>{t('send.encryptUnavailableMsg')}</Text>
       </AppModal>
 
+      <AppModal
+        visible={feeAdjustmentVisible}
+        onDismiss={() => setFeeAdjustmentVisible(false)}
+        title={t('send.feeAdjustmentTitle')}
+        scrollable
+        actions={[
+          { label: t('common.cancel'), onPress: () => setFeeAdjustmentVisible(false) },
+          { label: t('common.ok'), onPress: handleApplyCustomFee },
+        ]}
+      >
+        <View style={styles.feeLevelGroup}>
+          <Button
+            mode={feeOption?.level === 'slow' ? 'contained' : 'outlined'}
+            onPress={() => handleSelectFeeLevel('slow')}
+            style={styles.feeLevelButton}
+          >
+            {t('send.feeLevelSlow')}
+          </Button>
+          <Button
+            mode={feeOption?.level === 'normal' ? 'contained' : 'outlined'}
+            onPress={() => handleSelectFeeLevel('normal')}
+            style={styles.feeLevelButton}
+          >
+            {t('send.feeLevelNormal')}
+          </Button>
+          <Button
+            mode={feeOption?.level === 'fast' ? 'contained' : 'outlined'}
+            onPress={() => handleSelectFeeLevel('fast')}
+            style={styles.feeLevelButton}
+          >
+            {t('send.feeLevelFast')}
+          </Button>
+        </View>
+
+        <Text style={[styles.fieldLabel, { marginTop: 16 }]}>{t('send.feeLevelCustom')}</Text>
+        <TextInput
+          mode="outlined"
+          label={t('send.maxFeePerGas')}
+          keyboardType="numeric"
+          value={customMaxFee}
+          onChangeText={setCustomMaxFee}
+          style={styles.feeInput}
+        />
+        <TextInput
+          mode="outlined"
+          label={t('send.maxPriorityFeePerGas')}
+          keyboardType="numeric"
+          value={customMaxPriority}
+          onChangeText={setCustomMaxPriority}
+          style={styles.feeInput}
+        />
+      </AppModal>
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -1049,6 +1173,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     opacity: 0.7,
   },
+  confirmLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   confirmValue: {
     fontSize: 14,
     lineHeight: 20,
@@ -1064,6 +1194,17 @@ const styles = StyleSheet.create({
   },
   feeSpinner: {
     marginRight: 8,
+  },
+  feeLevelGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  feeLevelButton: {
+    flex: 1,
+  },
+  feeInput: {
+    marginBottom: 12,
   },
   confirmWarning: {
     fontSize: 13,

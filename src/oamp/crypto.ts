@@ -45,20 +45,24 @@ export async function encrypt(
 
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    key as Uint8Array<ArrayBuffer>,
+    key,
     "AES-GCM",
     false,
     ["encrypt"]
   );
 
+  const algorithm: AesGcmParams = {
+    name: "AES-GCM",
+    iv: nonce
+  };
+  if (aad) {
+    algorithm.additionalData = aad;
+  }
+
   const encrypted = await crypto.subtle.encrypt(
-    {
-      name: "AES-GCM",
-      iv: nonce as Uint8Array<ArrayBuffer>,
-      additionalData: aad as Uint8Array<ArrayBuffer> | undefined
-    },
+    algorithm,
     cryptoKey,
-    data as Uint8Array<ArrayBuffer>
+    data
   );
 
   return new Uint8Array(encrypted);
@@ -79,20 +83,24 @@ export async function decrypt(
 
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    key as Uint8Array<ArrayBuffer>,
+    key,
     "AES-GCM",
     false,
     ["decrypt"]
   );
 
+  const algorithm: AesGcmParams = {
+    name: "AES-GCM",
+    iv: nonce
+  };
+  if (aad) {
+    algorithm.additionalData = aad;
+  }
+
   const decrypted = await crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv: nonce as Uint8Array<ArrayBuffer>,
-      additionalData: aad as Uint8Array<ArrayBuffer> | undefined
-    },
+    algorithm,
     cryptoKey,
-    ciphertext as Uint8Array<ArrayBuffer>
+    ciphertext
   );
 
   return new Uint8Array(decrypted);

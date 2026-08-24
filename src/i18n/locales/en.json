@@ -303,6 +303,7 @@
     "encryptUnavailableMsg": "Encryption cannot be enabled for this send. The encrypt option has been turned off. Go back and send in plaintext, or get the public key from the recipient and try again.",
     "invalidPublicKey": "Invalid public key format. Please check and try again.",
     "publicKeyMismatch": "This public key does not match the recipient address.",
+    "invalidFeeInput": "Please enter valid fee values",
     "sendButton": "Send",
     "imageNameDialogTitle": "Attach Image Name",
     "imageNameDialogMsg": "Attach the original name of the image when sending?",
@@ -314,6 +315,7 @@
     "confirmRecipient": "Recipient",
     "confirmData": "Data Summary",
     "confirmFee": "Estimated Fee",
+    "feeSettings": "Fee Settings",
     "confirmMode": "Send Mode",
     "confirmModeBroadcast": "Black-hole broadcast (public)",
     "confirmModePersonal": "To self (encrypted)",
@@ -350,7 +352,15 @@
     "pickImageFromLibrary": "Photo library",
     "pickImageFromFiles": "Files",
     "pickImageFailed": "Failed to pick image",
-    "noPrivateKey": "Private key not found, please re-import wallet"
+    "noPrivateKey": "Private key not found, please re-import wallet",
+    "feeAdjustmentTitle": "Adjust Fee",
+    "feeLevelSlow": "Slow",
+    "feeLevelNormal": "Normal",
+    "feeLevelFast": "Fast",
+    "feeLevelCustom": "Custom",
+    "maxFeePerGas": "Max Fee (Gwei)",
+    "maxPriorityFeePerGas": "Max Priority Fee (Gwei)",
+    "gasPrice": "Gas Price (Gwei)"
   },
   "appInfo": {
     "disclaimerTitle": "Disclaimer",

@@ -303,6 +303,7 @@
     "encryptUnavailableMsg": "本次无法启用加密功能。已关闭数据加密选项，请返回后以明文发送，或向接收方索取公钥后再试。",
     "invalidPublicKey": "公钥格式无效，请检查后重试",
     "publicKeyMismatch": "该公钥与接收地址不匹配，请核对后重试",
+    "invalidFeeInput": "请输入有效的费用数值",
     "sendButton": "发送",
     "imageNameDialogTitle": "附加图片名称",
     "imageNameDialogMsg": "是否在发送时附加该图片的原始名称？",
@@ -314,6 +315,7 @@
     "confirmRecipient": "接收地址",
     "confirmData": "数据摘要",
     "confirmFee": "预估手续费",
+    "feeSettings": "手续费设定",
     "confirmMode": "发送模式",
     "confirmModeBroadcast": "黑洞广播（公开）",
     "confirmModePersonal": "发给自己（加密）",
@@ -350,7 +352,15 @@
     "pickImageFromLibrary": "相册",
     "pickImageFromFiles": "文件",
     "pickImageFailed": "选择图片失败",
-    "noPrivateKey": "未找到钱包私钥，请重新导入钱包"
+    "noPrivateKey": "未找到钱包私钥，请重新导入钱包",
+    "feeAdjustmentTitle": "手续费调整",
+    "feeLevelSlow": "慢速",
+    "feeLevelNormal": "普通",
+    "feeLevelFast": "快速",
+    "feeLevelCustom": "自定义",
+    "maxFeePerGas": "最高费用 (Gwei)",
+    "maxPriorityFeePerGas": "最高优先费用 (Gwei)",
+    "gasPrice": "Gas 价格 (Gwei)"
   },
   "appInfo": {
     "disclaimerTitle": "免责声明",

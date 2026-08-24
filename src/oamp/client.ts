@@ -24,6 +24,19 @@ export interface BuiltTxRequest {
   mode: SendMode;
 }
 
+export interface FeeOption {
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+  gasPrice?: bigint;
+  level?: "slow" | "normal" | "fast" | "custom";
+}
+
+export interface FeeSuggestions {
+  slow: FeeOption;
+  normal: FeeOption;
+  fast: FeeOption;
+}
+
 /** AES-GCM auth tag; ciphertext length = plaintext + this. */
 const AES_GCM_TAG_BYTES = 16;
 
@@ -97,7 +110,8 @@ function intrinsicGas(txData: string): bigint {
 
 async function estimateFeeEth(
   fromAddress: string,
-  tx: TransactionRequest
+  tx: TransactionRequest,
+  feeOption?: FeeOption
 ): Promise<string> {
   return withRpcFallback(async (provider) => {
     let gasLimit: bigint;
@@ -117,17 +131,24 @@ async function estimateFeeEth(
       gasLimit = intrinsicGas(String(tx.data || '0x'));
     }
 
-    let feeData;
-    try {
-      feeData = await provider.getFeeData();
-    } catch (feeErr) {
-      if (gasEstimateFailed) {
-        throw new Error('Gas estimation and fee data fetch both failed');
-      }
-      throw feeErr;
+    let gasPrice: bigint | null = null;
+    if (feeOption) {
+      gasPrice = feeOption.maxFeePerGas ?? feeOption.gasPrice ?? null;
     }
 
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
+    if (!gasPrice) {
+      let feeData;
+      try {
+        feeData = await provider.getFeeData();
+      } catch (feeErr) {
+        if (gasEstimateFailed) {
+          throw new Error('Gas estimation and fee data fetch both failed');
+        }
+        throw feeErr;
+      }
+      gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
+    }
+
     if (!gasPrice) {
       if (gasEstimateFailed) {
         throw new Error('Gas estimation and gas price fetch both failed');
@@ -140,6 +161,34 @@ async function estimateFeeEth(
   }, { noFatal: true });
 }
 
+export async function getFeeSuggestions(): Promise<FeeSuggestions> {
+  return withRpcFallback(async (provider) => {
+    const feeData = await provider.getFeeData();
+    const baseGasPrice = feeData.gasPrice ?? 0n;
+    const maxFee = feeData.maxFeePerGas ?? baseGasPrice;
+    const maxPriority = feeData.maxPriorityFeePerGas ?? 0n;
+
+    // A simple heuristic for suggestions
+    return {
+      slow: {
+        maxFeePerGas: (maxFee * 90n) / 100n,
+        maxPriorityFeePerGas: (maxPriority * 90n) / 100n,
+        level: "slow",
+      },
+      normal: {
+        maxFeePerGas: maxFee,
+        maxPriorityFeePerGas: maxPriority,
+        level: "normal",
+      },
+      fast: {
+        maxFeePerGas: (maxFee * 120n) / 100n,
+        maxPriorityFeePerGas: (maxPriority * 150n) / 100n,
+        level: "fast",
+      },
+    };
+  }, { noFatal: true });
+}
+
 /**
  * Estimate send fee using only the sender address. Encrypted payloads use
  * equal-length dummy ciphertext so the private key is never needed.
@@ -149,7 +198,7 @@ export async function estimateSendFeeFromAddress(
   recipientAddress: string,
   content: string | ContentItem[],
   isSelf: boolean,
-  options?: { encrypt?: boolean; recipientPublicKey?: string }
+  options?: { encrypt?: boolean; recipientPublicKey?: string; feeOption?: FeeOption }
 ): Promise<{ feeEth: string; built: BuiltTxRequest }> {
   const target = recipientAddress.trim() || BLACK_HOLE;
   let built: BuiltTxRequest;
@@ -167,7 +216,7 @@ export async function estimateSendFeeFromAddress(
   const feeEth = await estimateFeeEth(fromAddress, {
     to: built.to,
     data: built.data,
-  });
+  }, options?.feeOption);
   return { feeEth, built };
 }
 
@@ -185,7 +234,7 @@ export class OAMPClient {
     );
   }
 
-  private async sendBuilt(built: BuiltTxRequest, nonce?: number): Promise<string> {
+  private async sendBuilt(built: BuiltTxRequest, nonce?: number, feeOption?: FeeOption): Promise<string> {
     // Pre-estimate gas with fallback so populateTransaction skips its internal
     // estimateGas (which can fail, e.g. when broadcasting to the zero-address).
     // Fallback uses EIP-7623 intrinsic gas calculation.
@@ -212,6 +261,7 @@ export class OAMPClient {
         data: built.data,
         gasLimit,
         ...(nonce !== undefined ? { nonce } : {}),
+        ...feeOption,
       });
     }, { noFatal: true });
     const signed = await this.wallet.signTransaction(populated);
@@ -306,24 +356,29 @@ export class OAMPClient {
   /**
    * Send a public broadcast message (A -> BLACK_HOLE)
    */
-  async sendBroadcast(content: string | ContentItem[]): Promise<string> {
+  async sendBroadcast(content: string | ContentItem[], feeOption?: FeeOption): Promise<string> {
     const built = await this.buildBroadcastTx(content);
-    return this.sendBuilt(built);
+    return this.sendBuilt(built, undefined, feeOption);
   }
 
   /**
    * Send an encrypted personal note (A -> A)
    */
-  async sendPersonalNote(content: string | ContentItem[]): Promise<string> {
+  async sendPersonalNote(content: string | ContentItem[], feeOption?: FeeOption): Promise<string> {
     const txCount = await this.getPendingNonce();
     const built = await this.buildPersonalNoteTxFromNonce(content, txCount);
-    return this.sendBuilt(built, txCount);
+    return this.sendBuilt(built, txCount, feeOption);
   }
 
   /**
    * Send an end-to-end encrypted message (A -> B)
    */
-  async sendP2PMessage(recipientAddress: string, recipientPublicKey: string, content: string | ContentItem[]): Promise<string> {
+  async sendP2PMessage(
+    recipientAddress: string,
+    recipientPublicKey: string,
+    content: string | ContentItem[],
+    feeOption?: FeeOption
+  ): Promise<string> {
     const txCount = await this.getPendingNonce();
     const built = await this.buildP2PMessageTxFromNonce(
       recipientAddress,
@@ -331,15 +386,19 @@ export class OAMPClient {
       content,
       txCount
     );
-    return this.sendBuilt(built, txCount);
+    return this.sendBuilt(built, txCount, feeOption);
   }
 
   /**
    * Send an unencrypted message to a specific address (A -> B)
    */
-  async sendUnencryptedMessage(recipientAddress: string, content: string | ContentItem[]): Promise<string> {
+  async sendUnencryptedMessage(
+    recipientAddress: string,
+    content: string | ContentItem[],
+    feeOption?: FeeOption
+  ): Promise<string> {
     const built = await this.buildUnencryptedMessageTx(recipientAddress, content);
-    return this.sendBuilt(built);
+    return this.sendBuilt(built, undefined, feeOption);
   }
 
   /**
