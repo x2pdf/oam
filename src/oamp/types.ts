@@ -7,7 +7,6 @@ export enum MessageType {
 export enum CryptoScheme {
   NONE = 0,
   AES_256_GCM = 1,
-  ECIES = 2,
 }
 
 export interface OAMPMessage {
