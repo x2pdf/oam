@@ -50,16 +50,40 @@ export function createGifItem(rawBase64: string, filename?: string): ContentItem
 }
 
 /**
- * 规范化 Payload 编码器
+ * HTML 转义，防止标签截断和属性注入
+ */
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>\"]/g, (tag) => {
+    const chars: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;"
+    };
+    return chars[tag] || tag;
+  });
+}
+
+/**
+ * HTML 反转义，还原原始数据
+ */
+function unescapeHtml(str: string): string {
+  return str.replace(/&(amp|lt|gt|quot);/g, (entity, tag) => {
+    const entities: Record<string, string> = {
+      amp: "&",
+      lt: "<",
+      gt: ">",
+      quot: "\""
+    };
+    return entities[tag] || entity;
+  });
+}
+
+/**
+ * 规范化 Payload 编码器 v2
  *
  * 按照 HTML 语法对内容进行封装，支持文本和多张图片的混合编排。
- *
- * 关于 <img> 标签的使用说明：
- * 1. src 属性存储完整的 Data URL（包含前缀和 base64 数据）。
- * 2. alt 属性可选，用于存储图片名称或描述。
- * 3. 编码器会自动按照传入 items 的顺序生成标签，支持混合编排。
- *
- * 注意：本应用约定通常将文本 <pre> 放在前面，图片 <img> 放在后面。
+ * 对正文和属性值进行 HTML 转义以确保安全和完整性。
  *
  * @param items 内容项数组
  * @returns 编码后的 Uint8Array
@@ -68,12 +92,13 @@ export function payloadEncode(items: ContentItem[]): Uint8Array {
   let html = "<html>";
   for (const item of items) {
     if (item.type === "text") {
-      // 使用 <pre> 标签包裹文本，以保留原始换行和格式
-      html += `<pre>${item.content}</pre>`;
+      // 使用 <pre> 标签包裹文本，并对内容进行转义
+      html += `<pre>${escapeHtml(item.content)}</pre>`;
     } else if (item.type === "image") {
-      // 构建 img 标签，确保 src 是有效的 Data URL
-      const altAttr = item.alt ? ` alt="${item.alt}"` : "";
-      html += `<img src="${item.data}"${altAttr}>`;
+      // 构建 img 标签，对 src 和 alt 进行转义
+      const src = escapeHtml(item.data);
+      const altAttr = item.alt ? ` alt="${escapeHtml(item.alt)}"` : "";
+      html += `<img src="${src}"${altAttr}>`;
     }
   }
   html += "</html>";
@@ -81,13 +106,10 @@ export function payloadEncode(items: ContentItem[]): Uint8Array {
 }
 
 /**
- * 规范化 Payload 解码器 v1
+ * 规范化 Payload 解码器 v2
  *
  * 解析 <html> 封装的规范数据，提取 <pre> 中的文本和 <img> 中的图片。
- * 能够正确处理包含或不包含 alt 属性的 <img> 标签。
- *
- * 兼容性：如果数据不以 <html> 开头，则作为普通纯文本项返回。
- * 非法 UTF-8、空数据、或 <html> 中解析不出任何内容时返回空数组（由上层过滤器决定降级）。
+ * 能够正确处理转义后的内容，并兼容未转义的旧数据。
  *
  * @param data 原始字节数据或字符串
  * @returns 解析后的内容项数组
@@ -102,6 +124,7 @@ export function payloadDecode(data: Uint8Array | string): ContentItem[] {
     }
 
     const items: ContentItem[] = [];
+    // 匹配 <pre> 内容或 <img> 标签整体
     const tagRegex = /<pre>(.*?)<\/pre>|<img\s+([^>]*?)>/gs;
     let match;
 
@@ -109,16 +132,18 @@ export function payloadDecode(data: Uint8Array | string): ContentItem[] {
       const [_, textContent, imgTagBody] = match;
 
       if (textContent !== undefined) {
-        items.push({ type: "text", content: textContent });
+        // 解码文本内容
+        items.push({ type: "text", content: unescapeHtml(textContent) });
       } else if (imgTagBody !== undefined) {
+        // 从标签体中提取属性
         const srcMatch = imgTagBody.match(/src="([^"]+)"/);
         const altMatch = imgTagBody.match(/alt="([^"]+)"/);
 
         if (srcMatch) {
           items.push({
             type: "image",
-            data: srcMatch[1],
-            alt: altMatch ? altMatch[1] : undefined
+            data: unescapeHtml(srcMatch[1]),
+            alt: altMatch ? unescapeHtml(altMatch[1]) : undefined
           });
         }
       }
