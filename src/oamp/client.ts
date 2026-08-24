@@ -78,18 +78,21 @@ function buildPlaceholderEncryptedTx(
 }
 
 /**
- * Estimate gas manually when estimateGas reverts (e.g. RPC treats data sent to
- * the zero-address as a contract-creation attempt and reverts with "missing
- * revert data").  Formula: 21 000 base + 16 per data-byte, with a 1.25×
- * safety margin.
+ * Compute intrinsic gas for a data-only transaction (no EVM execution).
+ * Takes the max of the standard formula (EIP-2028) and the EIP-7623 floor,
+ * then adds a 10 % safety margin.  Unused gas is refunded by the protocol.
  */
-function manualGasEstimate(txData: string): bigint {
-  const dataHex = txData.startsWith("0x") ? txData.slice(2) : txData;
-  const dataBytes = dataHex.length / 2;
-  const baseGas = 21000n;
-  const dataGas = BigInt(Math.ceil(dataBytes)) * 16n;
-  const rawGas = baseGas + dataGas;
-  return (rawGas * 125n) / 100n;
+function intrinsicGas(txData: string): bigint {
+  const hex = txData.startsWith("0x") ? txData.slice(2) : txData;
+  let zero = 0n, nonZero = 0n;
+  for (let i = 0; i < hex.length; i += 2) {
+    if (hex.slice(i, i + 2) === "00") zero++; else nonZero++;
+  }
+  const tokens = zero + nonZero * 4n;
+  const standard = 21000n + tokens * 4n;   // EIP-2028
+  const floor    = 21000n + tokens * 10n;  // EIP-7623
+  const base = standard > floor ? standard : floor;
+  return (base * 110n) / 100n;             // 10 % margin
 }
 
 async function estimateFeeEth(
@@ -111,7 +114,7 @@ async function estimateFeeEth(
         estErr?.shortMessage || estErr?.message,
       );
       gasEstimateFailed = true;
-      gasLimit = manualGasEstimate(String(tx.data || '0x'));
+      gasLimit = intrinsicGas(String(tx.data || '0x'));
     }
 
     let feeData;
@@ -185,6 +188,7 @@ export class OAMPClient {
   private async sendBuilt(built: BuiltTxRequest, nonce?: number): Promise<string> {
     // Pre-estimate gas with fallback so populateTransaction skips its internal
     // estimateGas (which can fail, e.g. when broadcasting to the zero-address).
+    // Fallback uses EIP-7623 intrinsic gas calculation.
     const gasLimit = await withRpcFallback(async (provider) => {
       try {
         return await provider.estimateGas({
@@ -197,7 +201,7 @@ export class OAMPClient {
           'sendBuilt: estimateGas failed, using manual fallback:',
           err?.shortMessage || err?.message,
         );
-        return manualGasEstimate(String(built.data || '0x'));
+        return intrinsicGas(String(built.data || '0x'));
       }
     }, { noFatal: true });
 
