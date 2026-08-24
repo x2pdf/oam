@@ -67,6 +67,7 @@ export function mapToInputDataItem(
     balance: `${(parseInt(tx.value || '0', 10) / 1e18).toFixed(4)} ETH`,
     txCount: 1,
     lastActive,
+    timestamp: tx.timestamp || 0,
     rawInput: tx.input,
   };
 }

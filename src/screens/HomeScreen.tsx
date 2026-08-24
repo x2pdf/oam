@@ -139,7 +139,7 @@ export default function HomeScreen() {
     if (showFilterSent) sentData.forEach(i => map.set(i.id, i));
     if (showFilterReceived) inboxData.forEach(i => map.set(i.id, i));
     return Array.from(map.values()).sort((a, b) =>
-      new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+      b.timestamp - a.timestamp
     );
   }, [sentData, inboxData, showFilterSent, showFilterReceived]);
 
@@ -170,7 +170,7 @@ export default function HomeScreen() {
     if (showSquareOamp) oampFilteredData.forEach(i => map.set(i.id, i));
     if (showSquareSubscribed) subscribedFilteredData.forEach(i => map.set(i.id, i));
     return Array.from(map.values()).sort((a, b) =>
-      new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+      b.timestamp - a.timestamp
     );
   }, [squareData, showSquareAll, showSquareUtf8, showSquareOamp, showSquareSubscribed, utf8FilteredData, oampFilteredData, subscribedFilteredData]);
 
@@ -295,7 +295,7 @@ export default function HomeScreen() {
 
         // Sort by time desc
         resultItems = Array.from(map.values()).sort((a, b) =>
-          new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+          b.timestamp - a.timestamp
         );
       } else {
         // Other modes: single address fetch
@@ -356,7 +356,7 @@ export default function HomeScreen() {
         prev.forEach(i => map.set(i.id, i));
         processedItems.forEach(i => map.set(i.id, i));
         return Array.from(map.values()).sort((a, b) =>
-          new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+          b.timestamp - a.timestamp
         );
       };
 

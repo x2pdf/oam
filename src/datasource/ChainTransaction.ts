@@ -116,7 +116,9 @@ export function parseBlockscoutTx(raw: Record<string, unknown>): ChainTransactio
 
   let timestamp = 0;
   if (raw.timestamp) {
-    timestamp = Math.floor(new Date(String(raw.timestamp)).getTime() / 1000);
+    const tsStr = String(raw.timestamp).replace(' ', 'T');
+    const d = new Date(tsStr);
+    timestamp = Math.floor(d.getTime() / 1000) || 0;
   }
 
   return new ChainTransaction({

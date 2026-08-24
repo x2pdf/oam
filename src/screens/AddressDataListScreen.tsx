@@ -37,9 +37,7 @@ function isBetweenAddresses(
 }
 
 function sortByTimeDesc(items: InputDataItem[]): InputDataItem[] {
-  return items.sort(
-    (a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime(),
-  );
+  return items.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 function mergeById(prev: InputDataItem[], next: InputDataItem[]): InputDataItem[] {

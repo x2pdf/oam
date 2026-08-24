@@ -43,6 +43,7 @@ export interface InputDataItem {
   balance: string;
   txCount: number;
   lastActive: string;
+  timestamp: number;
   rawInput?: string;
   contentKind?: ContentKind;
   oampItems?: ContentItem[];
