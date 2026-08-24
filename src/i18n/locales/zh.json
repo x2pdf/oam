@@ -279,6 +279,7 @@
     "recipientBroadcast": "公开",
     "recipientCustom": "自定义",
     "recipientPlaceholder": "输入 0x 接收地址",
+    "selfNoteHint": "自己给自己发送的数据，都会以密文形式保存在区块链上，仅有自己的私钥可以解密。",
     "modeSelfHint": "加密发送，仅自己可解密查看",
     "modeBroadcastHint": "公开广播到广场，所有人可见",
     "modeCustomHint": "明文发送给指定地址，链上公开可查",

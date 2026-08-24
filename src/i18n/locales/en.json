@@ -279,6 +279,7 @@
     "recipientBroadcast": "Public",
     "recipientCustom": "Custom",
     "recipientPlaceholder": "Enter 0x recipient address",
+    "selfNoteHint": "Data sent to yourself will be stored on the blockchain in ciphertext, and only your private key can decrypt it.",
     "modeSelfHint": "Encrypted. Only you can decrypt and read it.",
     "modeBroadcastHint": "Public broadcast to the square. Visible to everyone.",
     "modeCustomHint": "Sent in plaintext to this address. Public on-chain.",

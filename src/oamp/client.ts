@@ -3,7 +3,7 @@ import {
   formatEther,
   TransactionRequest,
 } from "ethers";
-import { MessageType, CryptoScheme, OAMPMessage, DecryptedMessage } from "./types";
+import { MessageType, CryptoScheme, OAMPMessage, DecryptedMessage, EncryptionContext } from "./types";
 import { serializeMessage, deserializeMessage, getMessageHeader, BLACK_HOLE } from "./protocol";
 import { ContentItem, payloadEncode, payloadDecode } from "../mypayload";
 import {
@@ -235,7 +235,15 @@ export class OAMPClient {
     const nonce = generateDeterministicNonce(txCount, this.wallet.address);
     const payload = preparePayload(content);
 
-    const aad = getMessageHeader(MessageType.PERSONAL, CryptoScheme.AES_256_GCM);
+    const network = await withRpcFallback((provider) => provider.getNetwork(), { noFatal: true });
+    const context: EncryptionContext = {
+      chainId: network.chainId,
+      sender: this.wallet.address,
+      recipient: this.wallet.address,
+      txNonce: txCount
+    };
+
+    const aad = getMessageHeader(MessageType.PERSONAL, CryptoScheme.AES_256_GCM, context);
     const ciphertext = await encrypt(key, payload, nonce, aad);
 
     const data = serializeMessage(
@@ -267,7 +275,15 @@ export class OAMPClient {
     const nonce = generateDeterministicNonce(txCount, recipientAddress);
     const payload = preparePayload(content);
 
-    const aad = getMessageHeader(MessageType.P2P, CryptoScheme.AES_256_GCM);
+    const network = await withRpcFallback((provider) => provider.getNetwork(), { noFatal: true });
+    const context: EncryptionContext = {
+      chainId: network.chainId,
+      sender: this.wallet.address,
+      recipient: recipientAddress,
+      txNonce: txCount
+    };
+
+    const aad = getMessageHeader(MessageType.P2P, CryptoScheme.AES_256_GCM, context);
     const ciphertext = await encrypt(sharedKey, payload, nonce, aad);
 
     const data = serializeMessage(
@@ -334,7 +350,19 @@ export class OAMPClient {
   async decryptMessage(msg: OAMPMessage, senderPublicKey?: string): Promise<DecryptedMessage | null> {
     try {
       let decryptedPayload: Uint8Array;
-      const aad = getMessageHeader(msg.type, msg.crypto);
+
+      let aad: Uint8Array;
+      if (msg.crypto !== CryptoScheme.NONE && msg.chainId !== undefined && msg.txNonce !== undefined) {
+        const context: EncryptionContext = {
+          chainId: msg.chainId,
+          sender: msg.sender,
+          recipient: msg.recipient,
+          txNonce: msg.txNonce
+        };
+        aad = getMessageHeader(msg.type, msg.crypto, context);
+      } else {
+        aad = getMessageHeader(msg.type, msg.crypto);
+      }
 
       if (msg.crypto === CryptoScheme.NONE) {
         decryptedPayload = msg.payload;
@@ -376,7 +404,13 @@ export class OAMPClient {
   /**
    * Helper to parse a transaction input data
    */
-  parseTransaction(input: string, from: string, to: string): OAMPMessage | null {
-    return deserializeMessage(input, from, to);
+  parseTransaction(
+    input: string,
+    from: string,
+    to: string,
+    chainId?: bigint,
+    txNonce?: number
+  ): OAMPMessage | null {
+    return deserializeMessage(input, from, to, chainId, txNonce);
   }
 }

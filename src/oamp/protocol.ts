@@ -1,17 +1,49 @@
-import { concat, getBytes, hexlify } from "ethers";
-import { MessageType, CryptoScheme, OAMPMessage } from "./types";
+import { concat, getBytes, hexlify, zeroPadValue, toBeArray } from "ethers";
+import { MessageType, CryptoScheme, OAMPMessage, EncryptionContext } from "./types";
 
 const MAGIC = new Uint8Array([0x4f, 0x41, 0x4d, 0x50]); // "OAMP"
 const VERSION = 1;
 
 export const BLACK_HOLE = "0x0000000000000000000000000000000000000000";
 
+function toBeArray8(value: bigint | number): Uint8Array {
+  return getBytes(zeroPadValue(toBeArray(value), 8));
+}
+
 /**
- * Returns the 7-byte OAMP header for a message.
- * Used as AAD (Additional Authenticated Data) for AES-GCM.
+ * Returns the 64-byte OAMP AAD (Additional Authenticated Data) for a message.
+ * Binds the ciphertext to its transaction context to prevent replay attacks.
+ *
+ * AAD Structure (64 Bytes):
+ * | Offset | Length | Name     | Description                          |
+ * |--------|--------|----------|--------------------------------------|
+ * | 0      | 4      | MAGIC    | "OAMP" (0x4f414d50)                  |
+ * | 4      | 1      | VERSION  | Current version (1)                  |
+ * | 5      | 1      | TYPE     | MessageType (0=BCAST, 1=PERS, 2=P2P) |
+ * | 6      | 1      | CRYPTO   | CryptoScheme (0=NONE, 1=AES_GCM)     |
+ * | 7      | 1      | RESERVED | Alignment padding (0x00)             |
+ * | 8      | 8      | chainId  | Big-Endian uint64                    |
+ * | 16     | 8      | txNonce  | Big-Endian uint64                    |
+ * | 24     | 20     | sender   | Ethereum Address (20 bytes)          |
+ * | 44     | 20     | recipient| Ethereum Address (20 bytes)          |
  */
-export function getMessageHeader(type: MessageType, crypto: CryptoScheme): Uint8Array {
-  return getBytes(concat([MAGIC, new Uint8Array([VERSION, type, crypto])]));
+export function getMessageHeader(
+  type: MessageType,
+  crypto: CryptoScheme,
+  context?: EncryptionContext
+): Uint8Array {
+  const header = getBytes(concat([MAGIC, new Uint8Array([VERSION, type, crypto, 0x00])]));
+  if (!context) {
+    return header;
+  }
+
+  return concat([
+    header,
+    toBeArray8(context.chainId),
+    toBeArray8(context.txNonce),
+    getBytes(context.sender),
+    getBytes(context.recipient),
+  ]);
 }
 
 /**
@@ -52,13 +84,15 @@ export function serializeMessage(
 export function deserializeMessage(
   data: string,
   sender: string,
-  recipient: string
+  recipient: string,
+  chainId?: bigint,
+  txNonce?: number
 ): OAMPMessage | null {
   try {
     const bytes = getBytes(data);
 
-    // Magic (4) + version + type + crypto (3) + nonce (12)
-    if (bytes.length < 19) return null;
+    // Magic (4) + version + type + crypto + reserved (4) + nonce (12)
+    if (bytes.length < 20) return null;
     for (let i = 0; i < 4; i++) {
       if (bytes[i] !== MAGIC[i]) return null;
     }
@@ -77,8 +111,11 @@ export function deserializeMessage(
     if (!isValidCombination(type, crypto)) return null;
 
     // Assuming 12 bytes for NONCE (AES-GCM standard)
-    const nonce = bytes.slice(7, 19);
-    const payload = bytes.slice(19);
+    // In V1 original it was slice(7, 19) because header was 7 bytes.
+    // Now we added 1 reserved byte to make header 8 bytes for alignment.
+    // So nonce starts at 8.
+    const nonce = bytes.slice(8, 20);
+    const payload = bytes.slice(20);
 
     return {
       type: type as MessageType,
@@ -86,7 +123,9 @@ export function deserializeMessage(
       nonce,
       payload,
       sender,
-      recipient
+      recipient,
+      chainId,
+      txNonce
     };
   } catch (e) {
     return null;

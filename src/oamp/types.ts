@@ -16,8 +16,17 @@ export interface OAMPMessage {
   payload: Uint8Array;
   sender: string;
   recipient: string;
+  chainId?: bigint;
+  txNonce?: number;
   timestamp?: number;
   transactionHash?: string;
+}
+
+export interface EncryptionContext {
+  chainId: bigint;
+  sender: string;
+  recipient: string;
+  txNonce: number;
 }
 
 export interface DecryptedMessage {

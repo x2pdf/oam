@@ -607,6 +607,12 @@ export default function SendDataScreen() {
           )}
         </View>
 
+        {isSelf && (
+          <HelperText type="info" visible style={{ marginTop: 4, paddingHorizontal: 0 }}>
+            {t('send.selfNoteHint')}
+          </HelperText>
+        )}
+
         {canChooseEncrypt && (
           <View style={styles.encryptSection}>
             <Text
