@@ -121,6 +121,7 @@
     "from": "From",
     "to": "To",
     "content": "Content",
+    "showRaw": "Show Raw Data",
     "favorite": "Favorite",
     "unfavorite": "Remove Favorite",
     "favorited": "Saved to local favorites",

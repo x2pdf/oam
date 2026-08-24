@@ -25,6 +25,7 @@ export default function InputDataDetailScreen() {
   const { addFavorite, removeFavorite, isFavorite } = useAppContext();
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [showRaw, setShowRaw] = useState(false);
 
   const kind = item.contentKind ?? 'RAW';
   const rawHex = item.rawInput || item.description || '';
@@ -82,6 +83,14 @@ export default function InputDataDetailScreen() {
   }, [favorited, item, addFavorite, removeFavorite, showSnackbar, t]);
 
   const renderBody = () => {
+    if (showRaw) {
+      return (
+        <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} selectable>
+          {rawHex}
+        </Text>
+      );
+    }
+
     if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
       return <RichContentRenderer items={item.oampItems} selectable />;
     }
@@ -124,16 +133,26 @@ export default function InputDataDetailScreen() {
               >
                 {t('detail.content')}
               </Text>
-              {copyableContent ? (
+              <View style={styles.headerActions}>
+                {copyableContent ? (
+                  <IconButton
+                    icon="content-copy"
+                    size={18}
+                    onPress={handleCopyContent}
+                    iconColor={theme.colors.primary}
+                    style={styles.copyBtn}
+                    accessibilityLabel={t('common.copy')}
+                  />
+                ) : null}
                 <IconButton
-                  icon="content-copy"
+                  icon="information-outline"
                   size={18}
-                  onPress={handleCopyContent}
-                  iconColor={theme.colors.primary}
+                  onPress={() => setShowRaw(!showRaw)}
+                  iconColor={showRaw ? theme.colors.tertiary : theme.colors.primary}
                   style={styles.copyBtn}
-                  accessibilityLabel={t('common.copy')}
+                  accessibilityLabel={t('detail.showRaw')}
                 />
-              ) : null}
+              </View>
             </View>
             {renderBody()}
           </Card.Content>
@@ -295,6 +314,10 @@ const styles = StyleSheet.create({
   sectionHeaderTitle: {
     marginBottom: 0,
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   sectionTitle: {
     fontWeight: '700',

@@ -121,6 +121,7 @@
     "from": "发送方",
     "to": "接收方",
     "content": "内容",
+    "showRaw": "显示原始数据",
     "favorite": "收藏",
     "unfavorite": "取消收藏",
     "favorited": "已加入本地收藏",
