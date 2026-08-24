@@ -83,6 +83,16 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+
+    // Custom APK output filename
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def appName = "OAM"
+            def versionName = variant.versionName
+            def versionCode = variant.versionCode
+            outputFileName = "${appName}-v${versionName}-${versionCode}.apk"
+        }
+    }
 }
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`
