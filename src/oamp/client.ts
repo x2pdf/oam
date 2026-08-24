@@ -256,13 +256,21 @@ export class OAMPClient {
 
     const populated = await withRpcFallback(async (provider) => {
       const connected = this.wallet.connect(provider);
-      return connected.populateTransaction({
+
+      const txRequest: TransactionRequest = {
         to: built.to,
         data: built.data,
         gasLimit,
         ...(nonce !== undefined ? { nonce } : {}),
-        ...feeOption,
-      });
+      };
+
+      if (feeOption) {
+        if (feeOption.maxFeePerGas !== undefined) txRequest.maxFeePerGas = feeOption.maxFeePerGas;
+        if (feeOption.maxPriorityFeePerGas !== undefined) txRequest.maxPriorityFeePerGas = feeOption.maxPriorityFeePerGas;
+        if (feeOption.gasPrice !== undefined) txRequest.gasPrice = feeOption.gasPrice;
+      }
+
+      return connected.populateTransaction(txRequest);
     }, { noFatal: true });
     const signed = await this.wallet.signTransaction(populated);
     return broadcastRawTx(signed);

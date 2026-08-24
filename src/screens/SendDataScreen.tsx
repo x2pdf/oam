@@ -217,8 +217,8 @@ export default function SendDataScreen() {
 
   const estimateFee = async (pubKey?: string | null, manualFeeOption?: FeeOption | null) => {
     setFeeLoading(true);
-    setFeeEstimate(null);
     setFeeError(false);
+    // Don't clear feeEstimate immediately to avoid flickering if it's the same
     setBalanceEth(null);
     setInsufficientBalance(false);
     try {
@@ -229,6 +229,8 @@ export default function SendDataScreen() {
       const items = buildContentItems();
       const target = recipientAddress.trim() || BLACK_HOLE;
       const resolvedKey = pubKey ?? recipientPublicKey;
+
+      // Use the manual option if provided, otherwise fall back to the state
       const currentFeeOption = manualFeeOption !== undefined ? manualFeeOption : feeOption;
 
       const [{ feeEth }, balanceWei, price] = await Promise.all([
@@ -253,6 +255,7 @@ export default function SendDataScreen() {
     } catch (error) {
       console.error('Fee estimate error:', error);
       setFeeError(true);
+      setFeeEstimate(null);
     } finally {
       setFeeLoading(false);
     }
@@ -281,6 +284,12 @@ export default function SendDataScreen() {
     if (!feeSuggestions) return;
     const selected = feeSuggestions[level];
     setFeeOption(selected);
+
+    // Also update the custom input fields so the user sees the Gwei values change
+    setCustomMaxFee(formatUnits(selected.maxFeePerGas || 0n, 'gwei'));
+    setCustomMaxPriority(formatUnits(selected.maxPriorityFeePerGas || 0n, 'gwei'));
+
+    // Explicitly pass the new selection because state update is async
     estimateFee(feeEstimatePubKey, selected);
   };
 
@@ -302,12 +311,10 @@ export default function SendDataScreen() {
   };
 
   const openFeeAdjustment = () => {
-    if (feeOption?.level === 'custom') {
-      setCustomMaxFee(formatUnits(feeOption.maxFeePerGas || 0n, 'gwei'));
-      setCustomMaxPriority(formatUnits(feeOption.maxPriorityFeePerGas || 0n, 'gwei'));
-    } else if (feeOption) {
-      setCustomMaxFee(formatUnits(feeOption.maxFeePerGas || 0n, 'gwei'));
-      setCustomMaxPriority(formatUnits(feeOption.maxPriorityFeePerGas || 0n, 'gwei'));
+    const current = feeOption;
+    if (current) {
+      setCustomMaxFee(formatUnits(current.maxFeePerGas || current.gasPrice || 0n, 'gwei'));
+      setCustomMaxPriority(formatUnits(current.maxPriorityFeePerGas || 0n, 'gwei'));
     }
     setFeeAdjustmentVisible(true);
   };
