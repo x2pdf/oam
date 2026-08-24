@@ -29,7 +29,12 @@ export class BlockscoutDataSource extends BaseDataSource {
     // #endregion
     let response: Response;
     try {
-      response = await fetch(baseUrl);
+      response = await fetch(baseUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+        },
+      });
       // #region agent log
       agentLog(
         'BlockscoutDataSource.ts:fetchMessages:after',
@@ -82,7 +87,12 @@ export class BlockscoutDataSource extends BaseDataSource {
 
     const url = `https://eth.blockscout.com/api/v2/addresses/${cleanAddress}/transactions?${query.toString()}`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+      },
+    });
     if (!response.ok) {
       throw new Error(`Blockscout API error: ${response.statusText}`);
     }

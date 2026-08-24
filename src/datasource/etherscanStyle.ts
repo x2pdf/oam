@@ -10,7 +10,12 @@ export function getPageOffset(params: any, defaultOffset: string) {
 }
 
 export async function fetchEtherscanStyleTxList(url: string, sourceName: string): Promise<any[]> {
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+    },
+  });
   if (!response.ok) {
     throw new Error(`${sourceName} API error: ${response.statusText}`);
   }

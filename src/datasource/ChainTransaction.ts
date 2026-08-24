@@ -116,9 +116,21 @@ export function parseBlockscoutTx(raw: Record<string, unknown>): ChainTransactio
 
   let timestamp = 0;
   if (raw.timestamp) {
-    const tsStr = String(raw.timestamp).replace(' ', 'T');
-    const d = new Date(tsStr);
-    timestamp = Math.floor(d.getTime() / 1000) || 0;
+    if (typeof raw.timestamp === 'number') {
+      timestamp = raw.timestamp;
+    } else {
+      const tsStr = String(raw.timestamp).replace(' ', 'T');
+      let d = new Date(tsStr);
+      // Handle iOS/JSC strict ISO parsing
+      if (isNaN(d.getTime()) && tsStr.includes('T') && !tsStr.endsWith('Z')) {
+        d = new Date(tsStr + 'Z');
+      }
+      // Fallback for extremely old engines or weird formats
+      if (isNaN(d.getTime())) {
+        d = new Date(tsStr.replace(/-/g, '/').replace('T', ' '));
+      }
+      timestamp = Math.floor(d.getTime() / 1000) || 0;
+    }
   }
 
   return new ChainTransaction({
