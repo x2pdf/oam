@@ -74,9 +74,9 @@ export const SQUARE_FETCH_CONCURRENCY = 3;
 
 /**
  * 关注页一次拉回的完整区块数，再到本地筛选。
- * 300 个整块 RPC 过重；100 约为主网 20 分钟。
+ * 50 约为主网 10 分钟，减轻 RPC 整块拉取压力。
  */
-export const FOLLOWING_BLOCK_WINDOW = 100;
+export const FOLLOWING_BLOCK_WINDOW = 50;
 
 /** 关注页并发拉取区块数（eth_getBlockByNumber）。 */
 export const FOLLOWING_BLOCK_FETCH_CONCURRENCY = 8;

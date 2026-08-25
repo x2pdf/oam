@@ -460,7 +460,7 @@ export default function HomeScreen() {
             : await fetchLatestBlockNumberViaRpc();
           const window = makeBlockWindow(windowEnd, FOLLOWING_BLOCK_WINDOW);
 
-          // 先把这 100 个区块的交易完整拉回，再在内存里筛关注地址 + 非空 input。
+          // 先把这 50 个区块的交易完整拉回，再在内存里筛关注地址 + 非空 input。
           const windowTxs = await fetchBlockWindowTransactions(window.startBlock, window.endBlock);
           const matched = filterFollowedWithInput(windowTxs, followedLower);
           resultItems = matched
