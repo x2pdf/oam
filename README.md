@@ -123,13 +123,17 @@ npm run build:web
 
 ## 协议细节 (OAMP)
 
-所有消息遵循以下 Envelope 格式：
-`MAGIC (4 bytes: "OAMP") | VERSION (1 byte) | TYPE (1 byte) | CRYPTO (1 byte) | NONCE (12 bytes) | PAYLOAD (n bytes)`
+v1 信封（固定前缀 20 字节 + PAYLOAD）：
 
-- **TYPE**: `0` 广播, `1` 个人, `2` P2P
-- **CRYPTO**: `0` 无, `1` AES-256-GCM
+`MAGIC (4: "OAMP") | VERSION (1) | TYPE (1) | CRYPTO (1) | RESERVED (1) | NONCE (12) | PAYLOAD (n)`
 
-详细文档请参考 [src/oamp/README.md](src/oamp/README.md)。
+- **VERSION**：当前为 `1`。未知 VERSION 必须丢弃。
+- **RESERVED**：v1 必须为 `0x00`；非 0 必须拒绝。征用该字节须升 VERSION。
+- **TYPE**：`0` 广播, `1` 个人, `2` P2P（须与交易 `from`/`to` 路由一致）。
+- **CRYPTO**：`0` 无, `1` AES-256-GCM（IV=12，tag=128 bit，密文为 `ciphertext || tag`）。
+- **PAYLOAD**：不透明字节。内容编码是应用层 profile，不是信封的一部分。
+
+完整规范（合法组合、路由不变量、AAD、密钥派生）见 [src/oamp/README.md](src/oamp/README.md)。
 
 ---
 

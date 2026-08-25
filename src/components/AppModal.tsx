@@ -36,6 +36,7 @@ export function AppModal({
   const modalWidth = width * 0.4;
   const lastIndex = (actions?.length ?? 0) - 1;
   const hasActions = !!actions && actions.length > 0;
+  const stacked = (actions?.length ?? 0) >= 3;
 
   const body = children ? (
     scrollable ? (
@@ -73,7 +74,7 @@ export function AppModal({
         </Text>
         {body}
         {hasActions ? (
-          <View style={styles.modalButtons}>
+          <View style={[styles.modalButtons, stacked && styles.modalButtonsStacked]}>
             {actions.map((action, index) => (
               <Button
                 key={`${action.label}-${index}`}
@@ -81,7 +82,7 @@ export function AppModal({
                 onPress={action.onPress}
                 loading={action.loading}
                 disabled={action.disabled}
-                style={styles.modalButton}
+                style={[styles.modalButton, stacked && styles.modalButtonStacked]}
               >
                 {action.label}
               </Button>
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
   modalContent: {
     margin: 20,
     padding: 20,
-    borderRadius: 12,
+    borderRadius: 8,
   },
   modalTitle: {
     marginBottom: 16,
@@ -117,8 +118,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
+    gap: 8,
+  },
+  modalButtonsStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 8,
   },
   modalButton: {
-    marginLeft: 8,
+    marginLeft: 0,
+    borderRadius: 8,
+  },
+  modalButtonStacked: {
+    marginLeft: 0,
+    width: '100%',
   },
 });

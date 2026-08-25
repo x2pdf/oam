@@ -5,12 +5,45 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Subscription, FavoriteItem, InputDataItem, normalizeSubscription } from '../types';
+import {
+  Subscription,
+  FavoriteItem,
+  InputDataItem,
+  SendDraft,
+  SendDraftImage,
+  normalizeSubscription,
+} from '../types';
 import { STORAGE_KEYS, API_CONFIG } from '../constants';
 import { migrateLegacyStorage } from '../storage/migrate';
+import { dataSourceManager } from '../datasource/DataSourceManager';
+
+function isSendDraftImage(value: unknown): value is SendDraftImage {
+  if (!value || typeof value !== 'object') return false;
+  const img = value as SendDraftImage;
+  return (
+    typeof img.base64 === 'string' &&
+    (img.type === 'image/jpeg' || img.type === 'image/png' || img.type === 'image/gif') &&
+    (img.name === undefined || typeof img.name === 'string')
+  );
+}
+
+function isSendDraft(value: unknown): value is SendDraft {
+  if (!value || typeof value !== 'object') return false;
+  const draft = value as SendDraft;
+  return (
+    typeof draft.id === 'string' &&
+    typeof draft.text === 'string' &&
+    Array.isArray(draft.images) &&
+    draft.images.every(isSendDraftImage) &&
+    typeof draft.recipientAddress === 'string' &&
+    typeof draft.encryptEnabled === 'boolean' &&
+    typeof draft.updatedAt === 'number'
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  State                                                              */
@@ -21,6 +54,8 @@ interface AppState {
   profile: Subscription | null;
   apiKey: string;
   favorites: FavoriteItem[];
+  drafts: SendDraft[];
+  dataSourceWeights: Record<string, number>;
   isLoading: boolean;
 }
 
@@ -29,6 +64,8 @@ const initialState: AppState = {
   profile: null,
   apiKey: '',
   favorites: [],
+  drafts: [],
+  dataSourceWeights: {},
   isLoading: true,
 };
 
@@ -46,6 +83,10 @@ type Action =
   | { type: 'SET_FAVORITES'; payload: FavoriteItem[] }
   | { type: 'ADD_FAVORITE'; payload: FavoriteItem }
   | { type: 'REMOVE_FAVORITE'; payload: string }
+  | { type: 'SET_DRAFTS'; payload: SendDraft[] }
+  | { type: 'UPSERT_DRAFT'; payload: SendDraft }
+  | { type: 'REMOVE_DRAFT'; payload: string }
+  | { type: 'SET_DATA_SOURCE_WEIGHTS'; payload: Record<string, number> }
   | { type: 'SET_LOADING'; payload: boolean };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -88,6 +129,26 @@ function appReducer(state: AppState, action: Action): AppState {
         ...state,
         favorites: state.favorites.filter((f) => f.item.id !== action.payload),
       };
+    case 'SET_DRAFTS':
+      return { ...state, drafts: action.payload };
+    case 'UPSERT_DRAFT': {
+      const next = action.payload;
+      const exists = state.drafts.some((d) => d.id === next.id);
+      const drafts = exists
+        ? state.drafts.map((d) => (d.id === next.id ? next : d))
+        : [next, ...state.drafts];
+      return {
+        ...state,
+        drafts: [...drafts].sort((a, b) => b.updatedAt - a.updatedAt),
+      };
+    }
+    case 'REMOVE_DRAFT':
+      return {
+        ...state,
+        drafts: state.drafts.filter((d) => d.id !== action.payload),
+      };
+    case 'SET_DATA_SOURCE_WEIGHTS':
+      return { ...state, dataSourceWeights: action.payload };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     default:
@@ -111,6 +172,9 @@ interface AppContextType {
   addFavorite: (item: InputDataItem) => Promise<void>;
   removeFavorite: (id: string) => Promise<void>;
   isFavorite: (id: string) => boolean;
+  upsertDraft: (draft: SendDraft) => Promise<void>;
+  deleteDraft: (id: string) => Promise<void>;
+  setDataSourceWeights: (weights: Record<string, number>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -125,6 +189,8 @@ interface Props {
 
 export const AppProvider: React.FC<Props> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
+  const draftsRef = useRef(state.drafts);
+  draftsRef.current = state.drafts;
 
   /* ---------- 启动时从 AsyncStorage 加载持久化数据 ---------- */
   useEffect(() => {
@@ -136,11 +202,15 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
           STORAGE_KEYS.PROFILE,
           STORAGE_KEYS.API_KEY,
           STORAGE_KEYS.FAVORITES,
+          STORAGE_KEYS.DRAFTS,
+          STORAGE_KEYS.DATA_SOURCE_WEIGHTS,
         ]);
         const subsValue = results[0]?.[1];
         const profileValue = results[1]?.[1];
         const apiKeyValue = results[2]?.[1];
         const favoritesValue = results[3]?.[1];
+        const draftsValue = results[4]?.[1];
+        const weightsValue = results[5]?.[1];
         if (subsValue) {
           const subs: Subscription[] = JSON.parse(subsValue);
           dispatch({
@@ -171,6 +241,18 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
               )
             : [];
           dispatch({ type: 'SET_FAVORITES', payload: favorites });
+        }
+        if (draftsValue) {
+          const parsed: unknown = JSON.parse(draftsValue);
+          const drafts: SendDraft[] = Array.isArray(parsed)
+            ? parsed.filter(isSendDraft).sort((a, b) => b.updatedAt - a.updatedAt)
+            : [];
+          dispatch({ type: 'SET_DRAFTS', payload: drafts });
+        }
+        if (weightsValue) {
+          const weights = JSON.parse(weightsValue);
+          dispatch({ type: 'SET_DATA_SOURCE_WEIGHTS', payload: weights });
+          dataSourceManager.updateWeights(weights);
         }
       } catch (error) {
         console.warn('Failed to load persisted data:', error);
@@ -240,6 +322,30 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     [state.favorites],
   );
 
+  /* ---------- 发送草稿 CRUD ---------- */
+  const upsertDraft = useCallback(async (draft: SendDraft) => {
+    const current = draftsRef.current;
+    const exists = current.some((d) => d.id === draft.id);
+    const next = (exists
+      ? current.map((d) => (d.id === draft.id ? draft : d))
+      : [draft, ...current]
+    ).sort((a, b) => b.updatedAt - a.updatedAt);
+    await AsyncStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(next));
+    dispatch({ type: 'UPSERT_DRAFT', payload: draft });
+  }, []);
+
+  const deleteDraft = useCallback(async (id: string) => {
+    const next = draftsRef.current.filter((d) => d.id !== id);
+    await AsyncStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(next));
+    dispatch({ type: 'REMOVE_DRAFT', payload: id });
+  }, []);
+
+  /* ---------- 数据源权重 ---------- */
+  const setDataSourceWeights = useCallback(async (weights: Record<string, number>) => {
+    dispatch({ type: 'SET_DATA_SOURCE_WEIGHTS', payload: weights });
+    dataSourceManager.updateWeights(weights);
+  }, []);
+
   /* ---------- 同步 Profile 到 AsyncStorage ---------- */
   useEffect(() => {
     if (state.isLoading) return;
@@ -273,6 +379,26 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     }
   }, [state.favorites, state.isLoading]);
 
+  /* ---------- 同步草稿列表到 AsyncStorage ---------- */
+  useEffect(() => {
+    if (!state.isLoading) {
+      AsyncStorage.setItem(
+        STORAGE_KEYS.DRAFTS,
+        JSON.stringify(state.drafts),
+      ).catch(console.warn);
+    }
+  }, [state.drafts, state.isLoading]);
+
+  /* ---------- 同步权重到 AsyncStorage ---------- */
+  useEffect(() => {
+    if (!state.isLoading) {
+      AsyncStorage.setItem(
+        STORAGE_KEYS.DATA_SOURCE_WEIGHTS,
+        JSON.stringify(state.dataSourceWeights),
+      ).catch(console.warn);
+    }
+  }, [state.dataSourceWeights, state.isLoading]);
+
   const value = useMemo<AppContextType>(
     () => ({
       state,
@@ -286,6 +412,9 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       addFavorite,
       removeFavorite,
       isFavorite,
+      upsertDraft,
+      deleteDraft,
+      setDataSourceWeights,
     }),
     [
       state,
@@ -299,6 +428,9 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       addFavorite,
       removeFavorite,
       isFavorite,
+      upsertDraft,
+      deleteDraft,
+      setDataSourceWeights,
     ],
   );
 

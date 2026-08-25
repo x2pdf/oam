@@ -80,7 +80,8 @@ function unescapeHtml(str: string): string {
 }
 
 /**
- * 规范化 Payload 编码器 v2
+ * 应用层内容 profile（OAM HTML），不是 OAMP 信封的一部分。
+ * OAMP PAYLOAD 是不透明字节；换编码只升本 profile 或 OAMP VERSION，不改信封字段。
  *
  * 按照 HTML 语法对内容进行封装，支持文本和多张图片的混合编排。
  * 对正文和属性值进行 HTML 转义以确保安全和完整性。
@@ -106,7 +107,7 @@ export function payloadEncode(items: ContentItem[]): Uint8Array {
 }
 
 /**
- * 规范化 Payload 解码器 v2
+ * 应用层内容 profile（OAM HTML）解码器。OAMP PAYLOAD 本身不规定此格式。
  *
  * 解析 <html> 封装的规范数据，提取 <pre> 中的文本和 <img> 中的图片。
  * 能够正确处理转义后的内容，并兼容未转义的旧数据。

@@ -50,6 +50,7 @@
     "addressDataList": "地址数据",
     "conversation": "双方对话",
     "localFavorites": "我的本地收藏",
+    "localDrafts": "我的草稿",
     "appInfo": "应用信息"
   },
   "home": {
@@ -112,6 +113,13 @@
     "emptyHint": "浏览数据详情时点击「收藏」，即可保存在本机",
     "count": "{{count}} 条"
   },
+  "drafts": {
+    "empty": "暂无草稿",
+    "emptyHint": "取消发送时选择「保存为草稿」，即可保存在本机",
+    "count": "{{count}} 条",
+    "recipient": "接收：{{name}}",
+    "updatedAt": "更新于 {{time}}"
+  },
   "detail": {
     "txHash": "交易哈希",
     "time": "时间",
@@ -136,6 +144,7 @@
     "language": "语言",
     "selectLanguage": "选择语言",
     "localFavorites": "我的本地收藏",
+    "localDrafts": "我的草稿",
     "appearance": "外观",
     "selectAppearance": "选择外观",
     "themeLight": "浅色",
@@ -147,6 +156,13 @@
     "fontSizeDefault": "标准",
     "fontSizeLarge": "大",
     "fontSizeLarger": "较大",
+    "dataSourceWeights": "数据源权重",
+    "editDataSourceWeights": "设置数据源权重",
+    "weightLabel": "权重 (1-1000)",
+    "weightHint": "数值越大，优先级越高",
+    "activeSource": "可用",
+    "inactiveSource": "不可用 (未设置 API Key)",
+    "requiresKeyHint": "该数据源需要 API Key 才能启用",
     "updateApiKey": "更新 Etherscan API Key",
     "addApiKey": "添加 Etherscan API Key",
     "setApiKeyTitle": "设置 Etherscan API Key",
@@ -347,8 +363,11 @@
     "txHash": "交易哈希: {{hash}}",
     "submitNotMinedHint": "上链结果请以区块浏览器为准。",
     "confirmCancelTitle": "确认取消",
-    "confirmCancelMsg": "确定要取消吗？这将会清空已输入的数据。",
+    "confirmCancelMsg": "确定要取消发送吗？可以选择保存为草稿，稍后在「我的」页面继续编辑；不保存将清空已输入的内容。",
     "continueEdit": "继续编辑",
+    "saveAsDraft": "保存为草稿",
+    "discardChanges": "不保存",
+    "draftSaveFailed": "草稿保存失败，请稍后重试",
     "pickImageSourceTitle": "选择图片来源",
     "pickImageFromLibrary": "相册",
     "pickImageFromFiles": "文件",

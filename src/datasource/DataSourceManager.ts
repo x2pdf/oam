@@ -12,6 +12,8 @@ let queryInflight = 0;
 export class DataSourceManager {
   private static instance: DataSourceManager;
   private sources: IDataSource[] = [];
+  /** 允许外部覆盖默认权重的映射表 (name -> weight) */
+  private customWeights: Record<string, number> = {};
   /** 本会话内已失败的源，后续请求跳过，避免每个页签都再等一轮 Blockscout。 */
   private skipped = new Set<string>();
   private querySeq = 0;
@@ -22,6 +24,10 @@ export class DataSourceManager {
     this.sources.push(new EtherscanDataSource());
   }
 
+  public getSources(): IDataSource[] {
+    return [...this.sources];
+  }
+
   public static getInstance(): DataSourceManager {
     if (!DataSourceManager.instance) {
       DataSourceManager.instance = new DataSourceManager();
@@ -30,15 +36,39 @@ export class DataSourceManager {
   }
 
   /**
+   * 更新全局权重配置
+   */
+  public updateWeights(weights: Record<string, number>) {
+    this.customWeights = { ...weights };
+  }
+
+  /**
+   * 获取数据源的最终权重（如果有自定义则使用自定义，否则使用默认值）
+   */
+  private getWeight(source: IDataSource): number {
+    return this.customWeights[source.name] ?? source.weight;
+  }
+
+  /**
+   * 判断数据源是否应该被跳过
+   */
+  private isSourceDisabled(source: IDataSource): boolean {
+    if (this.skipped.has(source.name)) return true;
+    // 如果需要 API Key 但未提供，则跳过
+    if (source.requiresApiKey && !source.apiKey) return true;
+    return false;
+  }
+
+  /**
    * 有 API Key 的数据源组（已填写 Key 才算），组内按 weight 降序。
    */
   private getSourcesWithApiKey(): IDataSource[] {
     return [...this.sources]
       .filter((source) => {
-        if (this.skipped.has(source.name)) return false;
+        if (this.isSourceDisabled(source)) return false;
         return !!source.apiKey;
       })
-      .sort((a, b) => b.weight - a.weight);
+      .sort((a, b) => this.getWeight(b) - this.getWeight(a));
   }
 
   /**
@@ -47,10 +77,10 @@ export class DataSourceManager {
   private getSourcesWithoutApiKey(): IDataSource[] {
     return [...this.sources]
       .filter((source) => {
-        if (this.skipped.has(source.name)) return false;
+        if (this.isSourceDisabled(source)) return false;
         return !source.apiKey;
       })
-      .sort((a, b) => b.weight - a.weight);
+      .sort((a, b) => this.getWeight(b) - this.getWeight(a));
   }
 
   /**

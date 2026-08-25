@@ -86,6 +86,53 @@ function optStr(value: unknown): string | undefined {
   return value != null ? String(value) : undefined;
 }
 
+/**
+ * Normalize explorer timestamps to unix seconds.
+ * Do not use `new Date(isoString)`: iOS JSC/Safari reject ISO with more than
+ * 3 fractional digits, which is exactly Blockscout's format
+ * (`2026-08-25T00:20:11.000000Z`). Android V8 often accepts it, so the same
+ * payload can get timestamp 0 on iOS/web and a real time on Android.
+ */
+export function parseUnixSeconds(value: unknown): number {
+  if (value == null || value === '') return 0;
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    return value > 1e12 ? Math.floor(value / 1000) : Math.floor(value);
+  }
+
+  const s = String(value).trim();
+  if (!s) return 0;
+
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    const n = Number(s);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+  }
+
+  const iso = s.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):?(\d{2}))?$/i,
+  );
+  if (!iso) return 0;
+
+  let ms = Date.UTC(
+    Number(iso[1]),
+    Number(iso[2]) - 1,
+    Number(iso[3]),
+    Number(iso[4]),
+    Number(iso[5]),
+    Number(iso[6]),
+  );
+  if (!Number.isFinite(ms)) return 0;
+
+  if (iso[7] && iso[8] != null && iso[9] != null) {
+    const offsetMin = Number(iso[8]) * 60 + Number(iso[9]);
+    ms -= (iso[7] === '-' ? -1 : 1) * offsetMin * 60 * 1000;
+  }
+
+  return Math.floor(ms / 1000);
+}
+
 /** Etherscan / Routescan txlist 响应 */
 export function parseEtherscanTx(raw: Record<string, unknown>): ChainTransaction {
   return new ChainTransaction({
@@ -94,7 +141,7 @@ export function parseEtherscanTx(raw: Record<string, unknown>): ChainTransaction
     to: str(raw.to),
     input: str(raw.input),
     value: str(raw.value, '0'),
-    timestamp: parseInt(str(raw.timeStamp, '0'), 10) || 0,
+    timestamp: parseUnixSeconds(raw.timeStamp),
     blockNumber: optStr(raw.blockNumber),
     gas: optStr(raw.gas),
     gasPrice: optStr(raw.gasPrice),
@@ -114,32 +161,13 @@ export function parseBlockscoutTx(raw: Record<string, unknown>): ChainTransactio
   const from = typeof fromObj === 'object' && fromObj ? fromObj.hash ?? '' : str(fromObj);
   const to = typeof toObj === 'object' && toObj ? toObj.hash ?? '' : str(toObj);
 
-  let timestamp = 0;
-  if (raw.timestamp) {
-    if (typeof raw.timestamp === 'number') {
-      timestamp = raw.timestamp;
-    } else {
-      const tsStr = String(raw.timestamp).replace(' ', 'T');
-      let d = new Date(tsStr);
-      // Handle iOS/JSC strict ISO parsing
-      if (isNaN(d.getTime()) && tsStr.includes('T') && !tsStr.endsWith('Z')) {
-        d = new Date(tsStr + 'Z');
-      }
-      // Fallback for extremely old engines or weird formats
-      if (isNaN(d.getTime())) {
-        d = new Date(tsStr.replace(/-/g, '/').replace('T', ' '));
-      }
-      timestamp = Math.floor(d.getTime() / 1000) || 0;
-    }
-  }
-
   return new ChainTransaction({
     hash: str(raw.hash),
     from,
     to,
     input: str(raw.raw_input ?? raw.input),
     value: str(raw.value, '0'),
-    timestamp,
+    timestamp: parseUnixSeconds(raw.timestamp),
     blockNumber: optStr(raw.block_number ?? raw.blockNumber),
     gas: optStr(raw.gas),
     gasPrice: optStr(raw.gas_price ?? raw.gasPrice),

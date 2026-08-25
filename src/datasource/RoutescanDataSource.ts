@@ -1,6 +1,6 @@
 import { BaseDataSource } from './BaseDataSource';
 import { FetchMode, DataSourceResult, OutgoingTxResult } from './types';
-import { DATA_SOURCE_WEIGHTS, API_CONFIG } from '../constants';
+import { DATA_SOURCE_WEIGHTS, API_CONFIG, DATA_SOURCE_PAGE_SIZE } from '../constants';
 import {
   fetchEtherscanStyleTxList,
   getPageOffset,
@@ -10,7 +10,10 @@ import {
 
 export class RoutescanDataSource extends BaseDataSource {
   name = 'Routescan';
-  weight = DATA_SOURCE_WEIGHTS.ROUTESCAN;
+
+  get weight() {
+    return DATA_SOURCE_WEIGHTS.ROUTESCAN;
+  }
 
   private buildUrl(address: string, params: any, defaultOffset: string): string {
     const { page, offset } = getPageOffset(params, defaultOffset);
@@ -29,8 +32,9 @@ export class RoutescanDataSource extends BaseDataSource {
 
   async fetchMessages(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
     const cleanAddress = address.trim().toLowerCase();
+    const pageSize = String(DATA_SOURCE_PAGE_SIZE);
     const txs = await fetchEtherscanStyleTxList(
-      this.buildUrl(cleanAddress, params, '20'),
+      this.buildUrl(cleanAddress, params, pageSize),
       this.name,
     );
     return toMessageResult(
@@ -38,7 +42,7 @@ export class RoutescanDataSource extends BaseDataSource {
       cleanAddress,
       mode,
       params,
-      '20',
+      pageSize,
       (ts) => this.formatTimestamp(ts),
       (addr) => this.shortenAddress(addr),
     );
@@ -46,10 +50,11 @@ export class RoutescanDataSource extends BaseDataSource {
 
   async fetchOutgoingTransactions(address: string, params: any = null): Promise<OutgoingTxResult> {
     const cleanAddress = address.trim().toLowerCase();
+    const pageSize = String(DATA_SOURCE_PAGE_SIZE);
     const txs = await fetchEtherscanStyleTxList(
-      this.buildUrl(cleanAddress, params, '50'),
+      this.buildUrl(cleanAddress, params, pageSize),
       this.name,
     );
-    return toOutgoingResult(txs, cleanAddress, params, '50');
+    return toOutgoingResult(txs, cleanAddress, params, pageSize);
   }
 }

@@ -1,6 +1,15 @@
 import { InputDataItem } from '../types';
 import { ChainTransaction } from './ChainTransaction';
 import { FetchMode, OutgoingTx } from './types';
+import { ETHEREUM_CHAIN_ID } from '../config/rpcConfig';
+
+function parseTxNonce(nonce?: string): number | undefined {
+  if (nonce == null || nonce === '') return undefined;
+  const n = nonce.startsWith('0x') || nonce.startsWith('0X')
+    ? parseInt(nonce, 16)
+    : parseInt(nonce, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
 
 export function filterTransactionsByMode(
   txs: ChainTransaction[],
@@ -28,38 +37,18 @@ export function filterTransactionsByMode(
 
 export function mapToInputDataItem(
   tx: ChainTransaction,
-  mode: FetchMode,
-  cleanAddress: string,
+  _mode: FetchMode,
+  _cleanAddress: string,
   formatTimestamp: (ts: number) => string,
   shortenAddress: (addr: string) => string,
 ): InputDataItem {
   const lastActive = tx.timestamp ? formatTimestamp(tx.timestamp) : 'Unknown';
-
-  let displayAddr = 'Unknown';
-  let displayName = 'Message';
-
-  if (mode === 'self') {
-    displayAddr = cleanAddress;
-    displayName = 'Self Message';
-  } else if (mode === 'square' || mode === 'inbox') {
-    displayAddr = tx.from || 'Unknown';
-    displayName = `From: ${shortenAddress(displayAddr)}`;
-  } else if (mode === 'all') {
-    if (tx.fromLower === cleanAddress) {
-      displayAddr = tx.to || 'Unknown';
-      displayName = `To: ${shortenAddress(displayAddr)}`;
-    } else {
-      displayAddr = tx.from || 'Unknown';
-      displayName = `From: ${shortenAddress(displayAddr)}`;
-    }
-  } else {
-    displayAddr = tx.to || 'Unknown';
-    displayName = `To: ${shortenAddress(displayAddr)}`;
-  }
+  // Cards always surface the sender; short labels (self / subscription) are applied in UI.
+  const displayAddr = tx.from || 'Unknown';
 
   return {
     id: tx.hash,
-    name: displayName,
+    name: shortenAddress(displayAddr),
     address: displayAddr,
     from: tx.from,
     to: tx.to,
@@ -69,6 +58,8 @@ export function mapToInputDataItem(
     lastActive,
     timestamp: tx.timestamp || 0,
     rawInput: tx.input,
+    txNonce: parseTxNonce(tx.nonce),
+    chainId: ETHEREUM_CHAIN_ID,
   };
 }
 

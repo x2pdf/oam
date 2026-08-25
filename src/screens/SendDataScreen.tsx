@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR } from '../wallet/session';
 import { isAddress, parseEther, formatEther, parseUnits, formatUnits } from 'ethers';
-import { RootStackParamList } from '../types';
+import { RootStackParamList, SendDraft } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
@@ -36,6 +36,7 @@ import { AppModal } from '../components/AppModal';
 import { AllRpcFailedError, withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, ethToUsdDisplay } from '../rpc/ethPrice';
 import { showAlert } from '../utils/alert';
+import * as Clipboard from 'expo-clipboard';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'SendData'>;
@@ -55,6 +56,15 @@ function wrapLongHex(value: string): string {
   return value.replace(/(.{8})/g, '$1\u200b');
 }
 
+function draftImageToItem(img: SendDraft['images'][number]): ImageItem {
+  return {
+    uri: `data:${img.type};base64,${img.base64}`,
+    base64: img.base64,
+    name: img.name,
+    type: img.type,
+  };
+}
+
 export default function SendDataScreen() {
   const theme = useTheme();
   const { fontScale } = useThemePreference();
@@ -63,15 +73,26 @@ export default function SendDataScreen() {
   const insets = useSafeAreaInsets();
   const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
-  const { state } = useAppContext();
+  const { state, upsertDraft, deleteDraft } = useAppContext();
   const { profile } = state;
-
-  const [text, setText] = useState('');
-  const [images, setImages] = useState<ImageItem[]>([]);
-  const [recipientAddress, setRecipientAddress] = useState(
-    route.params?.recipientAddress || profile?.address || BLACK_HOLE,
+  const routeDraftId = route.params?.draftId;
+  const initialDraft = useMemo(
+    () => (routeDraftId ? state.drafts.find((d) => d.id === routeDraftId) : undefined),
+    // 仅用于首屏回填，避免草稿列表后续变化重置正在编辑的内容
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
-  const [encryptEnabled, setEncryptEnabled] = useState(false);
+
+  const [text, setText] = useState(initialDraft?.text ?? '');
+  const [images, setImages] = useState<ImageItem[]>(() =>
+    (initialDraft?.images ?? []).map(draftImageToItem),
+  );
+  const [recipientAddress, setRecipientAddress] = useState(
+    initialDraft?.recipientAddress || route.params?.recipientAddress || profile?.address || BLACK_HOLE,
+  );
+  const [encryptEnabled, setEncryptEnabled] = useState(initialDraft?.encryptEnabled ?? false);
+  const [currentDraftId, setCurrentDraftId] = useState(routeDraftId);
+  const appliedDraftRef = useRef(!!initialDraft);
   const [recipientPublicKey, setRecipientPublicKey] = useState<string | null>(null);
   const [pubkeyLookupVisible, setPubkeyLookupVisible] = useState(false);
   const [noPubkeyDialogVisible, setNoPubkeyDialogVisible] = useState(false);
@@ -123,6 +144,7 @@ export default function SendDataScreen() {
   const [confirmSendVisible, setConfirmSendVisible] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
   const [password, setPassword] = useState('');
   const [imageNameDialogVisible, setImageNameDialogVisible] = useState(false);
   const [imageSourceDialogVisible, setImageSourceDialogVisible] = useState(false);
@@ -146,6 +168,9 @@ export default function SendDataScreen() {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
+  const [sendSuccessVisible, setSendSuccessVisible] = useState(false);
+  const [sendSuccessHash, setSendSuccessHash] = useState('');
+
   const buildContentItems = useCallback((): ContentItem[] => {
     const items: ContentItem[] = [];
     if (text) {
@@ -168,11 +193,25 @@ export default function SendDataScreen() {
     if (
       profile?.address &&
       !route.params?.recipientAddress &&
+      !routeDraftId &&
       recipientAddress.toLowerCase() === BLACK_HOLE.toLowerCase()
     ) {
       setRecipientAddress(profile.address);
     }
   }, [profile?.address]);
+
+  useEffect(() => {
+    if (appliedDraftRef.current) return;
+    if (!routeDraftId) return;
+    const draft = state.drafts.find((d) => d.id === routeDraftId);
+    if (!draft) return;
+    appliedDraftRef.current = true;
+    setText(draft.text);
+    setImages(draft.images.map(draftImageToItem));
+    setRecipientAddress(draft.recipientAddress || BLACK_HOLE);
+    setEncryptEnabled(!!draft.encryptEnabled);
+    setCurrentDraftId(draft.id);
+  }, [routeDraftId, state.drafts]);
 
   useEffect(() => {
     setRecipientPublicKey(null);
@@ -423,6 +462,31 @@ export default function SendDataScreen() {
     navigation.goBack();
   };
 
+  const saveAsDraft = async () => {
+    if (draftSaving) return;
+    const id = currentDraftId ?? Date.now().toString();
+    setDraftSaving(true);
+    try {
+      await upsertDraft({
+        id,
+        text,
+        images: images.map(({ base64, name, type }) => ({ base64, name, type })),
+        recipientAddress: recipientAddress.trim() || BLACK_HOLE,
+        encryptEnabled,
+        updatedAt: Date.now(),
+      });
+      setCurrentDraftId(id);
+      setCancelConfirmVisible(false);
+      navigation.goBack();
+    } catch (error) {
+      console.error('Save draft error:', error);
+      setSnackbarMessage(t('send.draftSaveFailed'));
+      setSnackbarVisible(true);
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
   const handleSend = async () => {
     const target = recipientAddress.trim() || BLACK_HOLE;
     const useP2PEncrypt = encryptEnabled && !isSelf && target.toLowerCase() !== BLACK_HOLE.toLowerCase();
@@ -499,17 +563,15 @@ export default function SendDataScreen() {
 
       setLoading(false);
       setPasswordVisible(false);
-      showAlert(
-        t('send.sendSuccess'),
-        `${t('send.txHash', { hash: txHash })}\n\n${t('send.submitNotMinedHint')}`,
-        [
-          { text: t('common.ok'), onPress: () => navigation.goBack() }
-        ]
-      );
+      setSendSuccessHash(txHash);
+      setSendSuccessVisible(true);
 
       setText('');
       setImages([]);
       setPassword('');
+      if (currentDraftId) {
+        await deleteDraft(currentDraftId);
+      }
     } catch (error: any) {
       console.error('Send error:', error);
       setLoading(false);
@@ -923,11 +985,31 @@ export default function SendDataScreen() {
 
       <AppModal
         visible={cancelConfirmVisible}
-        onDismiss={() => setCancelConfirmVisible(false)}
+        onDismiss={() => {
+          if (!draftSaving) setCancelConfirmVisible(false);
+        }}
+        dismissable={!draftSaving}
         title={t('send.confirmCancelTitle')}
         actions={[
-          { label: t('send.continueEdit'), onPress: () => setCancelConfirmVisible(false) },
-          { label: t('common.ok'), onPress: confirmCancel },
+          {
+            label: t('send.saveAsDraft'),
+            onPress: saveAsDraft,
+            mode: 'contained',
+            loading: draftSaving,
+            disabled: draftSaving,
+          },
+          {
+            label: t('send.discardChanges'),
+            onPress: confirmCancel,
+            mode: 'outlined',
+            disabled: draftSaving,
+          },
+          {
+            label: t('send.continueEdit'),
+            onPress: () => setCancelConfirmVisible(false),
+            mode: 'text',
+            disabled: draftSaving,
+          },
         ]}
       >
         <Text>{t('send.confirmCancelMsg')}</Text>
@@ -1043,6 +1125,42 @@ export default function SendDataScreen() {
           onChangeText={setCustomMaxPriority}
           style={styles.feeInput}
         />
+      </AppModal>
+
+      <AppModal
+        visible={sendSuccessVisible}
+        onDismiss={() => {
+          setSendSuccessVisible(false);
+          navigation.goBack();
+        }}
+        title={t('send.sendSuccess')}
+        actions={[
+          {
+            label: t('common.copy'),
+            onPress: async () => {
+              await Clipboard.setStringAsync(sendSuccessHash);
+              setSnackbarMessage(t('common.copied'));
+              setSnackbarVisible(true);
+            },
+          },
+          {
+            label: t('common.ok'),
+            onPress: () => {
+              setSendSuccessVisible(false);
+              navigation.goBack();
+            },
+          },
+        ]}
+      >
+        <Text variant="bodyMedium" style={styles.dialogBody} selectable>
+          {t('send.txHash', { hash: sendSuccessHash })}
+        </Text>
+        <Text
+          variant="bodySmall"
+          style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}
+        >
+          {t('send.submitNotMinedHint')}
+        </Text>
       </AppModal>
 
       <Snackbar

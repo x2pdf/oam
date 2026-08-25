@@ -14,8 +14,10 @@ export const STORAGE_KEYS = {
   API_KEY: '@oam_api_key',
   THEME: '@oam_theme',
   FAVORITES: '@oam_favorites',
+  DRAFTS: '@oam_drafts',
   LANGUAGE: '@oam_language',
   FONT_SCALE: '@oam_font_scale',
+  DATA_SOURCE_WEIGHTS: '@oam_data_source_weights',
 } as const;
 
 /** 旧版 OnchainData 存储键，仅用于一次性迁移 */
@@ -34,6 +36,9 @@ export const FILTER_STATE_KEY = '@oam_filter_state';
 /** 单次请求内，遍历所有数据源失败后的最大重试轮数 */
 export const MAX_DATA_SOURCE_CYCLES = 3;
 
+/** 单次向数据源请求的交易条数。偏小以避免限流 */
+export const DATA_SOURCE_PAGE_SIZE = 20;
+
 /** 数据源权重 0 --> 1000, 数值越大越优先请求该数据源 */
 export const DATA_SOURCE_WEIGHTS = {
   ROUTESCAN: 500,
@@ -48,3 +53,9 @@ export const API_CONFIG = {
   /** 无 Etherscan Key 时使用的兼容接口，不需要 Key */
   ROUTESCAN_ETHERSCAN_BASE_URL: 'https://api.routescan.io/v2/network/mainnet/evm/1/etherscan/api',
 };
+
+/** Explorer HTTP timeout; prevents hung Blockscout/Etherscan fetches from pinning sockets. */
+export const DATA_SOURCE_REQUEST_TIMEOUT_MS = 15000;
+
+/** Max concurrent address fetches on the square tab (self + subscriptions). */
+export const SQUARE_FETCH_CONCURRENCY = 3;

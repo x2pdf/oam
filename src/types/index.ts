@@ -45,6 +45,10 @@ export interface InputDataItem {
   lastActive: string;
   timestamp: number;
   rawInput?: string;
+  /** Transaction account nonce; needed to rebuild AES-GCM AAD. */
+  txNonce?: number;
+  /** Chain id of the tx; needed to rebuild AES-GCM AAD. */
+  chainId?: number;
   contentKind?: ContentKind;
   oampItems?: ContentItem[];
   textContent?: string;
@@ -54,6 +58,23 @@ export interface InputDataItem {
 export interface FavoriteItem {
   item: InputDataItem;
   favoritedAt: number;
+}
+
+/** 发送页本地草稿中的图片（不保存临时 uri，用 base64 还原） */
+export interface SendDraftImage {
+  base64: string;
+  name?: string;
+  type: 'image/jpeg' | 'image/png' | 'image/gif';
+}
+
+/** 发送页本地草稿 */
+export interface SendDraft {
+  id: string;
+  text: string;
+  images: SendDraftImage[];
+  recipientAddress: string;
+  encryptEnabled: boolean;
+  updatedAt: number;
 }
 
 /** 导航路由参数 */
@@ -80,11 +101,12 @@ export type RootStackParamList = {
   PrivateKeyInput: undefined;
   PrivateKeyVerify: { privateKey: string };
   PrivateKeySetup: { privateKey: string };
-  SendData: { recipientAddress?: string } | undefined;
+  SendData: { recipientAddress?: string; draftId?: string } | undefined;
   InputDataDetail: { item: InputDataItem };
   SubscriptionDetail: { subscription: Subscription };
   AddressDataList: { address: string; title?: string; peerAddress?: string };
   LocalFavorites: undefined;
+  LocalDrafts: undefined;
   AppInfo: undefined;
 };
 

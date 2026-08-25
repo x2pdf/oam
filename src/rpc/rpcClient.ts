@@ -28,6 +28,14 @@ export function createProvider(rpcUrl: string): JsonRpcProvider {
   return new JsonRpcProvider(req, MAINNET, { staticNetwork: true });
 }
 
+function safeDestroy(provider: JsonRpcProvider): void {
+  try {
+    provider.destroy();
+  } catch {
+    // Ignore cleanup failures; request may already be settled.
+  }
+}
+
 function errorText(err: unknown): string {
   if (err && typeof err === "object") {
     const e = err as { shortMessage?: string; message?: string };
@@ -73,7 +81,7 @@ function isRateLimited(err: unknown): boolean {
 }
 
 function isFatalRpcError(err: unknown): boolean {
-  // Rate-limit (429) is transient — let the caller decide whether to retry.
+  // Rate-limit (429) is transient 鈥?let the caller decide whether to retry.
   // Read paths should use { noFatal: true }; broadcast already special-cases it.
   const code = errorCode(err);
   if (
@@ -120,8 +128,8 @@ export async function withRpcFallback<T>(
 
   for (let cycle = 1; cycle <= cycles; cycle++) {
     for (const url of RPC_NODES) {
+      const provider = createProvider(url);
       try {
-        const provider = createProvider(url);
         const value = await run(provider, url);
         if (options?.isValueOk && !options.isValueOk(value)) {
           lastError = new Error(`Unusable RPC result from ${url}`);
@@ -136,6 +144,8 @@ export async function withRpcFallback<T>(
         lastError = err;
         const reason = errorText(err);
         console.warn(`RPC ${url} failed (cycle ${cycle}/${cycles}): ${reason}`);
+      } finally {
+        safeDestroy(provider);
       }
     }
   }
@@ -149,12 +159,14 @@ async function probeTransaction(hash: string, startIndex: number): Promise<boole
   const count = Math.min(3, RPC_NODES.length);
   for (let k = 0; k < count; k++) {
     const url = RPC_NODES[(startIndex + k) % RPC_NODES.length];
+    const provider = createProvider(url);
     try {
-      const provider = createProvider(url);
       const tx = await provider.getTransaction(hash);
       if (tx) return true;
     } catch (err) {
       console.warn(`probe ${hash} via ${url} failed:`, errorText(err));
+    } finally {
+      safeDestroy(provider);
     }
   }
   return false;
@@ -193,9 +205,10 @@ async function broadcastToNode(
 
     console.warn(`broadcast to ${url} failed: ${errorText(err)}`);
     return "retry";
+  } finally {
+    safeDestroy(provider);
   }
 }
-
 /**
  * Broadcast one already-signed raw tx. Same payload is sent to extra nodes after the first accept.
  */

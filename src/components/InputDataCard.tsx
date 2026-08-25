@@ -12,12 +12,11 @@ import { useThemePreference } from '../context/ThemeContext';
 interface InputDataCardProps {
   item: InputDataItem;
   cardWidth?: number;
-  highlightName?: boolean;
   onPress?: () => void;
 }
 
 export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
-  ({ item, cardWidth, highlightName, onPress }) => {
+  ({ item, cardWidth, onPress }) => {
     const theme = useTheme();
     const { t } = useTranslation();
     const { state } = useAppContext();
@@ -27,8 +26,20 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
 
     const isBlackHole = isBlackHoleAddress(item.address);
     const isSelf = !isBlackHole && state.profile?.address?.toLowerCase() === item.address?.toLowerCase();
-    const nameHighlighted = isBlackHole || isSelf || highlightName;
-    const nameText = isBlackHole ? t('send.recipientBlackHole') : isSelf ? t('send.recipientSelf') : item.name;
+    const sub =
+      !isBlackHole && !isSelf
+        ? state.subscriptions.find(
+            (s) => s.address.toLowerCase() === item.address?.toLowerCase(),
+          )
+        : undefined;
+    // Always sender address; short label only for black hole / self / subscription.
+    const shortName = isBlackHole
+      ? t('send.recipientBlackHole')
+      : isSelf
+        ? t('send.recipientSelf')
+        : sub
+          ? sub.description
+          : null;
 
     const renderBody = () => {
       if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
@@ -76,7 +87,14 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
               style={[styles.addressLabel, { color: theme.colors.primary, flex: 1 }]}
               numberOfLines={1}
             >
-              {shortenAddress(item.address)} ({nameHighlighted ? <Text style={{ color: theme.colors.secondary, fontWeight: '700' }}>{nameText}</Text> : nameText})
+              {shortenAddress(item.address)}
+              {shortName ? (
+                <>
+                  {' ('}
+                  <Text style={{ color: theme.colors.secondary, fontWeight: '700' }}>{shortName}</Text>
+                  )
+                </>
+              ) : null}
             </Text>
             <Text
               variant="labelSmall"

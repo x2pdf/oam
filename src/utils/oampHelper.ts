@@ -16,9 +16,10 @@ export function isOAMP(hex: string | undefined): boolean {
 /**
  * Parses OAMP content from raw hex input.
  * Handles unencrypted messages (CryptoScheme.NONE).
+ * `sender` / `recipient` are required so TYPE routing invariants can be checked.
  * Returns null if parsing fails, message is encrypted, or not OAMP.
  */
-export function parseOAMPContent(hex: string | undefined, sender: string = '', recipient: string = ''): ContentItem[] | null {
+export function parseOAMPContent(hex: string | undefined, sender: string, recipient: string): ContentItem[] | null {
   if (!isOAMP(hex)) return null;
 
   try {

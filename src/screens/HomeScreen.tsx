@@ -13,7 +13,7 @@ import { scrollFill } from '../theme/scroll';
 import { useListColumnLayout } from '../theme/layout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput, Checkbox } from 'react-native-paper';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import TabPager, { TabPagerRef } from '../components/TabPager';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +27,7 @@ import { OAMPClient } from '../oamp/client';
 import { applyDisplayPipeline, markAllRaw } from '../display';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FILTER_STATE_KEY } from '../constants';
+import { FILTER_STATE_KEY, SQUARE_FETCH_CONCURRENCY } from '../constants';
 import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
 import {
@@ -67,6 +67,25 @@ function wipeDecryptedItems(items: InputDataItem[]): InputDataItem[] {
 /*  主页屏幕                                                           */
 /* ------------------------------------------------------------------ */
 
+
+async function mapPool<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const runWorker = async () => {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= items.length) return;
+      results[i] = await worker(items[i], i);
+    }
+  };
+  const poolSize = Math.max(1, Math.min(limit, items.length || 1));
+  await Promise.all(Array.from({ length: poolSize }, () => runWorker()));
+  return results;
+}
 export default function HomeScreen() {
   const theme = useTheme();
   const { fontScale } = useThemePreference();
@@ -128,10 +147,20 @@ export default function HomeScreen() {
 
   // 使用 Ref 存储分页参数和状态，避免 loadData 身份变化触发重复请求
   const flatListRefs = useRef<(FlatList | null)[]>([null, null, null]);
+  const scrollToTopRef = useRef({
+    scrollToTop: () => {
+      flatListRefs.current[activeTabRef.current]?.scrollToOffset({
+        offset: 0,
+        animated: true,
+      });
+    },
+  });
+  useScrollToTop(scrollToTopRef);
   const nextPageParamsRef = useRef<any[]>([null, null, null, null]);
   const hasMoreRef = useRef<boolean[]>([true, true, true, true]);
   const loadingMoreRef = useRef<boolean[]>([false, false, false, false]);
   const initialLoadDoneRef = useRef(false);
+  const loadGenRef = useRef<number[]>([0, 0, 0, 0]);
 
   // 消息标签页合并显示已发送 + 收到（按 id 去重）
   const messagesData = useMemo(() => {
@@ -209,6 +238,11 @@ export default function HomeScreen() {
     // 如果是加载更多，但已经没有更多了，或者正在加载中，则返回
     if (isLoadMore && (!hasMoreRef.current[internalIndex] || loadingMoreRef.current[internalIndex])) return;
 
+    const loadGen = isLoadMore
+      ? loadGenRef.current[internalIndex]
+      : ++loadGenRef.current[internalIndex];
+    const isStale = () => loadGen !== loadGenRef.current[internalIndex];
+
     if (isRefreshing) {
       setRefreshing((prev) => {
         const next = [...prev];
@@ -256,33 +290,28 @@ export default function HomeScreen() {
       let allErrors: string[] = [];
 
       if (mode === 'square') {
-        // Black hole: mode='square' (仅接收，用于 OAMP)
-        // User + Subscriptions: mode='all' (收发，用于 UTF-8 / 关注 / 全部)
-        const fetches: Promise<{ items: InputDataItem[]; next_page_params: any; errors?: string[] }>[] = [
-          dataSourceManager.fetchAll(BLACK_HOLE_ADDRESS, 'square', params).catch(e => {
+        type SquareFetchResult = { items: InputDataItem[]; next_page_params: any; errors?: string[] };
+        const safeFetch = (
+          address: string,
+          fetchMode: 'square' | 'all',
+        ): Promise<SquareFetchResult> =>
+          dataSourceManager.fetchAll(address, fetchMode, params).catch(e => {
             const message = e instanceof Error ? e.message : String(e);
             return { items: [], next_page_params: null, errors: [message] };
-          }),
+          });
+
+        const squareJobs: Array<() => Promise<SquareFetchResult>> = [
+          () => safeFetch(BLACK_HOLE_ADDRESS, 'square'),
         ];
         if (profile?.address) {
-          fetches.push(
-            dataSourceManager.fetchAll(profile.address, 'all', params).catch(e => {
-              const message = e instanceof Error ? e.message : String(e);
-              return { items: [], next_page_params: null, errors: [message] };
-            }),
-          );
+          squareJobs.push(() => safeFetch(profile.address, 'all'));
         }
         subscriptions.forEach(s => {
-          fetches.push(
-            dataSourceManager.fetchAll(s.address, 'all', params).catch(e => {
-              const message = e instanceof Error ? e.message : String(e);
-              return { items: [], next_page_params: null, errors: [message] };
-            }),
-          );
+          squareJobs.push(() => safeFetch(s.address, 'all'));
         });
 
-        // Concurrent fetch
-        const results = await Promise.all(fetches);
+        // Bound concurrency so many subscriptions cannot open dozens of explorer requests at once.
+        const results = await mapPool(squareJobs, SQUARE_FETCH_CONCURRENCY, (job) => job());
 
         // Merge and deduplicate by ID (tx hash)
         const map = new Map<string, InputDataItem>();
@@ -304,6 +333,8 @@ export default function HomeScreen() {
         nextParams = result.next_page_params;
         if (result.errors) allErrors = result.errors;
       }
+
+      if (isStale()) return;
 
       if (mode === 'square' && resultItems.length === 0 && allErrors.length > 0) {
         if (allErrors.includes('MISSING_ETHERSCAN_API_KEY')) {
@@ -392,23 +423,25 @@ export default function HomeScreen() {
       } else {
         setError(err.message || t('common.errorFetch'));
       }
-    } finally {
-      setLoading((prev) => {
-        const next = [...prev];
-        next[uiIndex] = false;
-        return next;
-      });
-      setRefreshing((prev) => {
-        const next = [...prev];
-        next[internalIndex] = false;
-        return next;
-      });
-      loadingMoreRef.current[internalIndex] = false;
-      setLoadingMore(prev => {
-        const next = [...prev];
-        next[uiIndex] = false;
-        return next;
-      });
+        } finally {
+      if (!isStale()) {
+        setLoading((prev) => {
+          const next = [...prev];
+          next[uiIndex] = false;
+          return next;
+        });
+        setRefreshing((prev) => {
+          const next = [...prev];
+          next[internalIndex] = false;
+          return next;
+        });
+        loadingMoreRef.current[internalIndex] = false;
+        setLoadingMore(prev => {
+          const next = [...prev];
+          next[uiIndex] = false;
+          return next;
+        });
+      }
     }
   }, [profile?.address, apiKey, subscriptions, t]);
 
@@ -568,13 +601,8 @@ export default function HomeScreen() {
   );
 
   const onTabPress = (index: number) => {
-    const isSameTab = activeTabRef.current === index;
     applyTabIndex(index);
     pagerRef.current?.setPage(index);
-    // 仅在点击当前已激活的标签页时，列表回到顶部（类似双击行为）
-    if (isSameTab) {
-      flatListRefs.current[index]?.scrollToOffset({ offset: 0, animated: true });
-    }
   };
 
   const onPageSelected = (e: any) => {
@@ -594,22 +622,14 @@ export default function HomeScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: InputDataItem }) => {
-      const sub = subscriptions.find(
-        (s) => s.address.toLowerCase() === item.address.toLowerCase()
-      );
-      const displayDesc = sub ? sub.description : item.name;
-
-      return (
-        <InputDataCard
-          item={{ ...item, name: displayDesc }}
-          cardWidth={cardWidth}
-          highlightName={!!sub}
-          onPress={() => handleItemPress({ ...item, name: displayDesc })}
-        />
-      );
-    },
-    [cardWidth, subscriptions, handleItemPress],
+    ({ item }: { item: InputDataItem }) => (
+      <InputDataCard
+        item={item}
+        cardWidth={cardWidth}
+        onPress={() => handleItemPress(item)}
+      />
+    ),
+    [cardWidth, handleItemPress],
   );
 
   const keyExtractor = useCallback((item: InputDataItem) => item.id, []);

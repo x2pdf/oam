@@ -21,7 +21,8 @@ export async function tryOampFilter(
 
     const sender = item.from || item.address || '';
     const recipient = item.to || '';
-    const msg = deserializeMessage(item.rawInput!, sender, recipient);
+    const chainId = item.chainId != null ? BigInt(item.chainId) : undefined;
+    const msg = deserializeMessage(item.rawInput!, sender, recipient, chainId, item.txNonce);
     if (!msg) return { kind: 'miss' };
 
     if (msg.crypto === CryptoScheme.NONE) {

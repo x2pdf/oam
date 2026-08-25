@@ -30,6 +30,7 @@ import InputDataDetailScreen from '../screens/InputDataDetailScreen';
 import AddressDataListScreen from '../screens/AddressDataListScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
 import LocalFavoritesScreen from '../screens/LocalFavoritesScreen';
+import LocalDraftsScreen from '../screens/LocalDraftsScreen';
 import AppInfoScreen from '../screens/AppInfoScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { getHeaderChrome } from '../theme';
@@ -268,6 +269,13 @@ export default function AppNavigator() {
           component={LocalFavoritesScreen}
           options={{
             title: t('nav.localFavorites'),
+          }}
+        />
+        <Stack.Screen
+          name="LocalDrafts"
+          component={LocalDraftsScreen}
+          options={{
+            title: t('nav.localDrafts'),
           }}
         />
         <Stack.Screen

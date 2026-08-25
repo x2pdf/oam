@@ -50,6 +50,7 @@
     "addressDataList": "Address Data",
     "conversation": "Conversation",
     "localFavorites": "Local Favorites",
+    "localDrafts": "Drafts",
     "appInfo": "App Info"
   },
   "home": {
@@ -112,6 +113,13 @@
     "emptyHint": "Open a data detail page and tap Favorite to save it on this device",
     "count": "{{count}} items"
   },
+  "drafts": {
+    "empty": "No drafts yet",
+    "emptyHint": "Tap Save Draft when canceling a send to keep it on this device",
+    "count": "{{count}} items",
+    "recipient": "To: {{name}}",
+    "updatedAt": "Updated {{time}}"
+  },
   "detail": {
     "txHash": "Transaction Hash",
     "time": "Time",
@@ -136,6 +144,7 @@
     "language": "Language",
     "selectLanguage": "Select Language",
     "localFavorites": "Local Favorites",
+    "localDrafts": "Drafts",
     "appearance": "Appearance",
     "selectAppearance": "Select Appearance",
     "themeLight": "Light",
@@ -147,6 +156,13 @@
     "fontSizeDefault": "Default",
     "fontSizeLarge": "Large",
     "fontSizeLarger": "Larger",
+    "dataSourceWeights": "Data Source Weight",
+    "editDataSourceWeights": "Set Data Source Weight",
+    "weightLabel": "Weight (1-1000)",
+    "weightHint": "Higher values mean higher priority",
+    "activeSource": "Active",
+    "inactiveSource": "Inactive (API Key not set)",
+    "requiresKeyHint": "This source requires an API Key to enable",
     "updateApiKey": "Update Etherscan API Key",
     "addApiKey": "Add Etherscan API Key",
     "setApiKeyTitle": "Set Etherscan API Key",
@@ -347,8 +363,11 @@
     "txHash": "Transaction Hash: {{hash}}",
     "submitNotMinedHint": "On-chain inclusion is not guaranteed; check a block explorer for the final status.",
     "confirmCancelTitle": "Confirm Cancel",
-    "confirmCancelMsg": "Are you sure you want to cancel? This will clear the entered data.",
+    "confirmCancelMsg": "Cancel sending? You can save a draft and continue later from Profile. Discarding will clear the entered data.",
     "continueEdit": "Continue Editing",
+    "saveAsDraft": "Save Draft",
+    "discardChanges": "Discard",
+    "draftSaveFailed": "Failed to save draft. Please try again.",
     "pickImageSourceTitle": "Choose image source",
     "pickImageFromLibrary": "Photo library",
     "pickImageFromFiles": "Files",

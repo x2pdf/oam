@@ -1,6 +1,6 @@
 import { BaseDataSource } from './BaseDataSource';
 import { FetchMode, DataSourceResult, OutgoingTxResult } from './types';
-import { DATA_SOURCE_WEIGHTS, API_CONFIG } from '../constants';
+import { DATA_SOURCE_WEIGHTS, API_CONFIG, DATA_SOURCE_PAGE_SIZE } from '../constants';
 import {
   fetchEtherscanStyleTxList,
   getPageOffset,
@@ -10,12 +10,18 @@ import {
 
 export class EtherscanDataSource extends BaseDataSource {
   name = 'Etherscan';
-  weight = DATA_SOURCE_WEIGHTS.ETHERSCAN;
+  requiresApiKey = true;
 
-  readonly apiKey = API_CONFIG.ETHERSCAN_API_KEY;
+  get weight() {
+    return DATA_SOURCE_WEIGHTS.ETHERSCAN;
+  }
+
+  get apiKey() {
+    return API_CONFIG.ETHERSCAN_API_KEY;
+  }
 
   private buildUrl(address: string, params: any, defaultOffset: string): string {
-    if (!API_CONFIG.ETHERSCAN_API_KEY) {
+    if (!this.apiKey) {
       throw new Error('MISSING_ETHERSCAN_API_KEY');
     }
     const { page, offset } = getPageOffset(params, defaultOffset);
@@ -29,15 +35,16 @@ export class EtherscanDataSource extends BaseDataSource {
       sort: 'desc',
       page,
       offset,
-      apikey: API_CONFIG.ETHERSCAN_API_KEY,
+      apikey: this.apiKey,
     });
     return `${API_CONFIG.ETHERSCAN_BASE_URL}?${urlParams.toString()}`;
   }
 
   async fetchMessages(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
     const cleanAddress = address.trim().toLowerCase();
+    const pageSize = String(DATA_SOURCE_PAGE_SIZE);
     const txs = await fetchEtherscanStyleTxList(
-      this.buildUrl(cleanAddress, params, '20'),
+      this.buildUrl(cleanAddress, params, pageSize),
       this.name,
     );
     return toMessageResult(
@@ -45,7 +52,7 @@ export class EtherscanDataSource extends BaseDataSource {
       cleanAddress,
       mode,
       params,
-      '20',
+      pageSize,
       (ts) => this.formatTimestamp(ts),
       (addr) => this.shortenAddress(addr),
     );
@@ -53,10 +60,11 @@ export class EtherscanDataSource extends BaseDataSource {
 
   async fetchOutgoingTransactions(address: string, params: any = null): Promise<OutgoingTxResult> {
     const cleanAddress = address.trim().toLowerCase();
+    const pageSize = String(DATA_SOURCE_PAGE_SIZE);
     const txs = await fetchEtherscanStyleTxList(
-      this.buildUrl(cleanAddress, params, '50'),
+      this.buildUrl(cleanAddress, params, pageSize),
       this.name,
     );
-    return toOutgoingResult(txs, cleanAddress, params, '50');
+    return toOutgoingResult(txs, cleanAddress, params, pageSize);
   }
 }

@@ -4,6 +4,8 @@ import { isBlackHoleAddress } from '../utils/address';
 export abstract class BaseDataSource implements IDataSource {
   abstract name: string;
   abstract weight: number;
+  /** 子类可覆盖此属性以声明是否必须 API Key */
+  readonly requiresApiKey: boolean = false;
   /** 子类可覆盖此属性以声明 API Key 支持 */
   readonly apiKey?: string;
 

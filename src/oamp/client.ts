@@ -418,32 +418,32 @@ export class OAMPClient {
     try {
       let decryptedPayload: Uint8Array;
 
-      let aad: Uint8Array;
-      if (msg.crypto !== CryptoScheme.NONE && msg.chainId !== undefined && msg.txNonce !== undefined) {
+      if (msg.crypto === CryptoScheme.NONE) {
+        decryptedPayload = msg.payload;
+      } else {
+        if (msg.chainId === undefined || msg.txNonce === undefined) {
+          return null;
+        }
         const context: EncryptionContext = {
           chainId: msg.chainId,
           sender: msg.sender,
           recipient: msg.recipient,
           txNonce: msg.txNonce
         };
-        aad = getMessageHeader(msg.type, msg.crypto, context);
-      } else {
-        aad = getMessageHeader(msg.type, msg.crypto);
-      }
+        const aad = getMessageHeader(msg.type, msg.crypto, context);
 
-      if (msg.crypto === CryptoScheme.NONE) {
-        decryptedPayload = msg.payload;
-      } else if (msg.type === MessageType.PERSONAL) {
-        const key = await derivePersonalKey(this.wallet);
-        decryptedPayload = await decrypt(key, msg.payload, msg.nonce, aad);
-      } else if (msg.type === MessageType.P2P) {
-        if (!senderPublicKey) {
-          throw new Error("P2P decryption requires senderPublicKey.");
+        if (msg.type === MessageType.PERSONAL) {
+          const key = await derivePersonalKey(this.wallet);
+          decryptedPayload = await decrypt(key, msg.payload, msg.nonce, aad);
+        } else if (msg.type === MessageType.P2P) {
+          if (!senderPublicKey) {
+            throw new Error("P2P decryption requires senderPublicKey.");
+          }
+          const sharedKey = deriveSharedSecret(this.wallet.privateKey, senderPublicKey);
+          decryptedPayload = await decrypt(sharedKey, msg.payload, msg.nonce, aad);
+        } else {
+          return null;
         }
-        const sharedKey = deriveSharedSecret(this.wallet.privateKey, senderPublicKey);
-        decryptedPayload = await decrypt(sharedKey, msg.payload, msg.nonce, aad);
-      } else {
-        return null;
       }
 
       // 使用规范化解码器还原内容

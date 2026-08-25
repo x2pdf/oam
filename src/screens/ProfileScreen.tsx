@@ -26,6 +26,7 @@ import { CopyableAddress } from '../components/CopyableAddress';
 import { AppModal } from '../components/AppModal';
 import { withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, formatUsd } from '../rpc/ethPrice';
+import { dataSourceManager } from '../datasource/DataSourceManager';
 import { formatEther } from 'ethers';
 import appConfig from '../../app.json';
 
@@ -64,7 +65,7 @@ function getPlatformLabel(t: (key: string) => string): string {
 export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
-  const { state, setApiKey } = useAppContext();
+  const { state, setApiKey, setDataSourceWeights } = useAppContext();
   const { themeMode, setThemeMode, fontScale, setFontScale } = useThemePreference();
   const { t, i18n } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
@@ -73,7 +74,9 @@ export default function ProfileScreen() {
   const [isLanguageDialogVisible, setIsLanguageDialogVisible] = useState(false);
   const [isThemeDialogVisible, setIsThemeDialogVisible] = useState(false);
   const [isFontSizeDialogVisible, setIsFontSizeDialogVisible] = useState(false);
+  const [isWeightModalVisible, setIsWeightModalVisible] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
+  const [localWeights, setLocalWeights] = useState<Record<string, number>>({});
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [balanceEth, setBalanceEth] = useState<string | null>(null);
   const [balanceUsd, setBalanceUsd] = useState<string | null>(null);
@@ -122,6 +125,39 @@ export default function ProfileScreen() {
     await setFontScale(scale);
     hideFontSizeDialog();
   }, [setFontScale, hideFontSizeDialog]);
+
+  const sources = useMemo(() => dataSourceManager.getSources(), []);
+
+  const activeSourcesCount = useMemo(() => {
+    return sources.filter((s) => !s.requiresApiKey || !!s.apiKey).length;
+  }, [sources, state.apiKey]); // Re-calc when apiKey changes
+
+  const showWeightModal = useCallback(() => {
+    const currentWeights = sources.reduce((acc, s) => {
+      acc[s.name] = state.dataSourceWeights[s.name] ?? s.weight;
+      return acc;
+    }, {} as Record<string, number>);
+    setLocalWeights(currentWeights);
+    setIsWeightModalVisible(true);
+  }, [sources, state.dataSourceWeights]);
+
+  const hideWeightModal = useCallback(() => {
+    setIsWeightModalVisible(false);
+  }, []);
+
+  const handleSaveWeights = useCallback(async () => {
+    await setDataSourceWeights(localWeights);
+    hideWeightModal();
+  }, [localWeights, setDataSourceWeights, hideWeightModal]);
+
+  const updateLocalWeight = (name: string, val: string) => {
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) {
+      setLocalWeights((prev) => ({ ...prev, [name]: num }));
+    } else if (val === '') {
+      setLocalWeights((prev) => ({ ...prev, [name]: 0 }));
+    }
+  };
 
   const currentFontScaleLabel = useMemo(() => {
     const preset = FONT_SCALE_PRESETS.find((p) => p.value === fontScale)
@@ -397,6 +433,40 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
+        {/* 3b. 我的草稿 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={() => navigation.navigate('LocalDrafts')}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="file-document-edit-outline"
+                style={{ backgroundColor: theme.colors.secondaryContainer }}
+                color={theme.colors.secondary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.localDrafts')}
+                </Text>
+                <Text variant="titleMedium">
+                  {t('drafts.count', { count: state.drafts.length })}
+                </Text>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                onPress={() => navigation.navigate('LocalDrafts')}
+              />
+            </View>
+          </Card.Content>
+        </Card>
+
         {/* 4. 外观 / 主题 */}
         <View style={styles.sectionSpacer} />
         <Card
@@ -455,6 +525,37 @@ export default function ProfileScreen() {
                 </Text>
               </View>
               <IconButton icon="chevron-right" onPress={showFontSizeDialog} />
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* 4.6 数据源权重 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={showWeightModal}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="sort-ascending"
+                style={{ backgroundColor: theme.colors.primaryContainer }}
+                color={theme.colors.primary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.dataSourceWeights')}
+                </Text>
+                <Text variant="titleMedium">
+                  {activeSourcesCount} / {sources.length} {t('profile.activeSource')}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={showWeightModal} />
             </View>
           </Card.Content>
         </Card>
@@ -622,6 +723,54 @@ export default function ProfileScreen() {
         </RadioButton.Group>
       </AppModal>
 
+      <AppModal
+        visible={isWeightModalVisible}
+        onDismiss={hideWeightModal}
+        title={t('profile.editDataSourceWeights')}
+        actions={[
+          { label: t('common.cancel'), onPress: hideWeightModal },
+          { label: t('common.save'), onPress: handleSaveWeights },
+        ]}
+      >
+        <ScrollView style={{ maxHeight: 400 }}>
+          {sources.map((source) => {
+            const isDisabled = source.requiresApiKey && !source.apiKey;
+            return (
+              <View key={source.name} style={styles.weightItem}>
+                <View style={styles.weightHeader}>
+                  <Text variant="titleSmall" style={{ color: isDisabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface }}>
+                    {source.name}
+                  </Text>
+                  {isDisabled && (
+                    <Text variant="bodySmall" style={{ color: theme.colors.error, fontSize: 10 }}>
+                      ({t('profile.inactiveSource')})
+                    </Text>
+                  )}
+                </View>
+                <TextInput
+                  mode="outlined"
+                  dense
+                  label={t('profile.weightLabel')}
+                  value={String(localWeights[source.name] ?? source.weight)}
+                  onChangeText={(val) => updateLocalWeight(source.name, val)}
+                  keyboardType="numeric"
+                  disabled={isDisabled}
+                  style={styles.weightInput}
+                />
+                {isDisabled && (
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, marginTop: 2 }}>
+                    {t('profile.requiresKeyHint')}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+          <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
+            {t('profile.weightHint')}
+          </Text>
+        </ScrollView>
+      </AppModal>
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -704,5 +853,17 @@ const styles = StyleSheet.create({
     margin: 0,
     marginLeft: 4,
     padding: 0,
+  },
+  weightItem: {
+    marginBottom: 16,
+  },
+  weightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  weightInput: {
+    height: 40,
   },
 });

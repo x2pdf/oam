@@ -2,21 +2,32 @@ import { BaseDataSource } from './BaseDataSource';
 import { parseBlockscoutTxList } from './ChainTransaction';
 import { FetchMode, DataSourceResult, OutgoingTxResult } from './types';
 import { mapTransactionsToMessages, mapTransactionsToOutgoing } from './transactionMapper';
-import { DATA_SOURCE_WEIGHTS } from '../constants';
+import { DATA_SOURCE_PAGE_SIZE, DATA_SOURCE_WEIGHTS } from '../constants';
 import { agentLog } from './debugAgentLog';
+import { fetchWithTimeout } from './fetchWithTimeout';
+
+function blockscoutQuery(extra: Record<string, unknown> | null | undefined = null): string {
+  const query = extra && typeof extra === 'object' ? new URLSearchParams(
+    Object.entries(extra).reduce<Record<string, string>>((acc, [key, value]) => {
+      if (value != null && key !== 'filter') acc[key] = String(value);
+      return acc;
+    }, {}),
+  ) : new URLSearchParams();
+  query.set('items_count', String(DATA_SOURCE_PAGE_SIZE));
+  return query.toString();
+}
 
 export class BlockscoutDataSource extends BaseDataSource {
   name = 'Blockscout';
-  weight = DATA_SOURCE_WEIGHTS.BLOCKSCOUT;
+
+  get weight() {
+    return DATA_SOURCE_WEIGHTS.BLOCKSCOUT;
+  }
 
   async fetchMessages(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
     const cleanAddress = address.trim().toLowerCase();
-    let baseUrl = `https://eth.blockscout.com/api/v2/addresses/${cleanAddress}/transactions`;
-
-    if (params) {
-      const query = new URLSearchParams(params).toString();
-      baseUrl += `?${query}`;
-    }
+    const query = blockscoutQuery(params);
+    const baseUrl = `https://eth.blockscout.com/api/v2/addresses/${cleanAddress}/transactions?${query}`;
 
     // #region agent log
     const fetchStartedAt = Date.now();
@@ -29,12 +40,7 @@ export class BlockscoutDataSource extends BaseDataSource {
     // #endregion
     let response: Response;
     try {
-      response = await fetch(baseUrl, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-        },
-      });
+      response = await fetchWithTimeout(baseUrl);
       // #region agent log
       agentLog(
         'BlockscoutDataSource.ts:fetchMessages:after',
@@ -76,23 +82,11 @@ export class BlockscoutDataSource extends BaseDataSource {
 
   async fetchOutgoingTransactions(address: string, params: any = null): Promise<OutgoingTxResult> {
     const cleanAddress = address.trim().toLowerCase();
-    const query = new URLSearchParams({ filter: 'from' });
-    if (params && typeof params === 'object') {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value != null && key !== 'filter') {
-          query.set(key, String(value));
-        }
-      });
-    }
-
+    const query = new URLSearchParams(blockscoutQuery(params));
+    query.set('filter', 'from');
     const url = `https://eth.blockscout.com/api/v2/addresses/${cleanAddress}/transactions?${query.toString()}`;
 
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-      },
-    });
+    const response = await fetchWithTimeout(url);
     if (!response.ok) {
       throw new Error(`Blockscout API error: ${response.statusText}`);
     }

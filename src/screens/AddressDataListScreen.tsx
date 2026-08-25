@@ -67,6 +67,7 @@ export default function AddressDataListScreen() {
   const nextPageParamsRef = useRef<any>(null);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
+  const loadGenRef = useRef(0);
 
   const conversationMode = !!peerAddress;
 
@@ -126,6 +127,9 @@ export default function AddressDataListScreen() {
     async (isRefreshing = false, isLoadMore = false) => {
       if (isLoadMore && (!hasMoreRef.current || loadingMoreRef.current)) return;
 
+      const loadGen = isLoadMore ? loadGenRef.current : ++loadGenRef.current;
+      const isStale = () => loadGen !== loadGenRef.current;
+
       if (isRefreshing) {
         setRefreshing(true);
         nextPageParamsRef.current = null;
@@ -148,6 +152,8 @@ export default function AddressDataListScreen() {
           isLoadMore ? nextPageParamsRef.current : null,
         );
 
+        if (isStale()) return;
+
         if (isLoadMore) {
           setData((prev) => mergeById(prev, items));
         } else {
@@ -160,10 +166,12 @@ export default function AddressDataListScreen() {
       } catch (err: any) {
         setError(err.message || t('common.errorFetch'));
       } finally {
-        setLoading(false);
-        setRefreshing(false);
-        loadingMoreRef.current = false;
-        setLoadingMore(false);
+        if (!isStale()) {
+          setLoading(false);
+          setRefreshing(false);
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        }
       }
     },
     [fetchPages, t],
@@ -173,11 +181,15 @@ export default function AddressDataListScreen() {
   loadDataRef.current = loadData;
 
   useEffect(() => {
+    loadGenRef.current += 1;
     setData([]);
     nextPageParamsRef.current = null;
     hasMoreRef.current = true;
     setHasMore(true);
     loadDataRef.current();
+    return () => {
+      loadGenRef.current += 1;
+    };
   }, [address, peerAddress]);
 
   const showCopiedSnackbar = useCallback(() => {

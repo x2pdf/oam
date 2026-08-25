@@ -4,6 +4,53 @@ require File.join(File.dirname(`node --print "require.resolve('react-native/pack
 require 'json'
 podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
 
+# Aliyun Maven for React Native prebuilt tarballs (Hermes / RN core).
+ENV['ENTERPRISE_REPOSITORY'] ||= 'https://maven.aliyun.com/repository/central'
+
+# CocoaPods clones many pod sources from github.com; rewrite via a mainland-reachable proxy
+# without touching the user's git config files.
+unless ENV['GIT_CONFIG_COUNT']
+  ENV['GIT_CONFIG_COUNT'] = '2'
+  ENV['GIT_CONFIG_KEY_0'] = 'url.https://ghfast.top/https://github.com/.insteadof'
+  ENV['GIT_CONFIG_VALUE_0'] = 'https://github.com/'
+  ENV['GIT_CONFIG_KEY_1'] = 'http.version'
+  ENV['GIT_CONFIG_VALUE_1'] = 'HTTP/1.1'
+end
+
+# CocoaPods CDN often redirects to raw.githubusercontent.com and times out (10s).
+# Rewrite those URLs through a mainland-reachable GitHub proxy and raise timeouts.
+begin
+  require 'cocoapods-core/cdn_source'
+rescue LoadError
+end
+if defined?(Pod::CDNSource) && !Pod::CDNSource.method_defined?(:__oam_orig_download_typhoeus_impl_async)
+  class Pod::CDNSource
+    alias_method :__oam_orig_download_typhoeus_impl_async, :download_typhoeus_impl_async
+
+    def download_typhoeus_impl_async(file_remote_url, etag)
+      require 'typhoeus'
+      unless Typhoeus::Request.instance_variable_defined?(:@oam_timeout_patched)
+        Typhoeus::Request.instance_variable_set(:@oam_timeout_patched, true)
+        Typhoeus::Request.class_eval do
+          alias_method :__oam_orig_initialize, :initialize
+          def initialize(url, options = {})
+            options = (options || {}).dup
+            options[:timeout] = [options.fetch(:timeout, 0).to_i, 60].max
+            options[:connecttimeout] = [options.fetch(:connecttimeout, 0).to_i, 20].max
+            __oam_orig_initialize(url, options)
+          end
+        end
+      end
+
+      url = file_remote_url.to_s
+      if url.start_with?('https://raw.githubusercontent.com/')
+        url = "https://ghfast.top/#{url}"
+      end
+      __oam_orig_download_typhoeus_impl_async(url, etag)
+    end
+  end
+end
+
 def ccache_enabled?(podfile_properties)
   # Environment variable takes precedence
   return ENV['USE_CCACHE'] == '1' if ENV['USE_CCACHE']
