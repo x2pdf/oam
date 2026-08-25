@@ -42,7 +42,7 @@ export class EtherscanDataSource extends BaseDataSource {
 
   async fetchMessages(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
     const cleanAddress = address.trim().toLowerCase();
-    const pageSize = String(DATA_SOURCE_PAGE_SIZE);
+    const pageSize = String(params?.offset ?? params?.items_count ?? DATA_SOURCE_PAGE_SIZE);
     const txs = await fetchEtherscanStyleTxList(
       this.buildUrl(cleanAddress, params, pageSize),
       this.name,

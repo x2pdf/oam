@@ -27,7 +27,7 @@ import { OAMPClient } from '../oamp/client';
 import { applyDisplayPipeline, markAllRaw } from '../display';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FILTER_STATE_KEY, SQUARE_FETCH_CONCURRENCY } from '../constants';
+import { FILTER_STATE_KEY, SQUARE_FETCH_CONCURRENCY, BLACK_HOLE_PAGE_SIZE, BLACK_HOLE_EMPTY_CONTINUE_PAGES } from '../constants';
 import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
 import {
@@ -157,6 +157,8 @@ export default function HomeScreen() {
   });
   useScrollToTop(scrollToTopRef);
   const nextPageParamsRef = useRef<any[]>([null, null, null, null]);
+  /** 广场各地址独立游标：undefined=尚未拉过/首页，null=已耗尽，object=下一页参数 */
+  const squareCursorsRef = useRef<Record<string, any>>({});
   const hasMoreRef = useRef<boolean[]>([true, true, true, true]);
   const loadingMoreRef = useRef<boolean[]>([false, false, false, false]);
   const initialLoadDoneRef = useRef(false);
@@ -251,6 +253,7 @@ export default function HomeScreen() {
       });
       // 下拉刷新重置分页
       nextPageParamsRef.current[internalIndex] = null;
+      if (mode === 'square') squareCursorsRef.current = {};
       hasMoreRef.current[internalIndex] = true;
       setHasMore(prev => {
         const next = [...prev];
@@ -272,6 +275,7 @@ export default function HomeScreen() {
       });
       // 初次加载重置分页
       nextPageParamsRef.current[internalIndex] = null;
+      if (mode === 'square') squareCursorsRef.current = {};
       hasMoreRef.current[internalIndex] = true;
       setHasMore(prev => {
         const next = [...prev];
@@ -290,37 +294,113 @@ export default function HomeScreen() {
       let allErrors: string[] = [];
 
       if (mode === 'square') {
-        type SquareFetchResult = { items: InputDataItem[]; next_page_params: any; errors?: string[] };
-        const safeFetch = (
+        type SquareFetchResult = {
+          address: string;
+          items: InputDataItem[];
+          next_page_params: any;
+          errors?: string[];
+        };
+
+        const withBlackHolePageSize = (pageParams: any) => ({
+          ...(pageParams && typeof pageParams === 'object' ? pageParams : { page: '1' }),
+          offset: String(BLACK_HOLE_PAGE_SIZE),
+          items_count: String(BLACK_HOLE_PAGE_SIZE),
+        });
+
+        const safeFetchOnce = (
           address: string,
           fetchMode: 'square' | 'all',
-        ): Promise<SquareFetchResult> =>
-          dataSourceManager.fetchAll(address, fetchMode, params).catch(e => {
+          pageParams: any,
+        ): Promise<Omit<SquareFetchResult, 'address'>> =>
+          dataSourceManager.fetchAll(address, fetchMode, pageParams).catch(e => {
             const message = e instanceof Error ? e.message : String(e);
             return { items: [], next_page_params: null, errors: [message] };
           });
 
-        const squareJobs: Array<() => Promise<SquareFetchResult>> = [
-          () => safeFetch(BLACK_HOLE_ADDRESS, 'square'),
-        ];
-        if (profile?.address) {
-          squareJobs.push(() => safeFetch(profile.address, 'all'));
+        /** 黑洞：大页 + 过滤后空页最多再续拉 BLACK_HOLE_EMPTY_CONTINUE_PAGES 次 */
+        const fetchBlackHole = async (startParams: any): Promise<Omit<SquareFetchResult, 'address'>> => {
+          let pageParams = withBlackHolePageSize(startParams);
+          const collected: InputDataItem[] = [];
+          const errors: string[] = [];
+          let lastNext: any = null;
+          let pages = 0;
+          const maxPages = 1 + BLACK_HOLE_EMPTY_CONTINUE_PAGES;
+
+          do {
+            const res = await safeFetchOnce(BLACK_HOLE_ADDRESS, 'square', pageParams);
+            res.items.forEach(i => collected.push(i));
+            if (res.errors) errors.push(...res.errors);
+            lastNext = res.next_page_params ?? null;
+            pages += 1;
+            if (collected.length > 0) break;
+            if (!lastNext) break;
+            pageParams = withBlackHolePageSize(lastNext);
+          } while (pages < maxPages);
+
+          return {
+            items: collected,
+            next_page_params: lastNext,
+            errors: errors.length ? errors : undefined,
+          };
+        };
+
+        const addrKey = (address: string) => address.trim().toLowerCase();
+
+        type SquareJob = {
+          address: string;
+          run: () => Promise<Omit<SquareFetchResult, 'address'>>;
+        };
+
+        const squareJobs: SquareJob[] = [];
+
+        {
+          const key = addrKey(BLACK_HOLE_ADDRESS);
+          const cursor = squareCursorsRef.current[key];
+          if (!(isLoadMore && cursor === null)) {
+            squareJobs.push({
+              address: BLACK_HOLE_ADDRESS,
+              run: () => fetchBlackHole(isLoadMore ? cursor ?? null : null),
+            });
+          }
         }
+
+        if (profile?.address) {
+          const key = addrKey(profile.address);
+          const cursor = squareCursorsRef.current[key];
+          if (!(isLoadMore && cursor === null)) {
+            squareJobs.push({
+              address: profile.address,
+              run: () => safeFetchOnce(profile.address, 'all', isLoadMore ? cursor ?? null : null),
+            });
+          }
+        }
+
         subscriptions.forEach(s => {
-          squareJobs.push(() => safeFetch(s.address, 'all'));
+          const key = addrKey(s.address);
+          const cursor = squareCursorsRef.current[key];
+          if (isLoadMore && cursor === null) return;
+          squareJobs.push({
+            address: s.address,
+            run: () => safeFetchOnce(s.address, 'all', isLoadMore ? cursor ?? null : null),
+          });
         });
 
         // Bound concurrency so many subscriptions cannot open dozens of explorer requests at once.
-        const results = await mapPool(squareJobs, SQUARE_FETCH_CONCURRENCY, (job) => job());
+        const results = await mapPool(squareJobs, SQUARE_FETCH_CONCURRENCY, async (job) => {
+          const res = await job.run();
+          return { address: job.address, ...res } as SquareFetchResult;
+        });
 
-        // Merge and deduplicate by ID (tx hash)
+        // Merge and deduplicate by ID (tx hash); each address keeps its own cursor.
         const map = new Map<string, InputDataItem>();
         results.forEach(res => {
           res.items.forEach(item => map.set(item.id, item));
-          // Take the first available pagination params
-          if (res.next_page_params && !nextParams) nextParams = res.next_page_params;
+          squareCursorsRef.current[addrKey(res.address)] = res.next_page_params ?? null;
           if (res.errors) allErrors = [...allErrors, ...res.errors];
         });
+
+        const anyMore = Object.values(squareCursorsRef.current).some(c => c != null);
+        nextParams = anyMore ? { square: true } : null;
 
         // Sort by time desc
         resultItems = Array.from(map.values()).sort((a, b) =>

@@ -39,6 +39,18 @@ export const MAX_DATA_SOURCE_CYCLES = 3;
 /** 单次向数据源请求的交易条数。偏小以避免限流 */
 export const DATA_SOURCE_PAGE_SIZE = 20;
 
+/**
+ * 广场黑洞地址专用页大小（原始交易条数，过滤无 input 之后更少）。
+ * 大于普通页，以提高公开广播命中率；过大易超时/限流。
+ */
+export const BLACK_HOLE_PAGE_SIZE = 200;
+
+/**
+ * 黑洞一页过滤后若仍无可用条目，自动再拉下一页的最多次数。
+ * 含首次请求时最多共 1 + N 次。
+ */
+export const BLACK_HOLE_EMPTY_CONTINUE_PAGES = 3;
+
 /** 数据源权重 0 --> 1000, 数值越大越优先请求该数据源 */
 export const DATA_SOURCE_WEIGHTS = {
   ROUTESCAN: 500,

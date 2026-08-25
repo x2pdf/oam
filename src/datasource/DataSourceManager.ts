@@ -4,6 +4,7 @@ import { RoutescanDataSource } from './RoutescanDataSource';
 import { EtherscanDataSource } from './EtherscanDataSource';
 import { MAX_DATA_SOURCE_CYCLES } from '../constants';
 import { agentLog } from './debugAgentLog';
+import { isBlackHoleAddress } from '../utils/address';
 
 // #region agent log
 let queryInflight = 0;
@@ -266,10 +267,21 @@ export class DataSourceManager {
   }
 
   async fetchAll(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
-    return this.queryByWeight(
-      (source) => source.fetchMessages(address, mode, params),
-      `fetchAll:${mode}`,
-    );
+    // Black hole: empty terminal page (no items and no next) is treated as soft failure so
+    // another explorer can be tried. Empty-but-has-next is returned for caller continue-logic.
+    const failoverOnEmptyTerminal = isBlackHoleAddress(address);
+
+    return this.queryByWeight(async (source) => {
+      const result = await source.fetchMessages(address, mode, params);
+      if (
+        failoverOnEmptyTerminal &&
+        result.items.length === 0 &&
+        !result.next_page_params
+      ) {
+        throw new Error(`${source.name} returned empty for black-hole address`);
+      }
+      return result;
+    }, `fetchAll:${mode}`);
   }
 
   async fetchOutgoingTransactions(address: string, params: any = null): Promise<OutgoingTxResult> {

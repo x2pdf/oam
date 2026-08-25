@@ -6,14 +6,22 @@ import { DATA_SOURCE_PAGE_SIZE, DATA_SOURCE_WEIGHTS } from '../constants';
 import { agentLog } from './debugAgentLog';
 import { fetchWithTimeout } from './fetchWithTimeout';
 
-function blockscoutQuery(extra: Record<string, unknown> | null | undefined = null): string {
+function blockscoutQuery(
+  extra: Record<string, unknown> | null | undefined = null,
+  pageSize: number = DATA_SOURCE_PAGE_SIZE,
+): string {
   const query = extra && typeof extra === 'object' ? new URLSearchParams(
     Object.entries(extra).reduce<Record<string, string>>((acc, [key, value]) => {
-      if (value != null && key !== 'filter') acc[key] = String(value);
+      if (value != null && key !== 'filter' && key !== 'items_count' && key !== 'offset' && key !== 'page') {
+        acc[key] = String(value);
+      }
       return acc;
     }, {}),
   ) : new URLSearchParams();
-  query.set('items_count', String(DATA_SOURCE_PAGE_SIZE));
+  // Prefer explicit items_count from caller (e.g. black-hole page size), else default.
+  const count =
+    extra && extra.items_count != null ? Number(extra.items_count) : pageSize;
+  query.set('items_count', String(Number.isFinite(count) && count > 0 ? count : pageSize));
   return query.toString();
 }
 
@@ -26,7 +34,8 @@ export class BlockscoutDataSource extends BaseDataSource {
 
   async fetchMessages(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
     const cleanAddress = address.trim().toLowerCase();
-    const query = blockscoutQuery(params);
+    const pageSize = Number(params?.items_count ?? params?.offset ?? DATA_SOURCE_PAGE_SIZE);
+    const query = blockscoutQuery(params, Number.isFinite(pageSize) && pageSize > 0 ? pageSize : DATA_SOURCE_PAGE_SIZE);
     const baseUrl = `https://eth.blockscout.com/api/v2/addresses/${cleanAddress}/transactions?${query}`;
 
     // #region agent log
