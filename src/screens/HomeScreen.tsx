@@ -27,9 +27,12 @@ import { OAMPClient } from '../oamp/client';
 import { applyDisplayPipeline, markAllRaw } from '../display';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FILTER_STATE_KEY, SQUARE_FETCH_CONCURRENCY, BLACK_HOLE_PAGE_SIZE, BLACK_HOLE_EMPTY_CONTINUE_PAGES } from '../constants';
+import { FILTER_STATE_KEY, SQUARE_FETCH_CONCURRENCY, BLACK_HOLE_PAGE_SIZE, BLACK_HOLE_EMPTY_CONTINUE_PAGES, FOLLOWING_BLOCK_WINDOW } from '../constants';
 import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
+import { makeBlockWindow } from '../datasource/blockRange';
+import { fetchBlockWindowTransactions, fetchLatestBlockNumberViaRpc } from '../datasource/fetchBlockWindow';
+import { filterFollowedWithInput, mapToInputDataItem } from '../datasource/transactionMapper';
 import {
   isDesktopLockPolicy,
   useWalletSession,
@@ -49,7 +52,16 @@ type NavProp = NativeStackNavigationProp<RootStackParamList>;
 /*  常量与类型                                                         */
 /* ------------------------------------------------------------------ */
 
-const SELF_TAB_INDEX = 2;
+const SQUARE_TAB_INDEX = 0;
+const FOLLOWING_TAB_INDEX = 1;
+const MESSAGES_TAB_INDEX = 2;
+const SELF_TAB_INDEX = 3;
+
+const INTERNAL_SQUARE = 0;
+const INTERNAL_SENT = 1;
+const INTERNAL_INBOX = 2;
+const INTERNAL_SELF = 3;
+const INTERNAL_FOLLOWING = 4;
 
 function wipeDecryptedItems(items: InputDataItem[]): InputDataItem[] {
   return items.map((item) => {
@@ -67,6 +79,17 @@ function wipeDecryptedItems(items: InputDataItem[]): InputDataItem[] {
 /*  主页屏幕                                                           */
 /* ------------------------------------------------------------------ */
 
+
+function formatListTimestamp(timestamp: number): string {
+  const date = new Date(timestamp * 1000);
+  const Y = date.getFullYear();
+  const M = String(date.getMonth() + 1).padStart(2, '0');
+  const D = String(date.getDate()).padStart(2, '0');
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  const s = String(date.getSeconds()).padStart(2, '0');
+  return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+}
 
 async function mapPool<T, R>(
   items: T[],
@@ -105,6 +128,7 @@ export default function HomeScreen() {
 
   const TABS = useMemo(() => [
     t('home.tabs.square'),
+    t('home.tabs.following'),
     t('home.tabs.messages'),
     t('home.tabs.home')
   ], [t]);
@@ -115,7 +139,6 @@ export default function HomeScreen() {
   const [showSquareAll, setShowSquareAll] = useState(false);
   const [showSquareUtf8, setShowSquareUtf8] = useState(true);
   const [showSquareOamp, setShowSquareOamp] = useState(true);
-  const [showSquareSubscribed, setShowSquareSubscribed] = useState(true);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   const [activeTab, setActiveTab] = useState(0);
@@ -130,12 +153,13 @@ export default function HomeScreen() {
 
   const [selfData, setSelfData] = useState<InputDataItem[]>([]);
   const [squareData, setSquareData] = useState<InputDataItem[]>([]);
+  const [followingRawData, setFollowingRawData] = useState<InputDataItem[]>([]);
   const [sentData, setSentData] = useState<InputDataItem[]>([]);
   const [inboxData, setInboxData] = useState<InputDataItem[]>([]);
-  const [loading, setLoading] = useState([false, false, false]);
-  const [refreshing, setRefreshing] = useState([false, false, false]);
-  const [loadingMore, setLoadingMore] = useState([false, false, false]);
-  const [hasMore, setHasMore] = useState([true, true, true]);
+  const [loading, setLoading] = useState([false, false, false, false]);
+  const [refreshing, setRefreshing] = useState([false, false, false, false]);
+  const [loadingMore, setLoadingMore] = useState([false, false, false, false]);
+  const [hasMore, setHasMore] = useState([true, true, true, true]);
   const [error, setError] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -146,7 +170,7 @@ export default function HomeScreen() {
   const [unlocking, setUnlocking] = useState(false);
 
   // 使用 Ref 存储分页参数和状态，避免 loadData 身份变化触发重复请求
-  const flatListRefs = useRef<(FlatList | null)[]>([null, null, null]);
+  const flatListRefs = useRef<(FlatList | null)[]>([null, null, null, null]);
   const scrollToTopRef = useRef({
     scrollToTop: () => {
       flatListRefs.current[activeTabRef.current]?.scrollToOffset({
@@ -156,13 +180,17 @@ export default function HomeScreen() {
     },
   });
   useScrollToTop(scrollToTopRef);
-  const nextPageParamsRef = useRef<any[]>([null, null, null, null]);
+  const nextPageParamsRef = useRef<any[]>([null, null, null, null, null]);
   /** 广场各地址独立游标：undefined=尚未拉过/首页，null=已耗尽，object=下一页参数 */
   const squareCursorsRef = useRef<Record<string, any>>({});
-  const hasMoreRef = useRef<boolean[]>([true, true, true, true]);
-  const loadingMoreRef = useRef<boolean[]>([false, false, false, false]);
+  /** 关注页下一窗的结束区块；null 表示需要先取最新高度或已耗尽 */
+  const followingNextEndBlockRef = useRef<number | null>(null);
+  const followingIgnoreEndReachedRef = useRef(false);
+  const hasMoreRef = useRef<boolean[]>([true, true, true, true, true]);
+  const loadingMoreRef = useRef<boolean[]>([false, false, false, false, false]);
   const initialLoadDoneRef = useRef(false);
-  const loadGenRef = useRef<number[]>([0, 0, 0, 0]);
+  const loadGenRef = useRef<number[]>([0, 0, 0, 0, 0]);
+  const prevFollowingKeyRef = useRef<string | null>(null);
 
   // 消息标签页合并显示已发送 + 收到（按 id 去重）
   const messagesData = useMemo(() => {
@@ -186,12 +214,13 @@ export default function HomeScreen() {
     return squareData.filter(item => item.contentKind === 'UTF-8');
   }, [squareData, showSquareAll]);
 
-  // 广场关注筛选：仅关注列表地址的交易（按 to 地址匹配）
-  const subscribedFilteredData = useMemo(() => {
-    if (showSquareAll) return squareData;
+  // 关注页：窗口内 from/to 任一落在关注列表、且 input 非空的交易
+  const displayedFollowingData = useMemo(() => {
     const subSet = new Set(subscriptions.map(s => s.address.toLowerCase()));
-    return squareData.filter(item => subSet.has((item.to || '').toLowerCase()));
-  }, [squareData, showSquareAll, subscriptions]);
+    return followingRawData.filter(item =>
+      subSet.has((item.from || '').toLowerCase()) || subSet.has((item.to || '').toLowerCase()),
+    );
+  }, [followingRawData, subscriptions]);
 
   // 根据广场勾选项决定当前显示的数据
   const displayedSquareData = useMemo(() => {
@@ -199,11 +228,10 @@ export default function HomeScreen() {
     const map = new Map<string, InputDataItem>();
     if (showSquareUtf8) utf8FilteredData.forEach(i => map.set(i.id, i));
     if (showSquareOamp) oampFilteredData.forEach(i => map.set(i.id, i));
-    if (showSquareSubscribed) subscribedFilteredData.forEach(i => map.set(i.id, i));
     return Array.from(map.values()).sort((a, b) =>
       b.timestamp - a.timestamp
     );
-  }, [squareData, showSquareAll, showSquareUtf8, showSquareOamp, showSquareSubscribed, utf8FilteredData, oampFilteredData, subscribedFilteredData]);
+  }, [squareData, showSquareAll, showSquareUtf8, showSquareOamp, utf8FilteredData, oampFilteredData]);
 
   // ── 筛选状态持久化 ──
   useEffect(() => {
@@ -216,7 +244,6 @@ export default function HomeScreen() {
           if (typeof s.showSquareAll === 'boolean') setShowSquareAll(s.showSquareAll);
           if (typeof s.showSquareUtf8 === 'boolean') setShowSquareUtf8(s.showSquareUtf8);
           if (typeof s.showSquareOamp === 'boolean') setShowSquareOamp(s.showSquareOamp);
-          if (typeof s.showSquareSubscribed === 'boolean') setShowSquareSubscribed(s.showSquareSubscribed);
         } catch { /* ignore */ }
       }
       setFiltersLoaded(true);
@@ -227,15 +254,15 @@ export default function HomeScreen() {
     if (!filtersLoaded) return;
     AsyncStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
       showFilterSent, showFilterReceived,
-      showSquareAll, showSquareUtf8, showSquareOamp, showSquareSubscribed,
+      showSquareAll, showSquareUtf8, showSquareOamp,
     })).catch(() => {});
-  }, [showFilterSent, showFilterReceived, showSquareAll, showSquareUtf8, showSquareOamp, showSquareSubscribed, filtersLoaded]);
+  }, [showFilterSent, showFilterReceived, showSquareAll, showSquareUtf8, showSquareOamp, filtersLoaded]);
 
   const _loadData = useCallback(async (internalIndex: number, uiIndex: number, isRefreshing = false, isLoadMore = false) => {
-    const modeMap: ('square' | 'sent' | 'inbox' | 'self')[] = ['square', 'sent', 'inbox', 'self'];
+    const modeMap: ('square' | 'sent' | 'inbox' | 'self' | 'following')[] = ['square', 'sent', 'inbox', 'self', 'following'];
     const mode = modeMap[internalIndex];
 
-    if (mode !== 'square' && !profile?.address) return;
+    if (mode !== 'square' && mode !== 'following' && !profile?.address) return;
 
     // 如果是加载更多，但已经没有更多了，或者正在加载中，则返回
     if (isLoadMore && (!hasMoreRef.current[internalIndex] || loadingMoreRef.current[internalIndex])) return;
@@ -248,12 +275,13 @@ export default function HomeScreen() {
     if (isRefreshing) {
       setRefreshing((prev) => {
         const next = [...prev];
-        next[internalIndex] = true;
+        next[uiIndex] = true;
         return next;
       });
       // 下拉刷新重置分页
       nextPageParamsRef.current[internalIndex] = null;
       if (mode === 'square') squareCursorsRef.current = {};
+      if (mode === 'following') followingNextEndBlockRef.current = null;
       hasMoreRef.current[internalIndex] = true;
       setHasMore(prev => {
         const next = [...prev];
@@ -276,6 +304,7 @@ export default function HomeScreen() {
       // 初次加载重置分页
       nextPageParamsRef.current[internalIndex] = null;
       if (mode === 'square') squareCursorsRef.current = {};
+      if (mode === 'following') followingNextEndBlockRef.current = null;
       hasMoreRef.current[internalIndex] = true;
       setHasMore(prev => {
         const next = [...prev];
@@ -406,6 +435,42 @@ export default function HomeScreen() {
         resultItems = Array.from(map.values()).sort((a, b) =>
           b.timestamp - a.timestamp
         );
+      } else if (mode === 'following') {
+        const seen = new Set<string>();
+        const followedLower = new Set<string>();
+        subscriptions.forEach(s => {
+          const trimmed = s.address?.trim();
+          if (!trimmed) return;
+          const key = trimmed.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          followedLower.add(key);
+        });
+
+        if (followedLower.size === 0) {
+          followingNextEndBlockRef.current = null;
+          nextParams = null;
+          resultItems = [];
+        } else if (isLoadMore && followingNextEndBlockRef.current == null) {
+          nextParams = null;
+          resultItems = [];
+        } else {
+          const windowEnd = isLoadMore
+            ? followingNextEndBlockRef.current!
+            : await fetchLatestBlockNumberViaRpc();
+          const window = makeBlockWindow(windowEnd, FOLLOWING_BLOCK_WINDOW);
+
+          // 先把这 100 个区块的交易完整拉回，再在内存里筛关注地址 + 非空 input。
+          const windowTxs = await fetchBlockWindowTransactions(window.startBlock, window.endBlock);
+          const matched = filterFollowedWithInput(windowTxs, followedLower);
+          resultItems = matched
+            .map(tx => mapToInputDataItem(tx, 'all', '', formatListTimestamp, shortenAddress))
+            .sort((a, b) => b.timestamp - a.timestamp);
+
+          nextParams = window.nextEndBlock != null ? { endBlock: window.nextEndBlock } : null;
+          followingIgnoreEndReachedRef.current = resultItems.length === 0;
+          followingNextEndBlockRef.current = window.nextEndBlock;
+        }
       } else {
         // Other modes: single address fetch
         const result = await dataSourceManager.fetchAll(profile!.address, mode, params);
@@ -416,7 +481,7 @@ export default function HomeScreen() {
 
       if (isStale()) return;
 
-      if (mode === 'square' && resultItems.length === 0 && allErrors.length > 0) {
+      if ((mode === 'square' || mode === 'following') && resultItems.length === 0 && allErrors.length > 0) {
         if (allErrors.includes('MISSING_ETHERSCAN_API_KEY')) {
           setSnackbarMessage(t('home.noApiKeyWarning'));
           setSnackbarVisible(true);
@@ -434,7 +499,7 @@ export default function HomeScreen() {
       let processedItems: InputDataItem[];
       try {
         let client: OAMPClient | null = null;
-        if (internalIndex === 3) {
+        if (internalIndex === INTERNAL_SELF) {
           const wallet = getUnlockedWallet();
           if (wallet) {
             client = new OAMPClient(wallet.privateKey, DEFAULT_RPC_NODE);
@@ -446,7 +511,7 @@ export default function HomeScreen() {
           client,
         });
 
-        if (internalIndex === 3) {
+        if (internalIndex === INTERNAL_SELF) {
           const latestWallet = getUnlockedWallet();
           if (!!latestWallet !== !!client) {
             processedItems = await applyDisplayPipeline(resultItems, {
@@ -472,15 +537,17 @@ export default function HomeScreen() {
       };
 
       if (isLoadMore) {
-        if (internalIndex === 0) setSquareData(updateData);
-        else if (internalIndex === 1) setSentData(updateData);
-        else if (internalIndex === 2) setInboxData(updateData);
-        else if (internalIndex === 3) setSelfData(updateData);
+        if (internalIndex === INTERNAL_SQUARE) setSquareData(updateData);
+        else if (internalIndex === INTERNAL_SENT) setSentData(updateData);
+        else if (internalIndex === INTERNAL_INBOX) setInboxData(updateData);
+        else if (internalIndex === INTERNAL_SELF) setSelfData(updateData);
+        else if (internalIndex === INTERNAL_FOLLOWING) setFollowingRawData(updateData);
       } else {
-        if (internalIndex === 0) setSquareData(processedItems);
-        else if (internalIndex === 1) setSentData(processedItems);
-        else if (internalIndex === 2) setInboxData(processedItems);
-        else if (internalIndex === 3) setSelfData(processedItems);
+        if (internalIndex === INTERNAL_SQUARE) setSquareData(processedItems);
+        else if (internalIndex === INTERNAL_SENT) setSentData(processedItems);
+        else if (internalIndex === INTERNAL_INBOX) setInboxData(processedItems);
+        else if (internalIndex === INTERNAL_SELF) setSelfData(processedItems);
+        else if (internalIndex === INTERNAL_FOLLOWING) setFollowingRawData(processedItems);
 
         if (isRefreshing) {
           setSnackbarMessage(t('home.upToDate'));
@@ -512,7 +579,7 @@ export default function HomeScreen() {
         });
         setRefreshing((prev) => {
           const next = [...prev];
-          next[internalIndex] = false;
+          next[uiIndex] = false;
           return next;
         });
         loadingMoreRef.current[internalIndex] = false;
@@ -526,13 +593,13 @@ export default function HomeScreen() {
   }, [profile?.address, apiKey, subscriptions, t]);
 
   const loadData = useCallback(async (tabIndex: number, isRefreshing = false, isLoadMore = false) => {
-    // 消息标签页同时加载已发送(internal=1)和收到(internal=2)
-    if (tabIndex === 1) {
-      _loadData(1, 1, isRefreshing, isLoadMore);
-      _loadData(2, 1, isRefreshing, isLoadMore);
+    // 消息标签页同时加载已发送(internal=sent)和收到(internal=inbox)
+    if (tabIndex === MESSAGES_TAB_INDEX) {
+      _loadData(INTERNAL_SENT, MESSAGES_TAB_INDEX, isRefreshing, isLoadMore);
+      _loadData(INTERNAL_INBOX, MESSAGES_TAB_INDEX, isRefreshing, isLoadMore);
       return;
     }
-    const uiToInternal: number[] = [0, 1, 3];
+    const uiToInternal: number[] = [INTERNAL_SQUARE, INTERNAL_FOLLOWING, INTERNAL_SENT, INTERNAL_SELF];
     _loadData(uiToInternal[tabIndex], tabIndex, isRefreshing, isLoadMore);
   }, [_loadData]);
 
@@ -651,10 +718,27 @@ export default function HomeScreen() {
   useEffect(() => {
     if (contextLoading || !filtersLoaded || initialLoadDoneRef.current) return;
     initialLoadDoneRef.current = true;
-    loadData(0);
-    loadData(1);
-    loadData(2);
+    loadData(SQUARE_TAB_INDEX);
+    loadData(FOLLOWING_TAB_INDEX);
+    loadData(MESSAGES_TAB_INDEX);
+    loadData(SELF_TAB_INDEX);
   }, [contextLoading, filtersLoaded, loadData]);
+
+  const followingQueryKey = useMemo(
+    () => subscriptions.map(s => s.address.trim().toLowerCase()).filter(Boolean).sort().join(','),
+    [subscriptions],
+  );
+
+  useEffect(() => {
+    if (!initialLoadDoneRef.current) return;
+    if (prevFollowingKeyRef.current === null) {
+      prevFollowingKeyRef.current = followingQueryKey;
+      return;
+    }
+    if (prevFollowingKeyRef.current === followingQueryKey) return;
+    prevFollowingKeyRef.current = followingQueryKey;
+    loadData(FOLLOWING_TAB_INDEX);
+  }, [followingQueryKey, loadData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -715,11 +799,12 @@ export default function HomeScreen() {
   const keyExtractor = useCallback((item: InputDataItem) => item.id, []);
 
   const renderList = (data: InputDataItem[], tabIndex: number) => {
-    const isSquareList = tabIndex === 0;
-    const isMessagesList = tabIndex === 1;
-    const isSelfList = tabIndex === 2;
+    const isSquareList = tabIndex === SQUARE_TAB_INDEX;
+    const isFollowingList = tabIndex === FOLLOWING_TAB_INDEX;
+    const isMessagesList = tabIndex === MESSAGES_TAB_INDEX;
+    const isSelfList = tabIndex === SELF_TAB_INDEX;
 
-    if (!isSquareList && !profile?.address) {
+    if (!isSquareList && !isFollowingList && !profile?.address) {
       return (
         <View style={styles.centerContainer}>
           <Text variant="bodyLarge" style={{ color: theme.colors.error, textAlign: 'center', padding: 20 }}>
@@ -757,10 +842,10 @@ export default function HomeScreen() {
     }
 
     const isMsgLoading = isMessagesList
-      ? (loading[1] || loading[2])
+      ? loading[MESSAGES_TAB_INDEX]
       : loading[tabIndex];
     const isMsgRefreshing = isMessagesList
-      ? (refreshing[1] || refreshing[2])
+      ? refreshing[MESSAGES_TAB_INDEX]
       : refreshing[tabIndex];
 
     if (isMsgLoading && !isMsgRefreshing && data.length === 0) {
@@ -792,14 +877,20 @@ export default function HomeScreen() {
             />
           ) : undefined
         }
-        onEndReached={() => loadData(tabIndex, false, true)}
+        onEndReached={() => {
+          if (isFollowingList && (data.length === 0 || followingIgnoreEndReachedRef.current)) return;
+          loadData(tabIndex, false, true);
+        }}
         onEndReachedThreshold={0.2}
+        onScrollBeginDrag={() => {
+          if (isFollowingList) followingIgnoreEndReachedRef.current = false;
+        }}
         ListFooterComponent={
           data.length > 0 ? (
             <View style={styles.footerContainer}>
               {loadingMore[tabIndex] ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : (isMessagesList ? (!hasMore[1] && !hasMoreRef.current[2]) : !hasMore[tabIndex]) ? (
+              ) : (isMessagesList ? (!hasMoreRef.current[INTERNAL_SENT] && !hasMoreRef.current[INTERNAL_INBOX]) : !hasMore[tabIndex]) ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('home.noMoreData')}
                 </Text>
@@ -809,7 +900,33 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text variant="bodyMedium">{t('home.noMessages')}</Text>
+            {isFollowingList && loadingMore[tabIndex] ? (
+              <>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text variant="bodyMedium" style={{ marginTop: 12 }}>
+                  {t('home.followingLoadingOlder', { count: FOLLOWING_BLOCK_WINDOW })}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text variant="bodyMedium">
+                  {isFollowingList && subscriptions.length === 0
+                    ? t('subscriptions.noSubscriptions')
+                    : isFollowingList
+                      ? t('home.followingEmptyWindow', { count: FOLLOWING_BLOCK_WINDOW })
+                      : t('home.noMessages')}
+                </Text>
+                {isFollowingList && subscriptions.length > 0 && hasMore[tabIndex] ? (
+                  <Button
+                    mode="text"
+                    onPress={() => loadData(tabIndex, false, true)}
+                    style={{ marginTop: 8 }}
+                  >
+                    {t('home.followingLoadOlder', { count: FOLLOWING_BLOCK_WINDOW })}
+                  </Button>
+                ) : null}
+              </>
+            )}
           </View>
         }
         ListHeaderComponent={
@@ -875,17 +992,6 @@ export default function HomeScreen() {
                   />
                   <Text variant="labelMedium">{t('home.tabs.filterOAMP')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.filterItem}
-                  onPress={() => setShowSquareSubscribed(prev => !prev)}
-                >
-                  <Checkbox.Android
-                    status={showSquareSubscribed ? 'checked' : 'unchecked'}
-                    onPress={() => setShowSquareSubscribed(prev => !prev)}
-                    uncheckedColor={theme.colors.outline}
-                  />
-                  <Text variant="labelMedium">{t('home.tabs.filterSubscribed')}</Text>
-                </TouchableOpacity>
               </View>
             )}
             {/* headerRow 已隐藏
@@ -916,7 +1022,7 @@ export default function HomeScreen() {
                       variant="labelSmall"
                       style={{ color: theme.colors.onSurfaceVariant }}
                     >
-                      {showSquareOamp && t('home.tabs.filterOAMP')}{showSquareOamp && showSquareSubscribed ? ' + ' : ''}{showSquareSubscribed && t('home.tabs.filterSubscribed')}
+                      {showSquareOamp && t('home.tabs.filterOAMP')}
                     </Text>
                   )
                 )}
@@ -936,9 +1042,7 @@ export default function HomeScreen() {
   };
 
   const isCurrentRefreshing = useMemo(() => {
-    if (activeTab === 1) return refreshing[1] || refreshing[2];
-    if (activeTab === 2) return !!refreshing[3];
-    return refreshing[0];
+    return !!refreshing[activeTab];
   }, [activeTab, refreshing]);
 
   const onFabPress = () => {
@@ -994,9 +1098,10 @@ export default function HomeScreen() {
         initialPage={0}
         onPageSelected={onPageSelected}
       >
-        <View key="1" style={scrollFill}>{renderList(displayedSquareData, 0)}</View>
-        <View key="2" style={scrollFill}>{renderList(messagesData, 1)}</View>
-        <View key="3" style={scrollFill}>{renderList(selfData, 2)}</View>
+        <View key="1" style={scrollFill}>{renderList(displayedSquareData, SQUARE_TAB_INDEX)}</View>
+        <View key="2" style={scrollFill}>{renderList(displayedFollowingData, FOLLOWING_TAB_INDEX)}</View>
+        <View key="3" style={scrollFill}>{renderList(messagesData, MESSAGES_TAB_INDEX)}</View>
+        <View key="4" style={scrollFill}>{renderList(selfData, SELF_TAB_INDEX)}</View>
       </TabPager>
 
       {error && (

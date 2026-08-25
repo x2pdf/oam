@@ -71,3 +71,18 @@ export const DATA_SOURCE_REQUEST_TIMEOUT_MS = 15000;
 
 /** Max concurrent address fetches on the square tab (self + subscriptions). */
 export const SQUARE_FETCH_CONCURRENCY = 3;
+
+/**
+ * 关注页一次拉回的完整区块数，再到本地筛选。
+ * 300 个整块 RPC 过重；100 约为主网 20 分钟。
+ */
+export const FOLLOWING_BLOCK_WINDOW = 100;
+
+/** 关注页并发拉取区块数（eth_getBlockByNumber）。 */
+export const FOLLOWING_BLOCK_FETCH_CONCURRENCY = 8;
+
+/** JSON-RPC batch 一次请求的区块数；节点不支持 batch 时回退为单块。 */
+export const FOLLOWING_RPC_BATCH_SIZE = 10;
+
+/** 拉取整块时的 HTTP 超时（整块含完整交易，比普通 RPC 读更慢）。 */
+export const FOLLOWING_BLOCK_FETCH_TIMEOUT_MS = 20000;

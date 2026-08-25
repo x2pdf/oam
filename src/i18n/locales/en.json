@@ -56,6 +56,7 @@
   "home": {
     "tabs": {
       "square": "Square",
+      "following": "Following",
       "home": "Personal",
       "sent": "Sent",
       "messages": "Messages",
@@ -70,6 +71,9 @@
     "upToDate": "Data is up to date",
     "setApiKeyHint": "Please set Etherscan API Key in the Profile page",
     "noMessages": "No messages found",
+    "followingEmptyWindow": "No followed-address messages in the latest {{count}} blocks",
+    "followingLoadOlder": "Load previous {{count}} blocks",
+    "followingLoadingOlder": "Loading previous {{count}} blocks…",
     "loadingData": "Fetching {{tab}} data...",
     "noAddressError": "No address information provided, cannot query data.",
     "noMoreData": "No more data",
@@ -88,7 +92,10 @@
     "unlockHint": "Enter your payment password to view encrypted notes sent to yourself",
     "unlockButton": "Enter payment password",
     "passwordIncorrect": "Incorrect payment password",
-    "readOnlyCannotDecrypt": "This is a read-only wallet, so encrypted notes to yourself cannot be decrypted"
+    "readOnlyCannotDecrypt": "This is a read-only wallet, so encrypted notes to yourself cannot be decrypted",
+    "searchAddressTitle": "Look up address",
+    "searchAddressHint": "Enter or paste an address to look up",
+    "searchAddressPlaceholder": "0x…"
   },
   "subscriptions": {
     "noSubscriptions": "No following yet",

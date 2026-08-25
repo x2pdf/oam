@@ -92,3 +92,14 @@ export function mapTransactionsToOutgoing(
   }
   return items;
 }
+
+/** 本地筛选：input 非空，且 from/to 任一在关注集合中。 */
+export function filterFollowedWithInput(
+  txs: ChainTransaction[],
+  followedLower: Set<string>,
+): ChainTransaction[] {
+  return txs.filter((tx) => {
+    if (!tx.hasInput) return false;
+    return followedLower.has(tx.fromLower) || followedLower.has(tx.toLower);
+  });
+}

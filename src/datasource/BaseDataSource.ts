@@ -11,6 +11,7 @@ export abstract class BaseDataSource implements IDataSource {
 
   abstract fetchMessages(address: string, mode: FetchMode, params?: any): Promise<DataSourceResult>;
   abstract fetchOutgoingTransactions(address: string, params?: any): Promise<OutgoingTxResult>;
+  abstract fetchLatestBlockNumber(): Promise<number>;
 
   /**
    * 将十六进制字符串转换为 UTF-8 文本 (支持中文/Emoji)

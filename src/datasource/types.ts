@@ -29,4 +29,6 @@ export interface IDataSource {
   readonly apiKey?: string;
   fetchMessages(address: string, mode: FetchMode, params?: any): Promise<DataSourceResult>;
   fetchOutgoingTransactions(address: string, params?: any): Promise<OutgoingTxResult>;
+  /** 当前链最新区块高度，供关注页按区块窗口分页。 */
+  fetchLatestBlockNumber(): Promise<number>;
 }

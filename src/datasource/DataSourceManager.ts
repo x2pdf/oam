@@ -284,6 +284,13 @@ export class DataSourceManager {
     }, `fetchAll:${mode}`);
   }
 
+  async fetchLatestBlockNumber(): Promise<number> {
+    return this.queryByWeight(
+      (source) => source.fetchLatestBlockNumber(),
+      'latestBlock',
+    );
+  }
+
   async fetchOutgoingTransactions(address: string, params: any = null): Promise<OutgoingTxResult> {
     return this.queryByWeight(
       (source) => source.fetchOutgoingTransactions(address, params),

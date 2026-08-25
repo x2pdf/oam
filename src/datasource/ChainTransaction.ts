@@ -186,3 +186,49 @@ export function parseEtherscanTxList(rawList: unknown[]): ChainTransaction[] {
 export function parseBlockscoutTxList(rawList: unknown[]): ChainTransaction[] {
   return rawList.map((raw) => parseBlockscoutTx(raw as Record<string, unknown>));
 }
+
+function hexToDecString(value: unknown, fallback = '0'): string {
+  if (value == null || value === '') return fallback;
+  const s = String(value);
+  if (s.startsWith('0x') || s.startsWith('0X')) {
+    try {
+      return BigInt(s).toString(10);
+    } catch {
+      return fallback;
+    }
+  }
+  return s;
+}
+
+/** RPC eth_getBlockByNumber(..., true) 交易对象 */
+export function parseRpcTx(raw: Record<string, unknown>, blockTimestamp: number): ChainTransaction {
+  return new ChainTransaction({
+    hash: str(raw.hash),
+    from: str(raw.from),
+    to: str(raw.to),
+    input: str(raw.input),
+    value: hexToDecString(raw.value),
+    timestamp: blockTimestamp,
+    blockNumber: hexToDecString(raw.blockNumber),
+    gas: raw.gas != null ? hexToDecString(raw.gas) : undefined,
+    gasPrice: raw.gasPrice != null ? hexToDecString(raw.gasPrice) : undefined,
+    nonce: raw.nonce != null ? hexToDecString(raw.nonce) : undefined,
+    transactionIndex: raw.transactionIndex != null ? hexToDecString(raw.transactionIndex) : undefined,
+  });
+}
+
+export function parseRpcBlock(raw: Record<string, unknown>): ChainTransaction[] {
+  const timestamp = parseUnixSeconds(
+    typeof raw.timestamp === 'string' && (raw.timestamp.startsWith('0x') || raw.timestamp.startsWith('0X'))
+      ? parseInt(raw.timestamp, 16)
+      : raw.timestamp,
+  );
+  const txs = Array.isArray(raw.transactions) ? raw.transactions : [];
+  const out: ChainTransaction[] = [];
+  for (const tx of txs) {
+    if (!tx || typeof tx !== 'object' || Array.isArray(tx)) continue;
+    const parsed = parseRpcTx(tx as Record<string, unknown>, timestamp);
+    if (parsed.hash) out.push(parsed);
+  }
+  return out;
+}

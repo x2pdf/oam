@@ -3,8 +3,15 @@ import { parseBlockscoutTxList } from './ChainTransaction';
 import { FetchMode, DataSourceResult, OutgoingTxResult } from './types';
 import { mapTransactionsToMessages, mapTransactionsToOutgoing } from './transactionMapper';
 import { DATA_SOURCE_PAGE_SIZE, DATA_SOURCE_WEIGHTS } from '../constants';
+import { getBlockRangeParams, parseLatestBlockNumber } from './blockRange';
 import { agentLog } from './debugAgentLog';
 import { fetchWithTimeout } from './fetchWithTimeout';
+import {
+  fetchEtherscanStyleBlockRange,
+  fetchJson,
+  getPageOffset,
+  toRangeMessageResult,
+} from './etherscanStyle';
 
 function blockscoutQuery(
   extra: Record<string, unknown> | null | undefined = null,
@@ -32,8 +39,49 @@ export class BlockscoutDataSource extends BaseDataSource {
     return DATA_SOURCE_WEIGHTS.BLOCKSCOUT;
   }
 
+  private buildTxlistUrl(address: string, params: any, defaultOffset: string): string {
+    const { page, offset } = getPageOffset(params, defaultOffset);
+    const urlParams = new URLSearchParams({
+      module: 'account',
+      action: 'txlist',
+      address,
+      startblock: params?.startblock != null ? String(params.startblock) : '0',
+      endblock: params?.endblock != null ? String(params.endblock) : '99999999',
+      sort: 'desc',
+      page,
+      offset,
+    });
+    return `https://eth.blockscout.com/api?${urlParams.toString()}`;
+  }
+
+  async fetchLatestBlockNumber(): Promise<number> {
+    const data = await fetchJson('https://eth.blockscout.com/api/v2/stats', this.name);
+    return parseLatestBlockNumber(data.total_blocks);
+  }
+
   async fetchMessages(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
     const cleanAddress = address.trim().toLowerCase();
+    const range = getBlockRangeParams(params);
+    if (range) {
+      const txs = await fetchEtherscanStyleBlockRange(
+        (page, offset) => this.buildTxlistUrl(
+          cleanAddress,
+          { ...params, page, offset, startblock: range.start, endblock: range.end },
+          offset,
+        ),
+        this.name,
+        range.pageSize,
+      );
+      return toRangeMessageResult(
+        txs,
+        cleanAddress,
+        mode,
+        range.start,
+        range.end,
+        (ts) => this.formatTimestamp(ts),
+        (addr) => this.shortenAddress(addr),
+      );
+    }
     const pageSize = Number(params?.items_count ?? params?.offset ?? DATA_SOURCE_PAGE_SIZE);
     const query = blockscoutQuery(params, Number.isFinite(pageSize) && pageSize > 0 ? pageSize : DATA_SOURCE_PAGE_SIZE);
     const baseUrl = `https://eth.blockscout.com/api/v2/addresses/${cleanAddress}/transactions?${query}`;
