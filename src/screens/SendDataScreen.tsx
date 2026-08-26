@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   RadioButton,
   HelperText,
+  Searchbar,
 } from 'react-native-paper';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR } from '../wallet/session';
 import { isAddress, parseEther, formatEther, parseUnits, formatUnits } from 'ethers';
-import { RootStackParamList, SendDraft } from '../types';
+import { RootStackParamList, SendDraft, Subscription } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
@@ -37,6 +38,7 @@ import { AllRpcFailedError, withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, ethToUsdDisplay } from '../rpc/ethPrice';
 import { showAlert } from '../utils/alert';
 import * as Clipboard from 'expo-clipboard';
+import { shortenAddress } from '../utils/address';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'SendData'>;
@@ -65,6 +67,22 @@ function draftImageToItem(img: SendDraft['images'][number]): ImageItem {
   };
 }
 
+function sortSubscriptions(items: Subscription[]): Subscription[] {
+  return [...items].sort((a, b) => {
+    const wa = a.pinWeight ?? 0;
+    const wb = b.pinWeight ?? 0;
+    const aPinned = wa > 0;
+    const bPinned = wb > 0;
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    if (aPinned && bPinned) {
+      if (wa !== wb) return wb - wa;
+      return a.description.localeCompare(b.description, undefined, { sensitivity: 'base' });
+    }
+    return a.description.localeCompare(b.description, undefined, { sensitivity: 'base' });
+  });
+}
+
 export default function SendDataScreen() {
   const theme = useTheme();
   const { fontScale } = useThemePreference();
@@ -74,7 +92,7 @@ export default function SendDataScreen() {
   const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
   const { state, upsertDraft, deleteDraft } = useAppContext();
-  const { profile } = state;
+  const { profile, subscriptions } = state;
   const routeDraftId = route.params?.draftId;
   const initialDraft = useMemo(
     () => (routeDraftId ? state.drafts.find((d) => d.id === routeDraftId) : undefined),
@@ -100,6 +118,8 @@ export default function SendDataScreen() {
   const [manualPubkey, setManualPubkey] = useState('');
   const [manualPubkeyError, setManualPubkeyError] = useState('');
   const [encryptUnavailableVisible, setEncryptUnavailableVisible] = useState(false);
+  const [followListVisible, setFollowListVisible] = useState(false);
+  const [followSearchQuery, setFollowSearchQuery] = useState('');
 
   const isSelf = useMemo(() => {
     if (!profile?.address || !recipientAddress) return false;
@@ -121,6 +141,40 @@ export default function SendDataScreen() {
     if (encryptEnabled) return t('send.confirmModeEncrypted');
     return t('send.confirmModeUnencrypted');
   }, [isSelf, recipientAddress, encryptEnabled, t]);
+
+  const sortedSubscriptions = useMemo(
+    () => sortSubscriptions(subscriptions),
+    [subscriptions],
+  );
+
+  const displaySubscriptions = useMemo(() => {
+    const q = followSearchQuery.trim();
+    if (!q) return sortedSubscriptions;
+    try {
+      const re = new RegExp(q, 'i');
+      return sortedSubscriptions.filter(
+        (s) => re.test(s.address) || re.test(s.description),
+      );
+    } catch {
+      const lower = q.toLowerCase();
+      return sortedSubscriptions.filter(
+        (s) =>
+          s.address.toLowerCase().includes(lower) ||
+          s.description.toLowerCase().includes(lower),
+      );
+    }
+  }, [sortedSubscriptions, followSearchQuery]);
+
+  const openFollowList = () => {
+    setFollowSearchQuery('');
+    setFollowListVisible(true);
+  };
+
+  const selectFollowedAddress = (item: Subscription) => {
+    setRecipientAddress(item.address);
+    setFollowListVisible(false);
+    setFollowSearchQuery('');
+  };
 
   const dataSummary = useMemo(() => {
     const lines: string[] = [];
@@ -462,20 +516,25 @@ export default function SendDataScreen() {
     navigation.goBack();
   };
 
+  const persistDraft = useCallback(async () => {
+    const id = currentDraftId ?? Date.now().toString();
+    await upsertDraft({
+      id,
+      text,
+      images: images.map(({ base64, name, type }) => ({ base64, name, type })),
+      recipientAddress: recipientAddress.trim() || BLACK_HOLE,
+      encryptEnabled,
+      updatedAt: Date.now(),
+    });
+    setCurrentDraftId(id);
+    return id;
+  }, [currentDraftId, encryptEnabled, images, recipientAddress, text, upsertDraft]);
+
   const saveAsDraft = async () => {
     if (draftSaving) return;
-    const id = currentDraftId ?? Date.now().toString();
     setDraftSaving(true);
     try {
-      await upsertDraft({
-        id,
-        text,
-        images: images.map(({ base64, name, type }) => ({ base64, name, type })),
-        recipientAddress: recipientAddress.trim() || BLACK_HOLE,
-        encryptEnabled,
-        updatedAt: Date.now(),
-      });
-      setCurrentDraftId(id);
+      await persistDraft();
       setCancelConfirmVisible(false);
       navigation.goBack();
     } catch (error) {
@@ -484,6 +543,17 @@ export default function SendDataScreen() {
       setSnackbarVisible(true);
     } finally {
       setDraftSaving(false);
+    }
+  };
+
+  const autoSaveDraftOnSendFailure = async (): Promise<boolean> => {
+    if (text.length === 0 && images.length === 0) return false;
+    try {
+      await persistDraft();
+      return true;
+    } catch (error) {
+      console.error('Auto-save draft error:', error);
+      return false;
     }
   };
 
@@ -575,6 +645,15 @@ export default function SendDataScreen() {
     } catch (error: any) {
       console.error('Send error:', error);
       setLoading(false);
+
+      const isAuthError =
+        error?.name === NO_KEYSTORE_ERROR || error?.name === INVALID_PASSWORD_ERROR;
+
+      let draftSaved = false;
+      if (!isAuthError) {
+        draftSaved = await autoSaveDraftOnSendFailure();
+      }
+
       const message =
         error?.name === NO_KEYSTORE_ERROR
           ? t('send.noPrivateKey')
@@ -582,23 +661,28 @@ export default function SendDataScreen() {
             ? t('home.passwordIncorrect')
             : error.message;
 
-      const isAuthError =
-        error?.name === NO_KEYSTORE_ERROR || error?.name === INVALID_PASSWORD_ERROR;
-
       if (!isAuthError && (error instanceof AllRpcFailedError || error?.name === 'AllRpcFailedError')) {
-        showAlert(t('send.networkFaultTitle'), t('send.networkFaultMsg'), [
-          {
-            text: t('common.ok'),
-            onPress: () => {
-              setPasswordVisible(false);
-              setPassword('');
+        showAlert(
+          t('send.networkFaultTitle'),
+          draftSaved ? t('send.networkFaultMsgDraftSaved') : t('send.networkFaultMsg'),
+          [
+            {
+              text: t('common.ok'),
+              onPress: () => {
+                setPasswordVisible(false);
+                setPassword('');
+              },
             },
-          },
-        ]);
+          ],
+        );
         return;
       }
 
-      setSnackbarMessage(t('send.sendFailed', { error: message }));
+      setSnackbarMessage(
+        draftSaved
+          ? t('send.sendFailedDraftSaved', { error: message })
+          : t('send.sendFailed', { error: message }),
+      );
       setSnackbarVisible(true);
       setPassword('');
     }
@@ -733,6 +817,15 @@ export default function SendDataScreen() {
               {t('send.recipientSelf')}
             </Button>
           )}
+          <Button
+            mode="outlined"
+            compact
+            onPress={openFollowList}
+            style={styles.shortcutButton}
+            labelStyle={[styles.shortcutLabel, { fontSize: Math.round(12 * fontScale) }]}
+          >
+            {t('send.recipientFollowing')}
+          </Button>
         </View>
 
         {isSelf && (
@@ -770,6 +863,9 @@ export default function SendDataScreen() {
         )}
 
         <View style={styles.buttonGroup}>
+          <HelperText type="info" visible style={{ paddingHorizontal: 0, marginBottom: 4 }}>
+            {t('send.payloadSizeHint')}
+          </HelperText>
           <Button
             mode="contained"
             onPress={handleSend}
@@ -792,6 +888,82 @@ export default function SendDataScreen() {
         </View>
         </ListColumn>
       </ScrollView>
+
+      <AppModal
+        visible={followListVisible}
+        onDismiss={() => {
+          setFollowListVisible(false);
+          setFollowSearchQuery('');
+        }}
+        title={t('send.recipientFollowingTitle')}
+        actions={[
+          {
+            label: t('common.cancel'),
+            onPress: () => {
+              setFollowListVisible(false);
+              setFollowSearchQuery('');
+            },
+          },
+        ]}
+      >
+        {sortedSubscriptions.length === 0 ? (
+          <Text style={[styles.dialogBody, { fontSize: Math.round(14 * fontScale), lineHeight: Math.round(20 * fontScale) }]}>
+            {t('send.recipientFollowingEmpty')}
+          </Text>
+        ) : (
+          <>
+            <Searchbar
+              placeholder={t('subscriptions.searchPlaceholder')}
+              onChangeText={setFollowSearchQuery}
+              value={followSearchQuery}
+              style={styles.followSearchbar}
+              inputStyle={[styles.followSearchInput, { fontSize: Math.round(14 * fontScale) }]}
+            />
+            <ScrollView
+              style={styles.followList}
+              keyboardShouldPersistTaps="handled"
+            >
+              {displaySubscriptions.length === 0 ? (
+                <Text style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}>
+                  {t('subscriptions.searchNoResult')}
+                </Text>
+              ) : (
+                displaySubscriptions.map((item) => {
+                  const isPinned = (item.pinWeight ?? 0) > 0;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => selectFollowedAddress(item)}
+                      style={[
+                        styles.followItem,
+                        { borderBottomColor: theme.colors.outlineVariant },
+                      ]}
+                    >
+                      <View style={styles.followItemText}>
+                        <Text
+                          variant="labelMedium"
+                          style={{ color: theme.colors.onSurface }}
+                          numberOfLines={1}
+                        >
+                          {item.description || shortenAddress(item.address)}
+                          {isPinned ? ` · ${t('subscriptions.pin')}` : ''}
+                        </Text>
+                        <Text
+                          variant="bodySmall"
+                          style={[styles.followAddress, { color: theme.colors.primary }]}
+                          numberOfLines={1}
+                        >
+                          {shortenAddress(item.address)}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
+            </ScrollView>
+          </>
+        )}
+      </AppModal>
 
       <AppModal
         visible={imageSourceDialogVisible}
@@ -1246,6 +1418,28 @@ const styles = StyleSheet.create({
   },
   shortcutLabel: {
     fontSize: 12,
+  },
+  followSearchbar: {
+    marginBottom: 8,
+    elevation: 0,
+    borderRadius: 12,
+  },
+  followSearchInput: {
+    fontSize: 14,
+  },
+  followList: {
+    maxHeight: 320,
+    marginBottom: 8,
+  },
+  followItem: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  followItemText: {
+    gap: 2,
+  },
+  followAddress: {
+    fontFamily: 'monospace',
   },
   encryptSection: {
     marginTop: 16,

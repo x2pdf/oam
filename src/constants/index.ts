@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   LANGUAGE: '@oam_language',
   FONT_SCALE: '@oam_font_scale',
   DATA_SOURCE_WEIGHTS: '@oam_data_source_weights',
+  HOME_TAB_WEIGHTS: '@oam_home_tab_weights',
 } as const;
 
 /** 旧版 OnchainData 存储键，仅用于一次性迁移 */
@@ -58,6 +59,46 @@ export const DATA_SOURCE_WEIGHTS = {
   ETHERSCAN: 100,
 } as const;
 
+/** 首页标签稳定 ID，默认顺序为广场 → 关注 → 消息 → 仅自己 */
+export const HOME_TAB_IDS = ['square', 'following', 'messages', 'self'] as const;
+export type HomeTabId = (typeof HOME_TAB_IDS)[number];
+
+/** 首页标签权重 1 --> 1000，数值越大越靠左 */
+export const HOME_TAB_WEIGHTS: Record<HomeTabId, number> = {
+  square: 400,
+  following: 300,
+  messages: 200,
+  self: 100,
+};
+
+export function clampDisplayWeight(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(1000, Math.max(1, Math.round(value)));
+}
+
+export function normalizeHomeTabWeights(
+  raw?: Record<string, number> | null,
+): Record<HomeTabId, number> {
+  const next = { ...HOME_TAB_WEIGHTS };
+  for (const id of HOME_TAB_IDS) {
+    const value = raw?.[id];
+    if (typeof value === 'number') {
+      next[id] = clampDisplayWeight(value);
+    }
+  }
+  return next;
+}
+
+/** 权重降序；同权时保持默认顺序 */
+export function getHomeTabOrder(weights?: Record<string, number> | null): HomeTabId[] {
+  const normalized = normalizeHomeTabWeights(weights);
+  return [...HOME_TAB_IDS].sort((a, b) => {
+    const diff = normalized[b] - normalized[a];
+    if (diff !== 0) return diff;
+    return HOME_TAB_IDS.indexOf(a) - HOME_TAB_IDS.indexOf(b);
+  });
+}
+
 /** API 配置 */
 export const API_CONFIG = {
   ETHERSCAN_API_KEY: '',
@@ -69,14 +110,11 @@ export const API_CONFIG = {
 /** Explorer HTTP timeout; prevents hung Blockscout/Etherscan fetches from pinning sockets. */
 export const DATA_SOURCE_REQUEST_TIMEOUT_MS = 15000;
 
-/** Max concurrent address fetches on the square tab (self + subscriptions). */
-export const SQUARE_FETCH_CONCURRENCY = 3;
-
 /**
  * 关注页一次拉回的完整区块数，再到本地筛选。
- * 50 约为主网 10 分钟，减轻 RPC 整块拉取压力。
+ * 500 约为主网 100 分钟。
  */
-export const FOLLOWING_BLOCK_WINDOW = 50;
+export const FOLLOWING_BLOCK_WINDOW = 500;
 
 /** 关注页并发拉取区块数（eth_getBlockByNumber）。 */
 export const FOLLOWING_BLOCK_FETCH_CONCURRENCY = 8;

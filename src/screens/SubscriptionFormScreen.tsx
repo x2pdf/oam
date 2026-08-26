@@ -24,7 +24,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'SubscriptionForm'>;
 /* ------------------------------------------------------------------ */
 
 export default function SubscriptionFormScreen({ route, navigation }: Props) {
-  const { mode, source, subscription } = route.params;
+  const { mode, source, subscription, prefillAddress } = route.params;
   const theme = useTheme();
   const { fontScale } = useThemePreference();
   const { t } = useTranslation();
@@ -42,8 +42,9 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
   const isEdit = mode === 'edit';
 
   /* ---------- 表单状态 ---------- */
-  const [address, setAddress] = useState(subscription?.address ?? '');
+  const [address, setAddress] = useState(subscription?.address ?? prefillAddress ?? '');
   const [description, setDescription] = useState(subscription?.description ?? '');
+  const addressPrefill = !!(subscription?.address || prefillAddress);
   const [errors, setErrors] = useState<{ address?: string; description?: string }>({});
 
   /* ---------- 校验 ---------- */
@@ -177,7 +178,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
           if (errors.address) setErrors((prev) => ({ ...prev, address: undefined }));
         }}
         maxLength={MAX_ADDRESS_LENGTH}
-        autoFocus={mode === 'add'}
+        autoFocus={mode === 'add' && !addressPrefill}
         error={!!errors.address}
         style={styles.input}
         outlineColor={theme.colors.outline}
@@ -210,6 +211,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
           if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }));
         }}
         maxLength={MAX_DESCRIPTION_LENGTH}
+        autoFocus={mode === 'add' && addressPrefill}
         multiline
         numberOfLines={2}
         error={!!errors.description}

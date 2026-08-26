@@ -27,6 +27,11 @@ import { AppModal } from '../components/AppModal';
 import { withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, formatUsd } from '../rpc/ethPrice';
 import { dataSourceManager } from '../datasource/DataSourceManager';
+import {
+  getHomeTabOrder,
+  normalizeHomeTabWeights,
+  type HomeTabId,
+} from '../constants';
 import { formatEther } from 'ethers';
 import appConfig from '../../app.json';
 
@@ -35,6 +40,13 @@ type NavProp = NativeStackNavigationProp<RootStackParamList>;
 const APP_NAME = appConfig.expo.name;
 const APP_FULL_NAME = appConfig.expo.description;
 const APP_VERSION = appConfig.expo.version;
+
+const HOME_TAB_LABEL_KEYS: Record<HomeTabId, string> = {
+  square: 'home.tabs.square',
+  following: 'home.tabs.following',
+  messages: 'home.tabs.messages',
+  self: 'home.tabs.home',
+};
 
 /* ------------------------------------------------------------------ */
 /*  工具函数                                                           */
@@ -65,7 +77,7 @@ function getPlatformLabel(t: (key: string) => string): string {
 export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavProp>();
-  const { state, setApiKey, setDataSourceWeights } = useAppContext();
+  const { state, setApiKey, setDataSourceWeights, setHomeTabWeights } = useAppContext();
   const { themeMode, setThemeMode, fontScale, setFontScale } = useThemePreference();
   const { t, i18n } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
@@ -75,8 +87,12 @@ export default function ProfileScreen() {
   const [isThemeDialogVisible, setIsThemeDialogVisible] = useState(false);
   const [isFontSizeDialogVisible, setIsFontSizeDialogVisible] = useState(false);
   const [isWeightModalVisible, setIsWeightModalVisible] = useState(false);
+  const [isHomeTabWeightModalVisible, setIsHomeTabWeightModalVisible] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [localWeights, setLocalWeights] = useState<Record<string, number>>({});
+  const [localHomeTabWeights, setLocalHomeTabWeights] = useState<Record<HomeTabId, number>>(
+    normalizeHomeTabWeights(),
+  );
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [balanceEth, setBalanceEth] = useState<string | null>(null);
   const [balanceUsd, setBalanceUsd] = useState<string | null>(null);
@@ -150,12 +166,47 @@ export default function ProfileScreen() {
     hideWeightModal();
   }, [localWeights, setDataSourceWeights, hideWeightModal]);
 
+  const showHomeTabWeightModal = useCallback(() => {
+    setLocalHomeTabWeights(normalizeHomeTabWeights(state.homeTabWeights));
+    setIsHomeTabWeightModalVisible(true);
+  }, [state.homeTabWeights]);
+
+  const hideHomeTabWeightModal = useCallback(() => {
+    setIsHomeTabWeightModalVisible(false);
+  }, []);
+
+  const handleSaveHomeTabWeights = useCallback(async () => {
+    await setHomeTabWeights(normalizeHomeTabWeights(localHomeTabWeights));
+    hideHomeTabWeightModal();
+  }, [localHomeTabWeights, setHomeTabWeights, hideHomeTabWeightModal]);
+
+  const homeTabOrderPreview = useMemo(
+    () => getHomeTabOrder(state.homeTabWeights)
+      .map((id) => t(HOME_TAB_LABEL_KEYS[id]))
+      .join(' · '),
+    [state.homeTabWeights, t],
+  );
+
+  const modalHomeTabOrder = useMemo(
+    () => getHomeTabOrder(localHomeTabWeights),
+    [localHomeTabWeights],
+  );
+
   const updateLocalWeight = (name: string, val: string) => {
     const num = parseInt(val, 10);
     if (!isNaN(num)) {
       setLocalWeights((prev) => ({ ...prev, [name]: num }));
     } else if (val === '') {
       setLocalWeights((prev) => ({ ...prev, [name]: 0 }));
+    }
+  };
+
+  const updateLocalHomeTabWeight = (id: HomeTabId, val: string) => {
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) {
+      setLocalHomeTabWeights((prev) => ({ ...prev, [id]: num }));
+    } else if (val === '') {
+      setLocalHomeTabWeights((prev) => ({ ...prev, [id]: 1 }));
     }
   };
 
@@ -368,38 +419,7 @@ export default function ProfileScreen() {
           </Card>
         )}
 
-        {/* 2. 语言选择 */}
-        <View style={styles.sectionSpacer} />
-        <Card
-          style={[styles.card, { backgroundColor: theme.colors.surface }]}
-          mode="elevated"
-          onPress={showLanguageDialog}
-        >
-          <Card.Content style={styles.cardContent}>
-            <View style={styles.row}>
-              <Avatar.Icon
-                size={48}
-                icon="translate"
-                style={{ backgroundColor: theme.colors.secondaryContainer }}
-                color={theme.colors.secondary}
-              />
-              <View style={styles.cardTextContainer}>
-                <Text
-                  variant="labelMedium"
-                  style={{ color: theme.colors.onSurfaceVariant }}
-                >
-                  {t('profile.language')}
-                </Text>
-                <Text variant="titleMedium">
-                  {currentLanguage === 'zh' ? '简体中文' : 'English'}
-                </Text>
-              </View>
-              <IconButton icon="chevron-right" onPress={showLanguageDialog} />
-            </View>
-          </Card.Content>
-        </Card>
-
-        {/* 3. 我的本地收藏 */}
+        {/* 2. 我的本地收藏 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -433,7 +453,7 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 3b. 我的草稿 */}
+        {/* 3. 我的草稿 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -498,38 +518,38 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 4.5 字体大小 */}
+        {/* 5. 首页标签排序 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
           mode="elevated"
-          onPress={showFontSizeDialog}
+          onPress={showHomeTabWeightModal}
         >
           <Card.Content style={styles.cardContent}>
             <View style={styles.row}>
               <Avatar.Icon
                 size={48}
-                icon="format-size"
-                style={{ backgroundColor: theme.colors.secondaryContainer }}
-                color={theme.colors.secondary}
+                icon="view-sequential"
+                style={{ backgroundColor: theme.colors.primaryContainer }}
+                color={theme.colors.primary}
               />
               <View style={styles.cardTextContainer}>
                 <Text
                   variant="labelMedium"
                   style={{ color: theme.colors.onSurfaceVariant }}
                 >
-                  {t('profile.fontSize')}
+                  {t('profile.homeTabWeights')}
                 </Text>
-                <Text variant="titleMedium">
-                  {currentFontScaleLabel}
+                <Text variant="titleMedium" numberOfLines={1}>
+                  {homeTabOrderPreview}
                 </Text>
               </View>
-              <IconButton icon="chevron-right" onPress={showFontSizeDialog} />
+              <IconButton icon="chevron-right" onPress={showHomeTabWeightModal} />
             </View>
           </Card.Content>
         </Card>
 
-        {/* 4.6 数据源权重 */}
+        {/* 6. 数据源权重 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -560,7 +580,7 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 5. API Key */}
+        {/* 7. Etherscan API Key */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -593,7 +613,69 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 6. 应用信息 */}
+        {/* 8. 字体大小 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={showFontSizeDialog}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="format-size"
+                style={{ backgroundColor: theme.colors.secondaryContainer }}
+                color={theme.colors.secondary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.fontSize')}
+                </Text>
+                <Text variant="titleMedium">
+                  {currentFontScaleLabel}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={showFontSizeDialog} />
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* 9. 语言选择 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={showLanguageDialog}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="translate"
+                style={{ backgroundColor: theme.colors.secondaryContainer }}
+                color={theme.colors.secondary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.language')}
+                </Text>
+                <Text variant="titleMedium">
+                  {currentLanguage === 'zh' ? '简体中文' : 'English'}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={showLanguageDialog} />
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* 10. 应用信息 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
@@ -651,8 +733,21 @@ export default function ProfileScreen() {
           value={tempApiKey}
           onChangeText={setTempApiKey}
           mode="outlined"
+          multiline
+          numberOfLines={3}
+          scrollEnabled={false}
           autoCapitalize="none"
           autoCorrect={false}
+          autoComplete="off"
+          spellCheck={false}
+          style={styles.apiKeyInput}
+          contentStyle={[
+            styles.apiKeyInputContent,
+            { fontSize: Math.round(13 * fontScale) },
+            Platform.OS === 'web'
+              ? ({ wordBreak: 'break-all', overflowWrap: 'anywhere' } as object)
+              : null,
+          ]}
         />
       </AppModal>
 
@@ -771,6 +866,40 @@ export default function ProfileScreen() {
         </ScrollView>
       </AppModal>
 
+      <AppModal
+        visible={isHomeTabWeightModalVisible}
+        onDismiss={hideHomeTabWeightModal}
+        title={t('profile.editHomeTabWeights')}
+        actions={[
+          { label: t('common.cancel'), onPress: hideHomeTabWeightModal },
+          { label: t('common.save'), onPress: handleSaveHomeTabWeights },
+        ]}
+      >
+        <ScrollView style={{ maxHeight: 400 }}>
+          {modalHomeTabOrder.map((id) => (
+            <View key={id} style={styles.weightItem}>
+              <View style={styles.weightHeader}>
+                <Text variant="titleSmall" style={{ color: theme.colors.onSurface }}>
+                  {t(HOME_TAB_LABEL_KEYS[id])}
+                </Text>
+              </View>
+              <TextInput
+                mode="outlined"
+                dense
+                label={t('profile.weightLabel')}
+                value={String(localHomeTabWeights[id])}
+                onChangeText={(val) => updateLocalHomeTabWeight(id, val)}
+                keyboardType="numeric"
+                style={styles.weightInput}
+              />
+            </View>
+          ))}
+          <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
+            {t('profile.homeTabWeightHint')}
+          </Text>
+        </ScrollView>
+      </AppModal>
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -865,5 +994,15 @@ const styles = StyleSheet.create({
   },
   weightInput: {
     height: 40,
+  },
+  apiKeyInput: {
+    width: '100%',
+    maxWidth: '100%',
+  },
+  apiKeyInputContent: {
+    minHeight: 56,
+    textAlignVertical: 'top',
+    paddingTop: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });

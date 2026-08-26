@@ -27,7 +27,7 @@ import { OAMPClient } from '../oamp/client';
 import { applyDisplayPipeline, markAllRaw } from '../display';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FILTER_STATE_KEY, SQUARE_FETCH_CONCURRENCY, BLACK_HOLE_PAGE_SIZE, BLACK_HOLE_EMPTY_CONTINUE_PAGES, FOLLOWING_BLOCK_WINDOW } from '../constants';
+import { FILTER_STATE_KEY, BLACK_HOLE_PAGE_SIZE, BLACK_HOLE_EMPTY_CONTINUE_PAGES, FOLLOWING_BLOCK_WINDOW, getHomeTabOrder, type HomeTabId } from '../constants';
 import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
 import { makeBlockWindow } from '../datasource/blockRange';
@@ -52,16 +52,25 @@ type NavProp = NativeStackNavigationProp<RootStackParamList>;
 /*  常量与类型                                                         */
 /* ------------------------------------------------------------------ */
 
-const SQUARE_TAB_INDEX = 0;
-const FOLLOWING_TAB_INDEX = 1;
-const MESSAGES_TAB_INDEX = 2;
-const SELF_TAB_INDEX = 3;
-
 const INTERNAL_SQUARE = 0;
 const INTERNAL_SENT = 1;
 const INTERNAL_INBOX = 2;
 const INTERNAL_SELF = 3;
 const INTERNAL_FOLLOWING = 4;
+
+const TAB_LOADING_OFF: Record<HomeTabId, boolean> = {
+  square: false,
+  following: false,
+  messages: false,
+  self: false,
+};
+
+const TAB_HAS_MORE_ON: Record<HomeTabId, boolean> = {
+  square: true,
+  following: true,
+  messages: true,
+  self: true,
+};
 
 function wipeDecryptedItems(items: InputDataItem[]): InputDataItem[] {
   return items.map((item) => {
@@ -91,24 +100,6 @@ function formatListTimestamp(timestamp: number): string {
   return `${Y}-${M}-${D} ${h}:${m}:${s}`;
 }
 
-async function mapPool<T, R>(
-  items: T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-  const runWorker = async () => {
-    while (true) {
-      const i = nextIndex++;
-      if (i >= items.length) return;
-      results[i] = await worker(items[i], i);
-    }
-  };
-  const poolSize = Math.max(1, Math.min(limit, items.length || 1));
-  await Promise.all(Array.from({ length: poolSize }, () => runWorker()));
-  return results;
-}
 export default function HomeScreen() {
   const theme = useTheme();
   const { fontScale } = useThemePreference();
@@ -117,7 +108,7 @@ export default function HomeScreen() {
   const { centered, cardWidth, listContentStyle, columnStyle } = useListColumnLayout();
   const { state } = useAppContext();
   const { t } = useTranslation();
-  const { apiKey, profile, subscriptions, isLoading: contextLoading } = state;
+  const { apiKey, profile, subscriptions, isLoading: contextLoading, homeTabWeights } = state;
   const { unlocked, unlock, lock } = useWalletSession();
   const isWriteWallet = profile?.walletType === 'write';
 
@@ -126,12 +117,20 @@ export default function HomeScreen() {
   const tabInactiveColor = theme.dark ? theme.colors.onSurfaceVariant : 'rgba(255, 255, 255, 0.7)';
   const tabIndicatorColor = theme.dark ? theme.colors.primary : '#FFFFFF';
 
-  const TABS = useMemo(() => [
-    t('home.tabs.square'),
-    t('home.tabs.following'),
-    t('home.tabs.messages'),
-    t('home.tabs.home')
-  ], [t]);
+  const tabLabels = useMemo(() => ({
+    square: t('home.tabs.square'),
+    following: t('home.tabs.following'),
+    messages: t('home.tabs.messages'),
+    self: t('home.tabs.home'),
+  } satisfies Record<HomeTabId, string>), [t]);
+
+  const orderedTabIds = useMemo(
+    () => getHomeTabOrder(homeTabWeights),
+    [homeTabWeights],
+  );
+  const orderedTabIdsRef = useRef(orderedTabIds);
+  orderedTabIdsRef.current = orderedTabIds;
+  const leftmostTabId = orderedTabIds[0] ?? 'square';
 
   // ── 筛选状态 ──
   const [showFilterSent, setShowFilterSent] = useState(true);
@@ -141,9 +140,13 @@ export default function HomeScreen() {
   const [showSquareOamp, setShowSquareOamp] = useState(true);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
-  const [activeTab, setActiveTab] = useState(0);
+  // null = 尚未手动切换，跟随当前最左标签（冷启动/杀进程后重开）
+  const [activeTabId, setActiveTabId] = useState<HomeTabId | null>(null);
+  const resolvedActiveTabId =
+    activeTabId && orderedTabIds.includes(activeTabId) ? activeTabId : leftmostTabId;
   const pagerRef = useRef<TabPagerRef>(null);
-  const activeTabRef = useRef(0);
+  const activeTabIdRef = useRef<HomeTabId>(resolvedActiveTabId);
+  activeTabIdRef.current = resolvedActiveTabId;
   const isWriteWalletRef = useRef(isWriteWallet);
   const skipAutoPromptRef = useRef(false);
   const selfDataRef = useRef<InputDataItem[]>([]);
@@ -156,10 +159,10 @@ export default function HomeScreen() {
   const [followingRawData, setFollowingRawData] = useState<InputDataItem[]>([]);
   const [sentData, setSentData] = useState<InputDataItem[]>([]);
   const [inboxData, setInboxData] = useState<InputDataItem[]>([]);
-  const [loading, setLoading] = useState([false, false, false, false]);
-  const [refreshing, setRefreshing] = useState([false, false, false, false]);
-  const [loadingMore, setLoadingMore] = useState([false, false, false, false]);
-  const [hasMore, setHasMore] = useState([true, true, true, true]);
+  const [loading, setLoading] = useState<Record<HomeTabId, boolean>>(TAB_LOADING_OFF);
+  const [refreshing, setRefreshing] = useState<Record<HomeTabId, boolean>>(TAB_LOADING_OFF);
+  const [loadingMore, setLoadingMore] = useState<Record<HomeTabId, boolean>>(TAB_LOADING_OFF);
+  const [hasMore, setHasMore] = useState<Record<HomeTabId, boolean>>(TAB_HAS_MORE_ON);
   const [error, setError] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -170,10 +173,10 @@ export default function HomeScreen() {
   const [unlocking, setUnlocking] = useState(false);
 
   // 使用 Ref 存储分页参数和状态，避免 loadData 身份变化触发重复请求
-  const flatListRefs = useRef<(FlatList | null)[]>([null, null, null, null]);
+  const flatListRefs = useRef<Partial<Record<HomeTabId, FlatList | null>>>({});
   const scrollToTopRef = useRef({
     scrollToTop: () => {
-      flatListRefs.current[activeTabRef.current]?.scrollToOffset({
+      flatListRefs.current[activeTabIdRef.current]?.scrollToOffset({
         offset: 0,
         animated: true,
       });
@@ -181,8 +184,6 @@ export default function HomeScreen() {
   });
   useScrollToTop(scrollToTopRef);
   const nextPageParamsRef = useRef<any[]>([null, null, null, null, null]);
-  /** 广场各地址独立游标：undefined=尚未拉过/首页，null=已耗尽，object=下一页参数 */
-  const squareCursorsRef = useRef<Record<string, any>>({});
   /** 关注页下一窗的结束区块；null 表示需要先取最新高度或已耗尽 */
   const followingNextEndBlockRef = useRef<number | null>(null);
   const followingIgnoreEndReachedRef = useRef(false);
@@ -258,7 +259,7 @@ export default function HomeScreen() {
     })).catch(() => {});
   }, [showFilterSent, showFilterReceived, showSquareAll, showSquareUtf8, showSquareOamp, filtersLoaded]);
 
-  const _loadData = useCallback(async (internalIndex: number, uiIndex: number, isRefreshing = false, isLoadMore = false) => {
+  const _loadData = useCallback(async (internalIndex: number, tabId: HomeTabId, isRefreshing = false, isLoadMore = false) => {
     const modeMap: ('square' | 'sent' | 'inbox' | 'self' | 'following')[] = ['square', 'sent', 'inbox', 'self', 'following'];
     const mode = modeMap[internalIndex];
 
@@ -273,44 +274,22 @@ export default function HomeScreen() {
     const isStale = () => loadGen !== loadGenRef.current[internalIndex];
 
     if (isRefreshing) {
-      setRefreshing((prev) => {
-        const next = [...prev];
-        next[uiIndex] = true;
-        return next;
-      });
+      setRefreshing((prev) => ({ ...prev, [tabId]: true }));
       // 下拉刷新重置分页
       nextPageParamsRef.current[internalIndex] = null;
-      if (mode === 'square') squareCursorsRef.current = {};
       if (mode === 'following') followingNextEndBlockRef.current = null;
       hasMoreRef.current[internalIndex] = true;
-      setHasMore(prev => {
-        const next = [...prev];
-        next[uiIndex] = true;
-        return next;
-      });
+      setHasMore(prev => ({ ...prev, [tabId]: true }));
     } else if (isLoadMore) {
       loadingMoreRef.current[internalIndex] = true;
-      setLoadingMore(prev => {
-        const next = [...prev];
-        next[uiIndex] = true;
-        return next;
-      });
+      setLoadingMore(prev => ({ ...prev, [tabId]: true }));
     } else {
-      setLoading((prev) => {
-        const next = [...prev];
-        next[uiIndex] = true;
-        return next;
-      });
+      setLoading((prev) => ({ ...prev, [tabId]: true }));
       // 初次加载重置分页
       nextPageParamsRef.current[internalIndex] = null;
-      if (mode === 'square') squareCursorsRef.current = {};
       if (mode === 'following') followingNextEndBlockRef.current = null;
       hasMoreRef.current[internalIndex] = true;
-      setHasMore(prev => {
-        const next = [...prev];
-        next[uiIndex] = true;
-        return next;
-      });
+      setHasMore(prev => ({ ...prev, [tabId]: true }));
     }
 
     setError(null);
@@ -323,118 +302,37 @@ export default function HomeScreen() {
       let allErrors: string[] = [];
 
       if (mode === 'square') {
-        type SquareFetchResult = {
-          address: string;
-          items: InputDataItem[];
-          next_page_params: any;
-          errors?: string[];
-        };
-
         const withBlackHolePageSize = (pageParams: any) => ({
           ...(pageParams && typeof pageParams === 'object' ? pageParams : { page: '1' }),
           offset: String(BLACK_HOLE_PAGE_SIZE),
           items_count: String(BLACK_HOLE_PAGE_SIZE),
         });
 
-        const safeFetchOnce = (
-          address: string,
-          fetchMode: 'square' | 'all',
-          pageParams: any,
-        ): Promise<Omit<SquareFetchResult, 'address'>> =>
-          dataSourceManager.fetchAll(address, fetchMode, pageParams).catch(e => {
+        /** 只查黑洞：大页 + 过滤后空页最多再续拉 BLACK_HOLE_EMPTY_CONTINUE_PAGES 次 */
+        let pageParams = withBlackHolePageSize(isLoadMore ? params : null);
+        const collected: InputDataItem[] = [];
+        const errors: string[] = [];
+        let lastNext: any = null;
+        let pages = 0;
+        const maxPages = 1 + BLACK_HOLE_EMPTY_CONTINUE_PAGES;
+
+        do {
+          const res = await dataSourceManager.fetchAll(BLACK_HOLE_ADDRESS, 'square', pageParams).catch(e => {
             const message = e instanceof Error ? e.message : String(e);
-            return { items: [], next_page_params: null, errors: [message] };
+            return { items: [] as InputDataItem[], next_page_params: null, errors: [message] };
           });
+          res.items.forEach(i => collected.push(i));
+          if (res.errors) errors.push(...res.errors);
+          lastNext = res.next_page_params ?? null;
+          pages += 1;
+          if (collected.length > 0) break;
+          if (!lastNext) break;
+          pageParams = withBlackHolePageSize(lastNext);
+        } while (pages < maxPages);
 
-        /** 黑洞：大页 + 过滤后空页最多再续拉 BLACK_HOLE_EMPTY_CONTINUE_PAGES 次 */
-        const fetchBlackHole = async (startParams: any): Promise<Omit<SquareFetchResult, 'address'>> => {
-          let pageParams = withBlackHolePageSize(startParams);
-          const collected: InputDataItem[] = [];
-          const errors: string[] = [];
-          let lastNext: any = null;
-          let pages = 0;
-          const maxPages = 1 + BLACK_HOLE_EMPTY_CONTINUE_PAGES;
-
-          do {
-            const res = await safeFetchOnce(BLACK_HOLE_ADDRESS, 'square', pageParams);
-            res.items.forEach(i => collected.push(i));
-            if (res.errors) errors.push(...res.errors);
-            lastNext = res.next_page_params ?? null;
-            pages += 1;
-            if (collected.length > 0) break;
-            if (!lastNext) break;
-            pageParams = withBlackHolePageSize(lastNext);
-          } while (pages < maxPages);
-
-          return {
-            items: collected,
-            next_page_params: lastNext,
-            errors: errors.length ? errors : undefined,
-          };
-        };
-
-        const addrKey = (address: string) => address.trim().toLowerCase();
-
-        type SquareJob = {
-          address: string;
-          run: () => Promise<Omit<SquareFetchResult, 'address'>>;
-        };
-
-        const squareJobs: SquareJob[] = [];
-
-        {
-          const key = addrKey(BLACK_HOLE_ADDRESS);
-          const cursor = squareCursorsRef.current[key];
-          if (!(isLoadMore && cursor === null)) {
-            squareJobs.push({
-              address: BLACK_HOLE_ADDRESS,
-              run: () => fetchBlackHole(isLoadMore ? cursor ?? null : null),
-            });
-          }
-        }
-
-        if (profile?.address) {
-          const key = addrKey(profile.address);
-          const cursor = squareCursorsRef.current[key];
-          if (!(isLoadMore && cursor === null)) {
-            squareJobs.push({
-              address: profile.address,
-              run: () => safeFetchOnce(profile.address, 'all', isLoadMore ? cursor ?? null : null),
-            });
-          }
-        }
-
-        subscriptions.forEach(s => {
-          const key = addrKey(s.address);
-          const cursor = squareCursorsRef.current[key];
-          if (isLoadMore && cursor === null) return;
-          squareJobs.push({
-            address: s.address,
-            run: () => safeFetchOnce(s.address, 'all', isLoadMore ? cursor ?? null : null),
-          });
-        });
-
-        // Bound concurrency so many subscriptions cannot open dozens of explorer requests at once.
-        const results = await mapPool(squareJobs, SQUARE_FETCH_CONCURRENCY, async (job) => {
-          const res = await job.run();
-          return { address: job.address, ...res } as SquareFetchResult;
-        });
-
-        // Merge and deduplicate by ID (tx hash); each address keeps its own cursor.
-        const map = new Map<string, InputDataItem>();
-        results.forEach(res => {
-          res.items.forEach(item => map.set(item.id, item));
-          squareCursorsRef.current[addrKey(res.address)] = res.next_page_params ?? null;
-          if (res.errors) allErrors = [...allErrors, ...res.errors];
-        });
-
-        const anyMore = Object.values(squareCursorsRef.current).some(c => c != null);
-        nextParams = anyMore ? { square: true } : null;
-
-        // Sort by time desc
-        resultItems = Array.from(map.values()).sort((a, b) =>
-          b.timestamp - a.timestamp
-        );
+        if (errors.length) allErrors = errors;
+        nextParams = lastNext;
+        resultItems = collected.sort((a, b) => b.timestamp - a.timestamp);
       } else if (mode === 'following') {
         const seen = new Set<string>();
         const followedLower = new Set<string>();
@@ -460,7 +358,7 @@ export default function HomeScreen() {
             : await fetchLatestBlockNumberViaRpc();
           const window = makeBlockWindow(windowEnd, FOLLOWING_BLOCK_WINDOW);
 
-          // 先把这 50 个区块的交易完整拉回，再在内存里筛关注地址 + 非空 input。
+          // 先把这一窗区块的交易完整拉回，再在内存里筛关注地址 + 非空 input。
           const windowTxs = await fetchBlockWindowTransactions(window.startBlock, window.endBlock);
           const matched = filterFollowedWithInput(windowTxs, followedLower);
           resultItems = matched
@@ -558,11 +456,7 @@ export default function HomeScreen() {
       nextPageParamsRef.current[internalIndex] = nextParams;
       hasMoreRef.current[internalIndex] = !!nextParams;
 
-      setHasMore(prev => {
-        const next = [...prev];
-        next[uiIndex] = !!nextParams;
-        return next;
-      });
+      setHasMore(prev => ({ ...prev, [tabId]: !!nextParams }));
     } catch (err: any) {
       if (err.message === 'MISSING_ETHERSCAN_API_KEY') {
         setSnackbarMessage(t('home.setApiKeyHint'));
@@ -572,35 +466,26 @@ export default function HomeScreen() {
       }
         } finally {
       if (!isStale()) {
-        setLoading((prev) => {
-          const next = [...prev];
-          next[uiIndex] = false;
-          return next;
-        });
-        setRefreshing((prev) => {
-          const next = [...prev];
-          next[uiIndex] = false;
-          return next;
-        });
+        setLoading((prev) => ({ ...prev, [tabId]: false }));
+        setRefreshing((prev) => ({ ...prev, [tabId]: false }));
         loadingMoreRef.current[internalIndex] = false;
-        setLoadingMore(prev => {
-          const next = [...prev];
-          next[uiIndex] = false;
-          return next;
-        });
+        setLoadingMore(prev => ({ ...prev, [tabId]: false }));
       }
     }
   }, [profile?.address, apiKey, subscriptions, t]);
 
-  const loadData = useCallback(async (tabIndex: number, isRefreshing = false, isLoadMore = false) => {
-    // 消息标签页同时加载已发送(internal=sent)和收到(internal=inbox)
-    if (tabIndex === MESSAGES_TAB_INDEX) {
-      _loadData(INTERNAL_SENT, MESSAGES_TAB_INDEX, isRefreshing, isLoadMore);
-      _loadData(INTERNAL_INBOX, MESSAGES_TAB_INDEX, isRefreshing, isLoadMore);
+  const loadData = useCallback(async (tabId: HomeTabId, isRefreshing = false, isLoadMore = false) => {
+    if (tabId === 'messages') {
+      _loadData(INTERNAL_SENT, 'messages', isRefreshing, isLoadMore);
+      _loadData(INTERNAL_INBOX, 'messages', isRefreshing, isLoadMore);
       return;
     }
-    const uiToInternal: number[] = [INTERNAL_SQUARE, INTERNAL_FOLLOWING, INTERNAL_SENT, INTERNAL_SELF];
-    _loadData(uiToInternal[tabIndex], tabIndex, isRefreshing, isLoadMore);
+    const tabToInternal: Record<Exclude<HomeTabId, 'messages'>, number> = {
+      square: INTERNAL_SQUARE,
+      following: INTERNAL_FOLLOWING,
+      self: INTERNAL_SELF,
+    };
+    _loadData(tabToInternal[tabId], tabId, isRefreshing, isLoadMore);
   }, [_loadData]);
 
   const reclassifySelfData = useCallback(async (withClient: boolean) => {
@@ -648,7 +533,7 @@ export default function HomeScreen() {
       reclassifySelfData(false);
       if (
         homeFocusedRef.current &&
-        activeTabRef.current === SELF_TAB_INDEX &&
+        activeTabIdRef.current === 'self' &&
         isWriteWalletRef.current &&
         !skipAutoPromptRef.current
       ) {
@@ -663,17 +548,18 @@ export default function HomeScreen() {
   }, [unlocked, reclassifySelfData]);
 
   const applyTabIndex = useCallback((next: number) => {
-    const from = activeTabRef.current;
-    if (from === next) return;
-    activeTabRef.current = next;
-    setActiveTab(next);
+    const nextId = orderedTabIdsRef.current[next];
+    if (!nextId || nextId === activeTabIdRef.current) return;
+    const fromId = activeTabIdRef.current;
+    activeTabIdRef.current = nextId;
+    setActiveTabId(nextId);
 
-    if (next === SELF_TAB_INDEX) {
+    if (nextId === 'self') {
       skipAutoPromptRef.current = false;
       if (isWriteWalletRef.current && !isSessionUnlocked()) {
         setPasswordVisible(true);
       }
-    } else if (from === SELF_TAB_INDEX && isDesktopLockPolicy()) {
+    } else if (fromId === 'self' && isDesktopLockPolicy()) {
       skipAutoPromptRef.current = false;
       setPasswordVisible(false);
       setPassword('');
@@ -718,11 +604,28 @@ export default function HomeScreen() {
   useEffect(() => {
     if (contextLoading || !filtersLoaded || initialLoadDoneRef.current) return;
     initialLoadDoneRef.current = true;
-    loadData(SQUARE_TAB_INDEX);
-    loadData(FOLLOWING_TAB_INDEX);
-    loadData(MESSAGES_TAB_INDEX);
-    loadData(SELF_TAB_INDEX);
+    loadData('square');
+    loadData('following');
+    loadData('messages');
+    loadData('self');
   }, [contextLoading, filtersLoaded, loadData]);
+
+  useEffect(() => {
+    if (contextLoading || activeTabId != null) return;
+    setActiveTabId(leftmostTabId);
+  }, [contextLoading, activeTabId, leftmostTabId]);
+
+  useEffect(() => {
+    if (
+      resolvedActiveTabId === 'self' &&
+      homeFocusedRef.current &&
+      isWriteWallet &&
+      !isSessionUnlocked() &&
+      !skipAutoPromptRef.current
+    ) {
+      setPasswordVisible(true);
+    }
+  }, [resolvedActiveTabId, isWriteWallet]);
 
   const followingQueryKey = useMemo(
     () => subscriptions.map(s => s.address.trim().toLowerCase()).filter(Boolean).sort().join(','),
@@ -737,14 +640,14 @@ export default function HomeScreen() {
     }
     if (prevFollowingKeyRef.current === followingQueryKey) return;
     prevFollowingKeyRef.current = followingQueryKey;
-    loadData(FOLLOWING_TAB_INDEX);
+    loadData('following');
   }, [followingQueryKey, loadData]);
 
   useFocusEffect(
     useCallback(() => {
       homeFocusedRef.current = true;
       if (
-        activeTabRef.current === SELF_TAB_INDEX &&
+        activeTabIdRef.current === 'self' &&
         isWriteWalletRef.current &&
         !isSessionUnlocked()
       ) {
@@ -764,12 +667,24 @@ export default function HomeScreen() {
     }, [lock]),
   );
 
+  const skipPageEventRef = useRef(false);
+
+  useEffect(() => {
+    skipPageEventRef.current = true;
+    const timer = setTimeout(() => {
+      skipPageEventRef.current = false;
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [orderedTabIds]);
+
   const onTabPress = (index: number) => {
+    skipPageEventRef.current = false;
     applyTabIndex(index);
     pagerRef.current?.setPage(index);
   };
 
   const onPageSelected = (e: any) => {
+    if (skipPageEventRef.current) return;
     applyTabIndex(e.nativeEvent.position);
   };
 
@@ -798,11 +713,11 @@ export default function HomeScreen() {
 
   const keyExtractor = useCallback((item: InputDataItem) => item.id, []);
 
-  const renderList = (data: InputDataItem[], tabIndex: number) => {
-    const isSquareList = tabIndex === SQUARE_TAB_INDEX;
-    const isFollowingList = tabIndex === FOLLOWING_TAB_INDEX;
-    const isMessagesList = tabIndex === MESSAGES_TAB_INDEX;
-    const isSelfList = tabIndex === SELF_TAB_INDEX;
+  const renderList = (data: InputDataItem[], tabId: HomeTabId) => {
+    const isSquareList = tabId === 'square';
+    const isFollowingList = tabId === 'following';
+    const isMessagesList = tabId === 'messages';
+    const isSelfList = tabId === 'self';
 
     if (!isSquareList && !isFollowingList && !profile?.address) {
       return (
@@ -841,25 +756,21 @@ export default function HomeScreen() {
       );
     }
 
-    const isMsgLoading = isMessagesList
-      ? loading[MESSAGES_TAB_INDEX]
-      : loading[tabIndex];
-    const isMsgRefreshing = isMessagesList
-      ? refreshing[MESSAGES_TAB_INDEX]
-      : refreshing[tabIndex];
+    const isMsgLoading = loading[tabId];
+    const isMsgRefreshing = refreshing[tabId];
 
     if (isMsgLoading && !isMsgRefreshing && data.length === 0) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={{ marginTop: 12 }}>{t('home.loadingData', { tab: TABS[tabIndex] })}</Text>
+          <Text style={{ marginTop: 12 }}>{t('home.loadingData', { tab: tabLabels[tabId] })}</Text>
         </View>
       );
     }
 
     return (
       <FlatList
-        ref={(ref) => { flatListRefs.current[tabIndex] = ref; }}
+        ref={(ref) => { flatListRefs.current[tabId] = ref; }}
         style={scrollFill}
         data={data}
         renderItem={renderItem}
@@ -871,7 +782,7 @@ export default function HomeScreen() {
           Platform.OS !== 'web' ? (
             <RefreshControl
               refreshing={isMsgRefreshing}
-              onRefresh={() => loadData(tabIndex, true)}
+              onRefresh={() => loadData(tabId, true)}
               colors={[theme.colors.primary]}
               enabled={true}
             />
@@ -879,7 +790,7 @@ export default function HomeScreen() {
         }
         onEndReached={() => {
           if (isFollowingList && (data.length === 0 || followingIgnoreEndReachedRef.current)) return;
-          loadData(tabIndex, false, true);
+          loadData(tabId, false, true);
         }}
         onEndReachedThreshold={0.2}
         onScrollBeginDrag={() => {
@@ -888,9 +799,9 @@ export default function HomeScreen() {
         ListFooterComponent={
           data.length > 0 ? (
             <View style={styles.footerContainer}>
-              {loadingMore[tabIndex] ? (
+              {loadingMore[tabId] ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : (isMessagesList ? (!hasMoreRef.current[INTERNAL_SENT] && !hasMoreRef.current[INTERNAL_INBOX]) : !hasMore[tabIndex]) ? (
+              ) : (isMessagesList ? (!hasMoreRef.current[INTERNAL_SENT] && !hasMoreRef.current[INTERNAL_INBOX]) : !hasMore[tabId]) ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('home.noMoreData')}
                 </Text>
@@ -900,7 +811,7 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            {isFollowingList && loadingMore[tabIndex] ? (
+            {isFollowingList && loadingMore[tabId] ? (
               <>
                 <ActivityIndicator size="small" color={theme.colors.primary} />
                 <Text variant="bodyMedium" style={{ marginTop: 12 }}>
@@ -916,10 +827,10 @@ export default function HomeScreen() {
                       ? t('home.followingEmptyWindow', { count: FOLLOWING_BLOCK_WINDOW })
                       : t('home.noMessages')}
                 </Text>
-                {isFollowingList && subscriptions.length > 0 && hasMore[tabIndex] ? (
+                {isFollowingList && subscriptions.length > 0 && hasMore[tabId] ? (
                   <Button
                     mode="text"
-                    onPress={() => loadData(tabIndex, false, true)}
+                    onPress={() => loadData(tabId, false, true)}
                     style={{ marginTop: 8 }}
                   >
                     {t('home.followingLoadOlder', { count: FOLLOWING_BLOCK_WINDOW })}
@@ -1041,9 +952,11 @@ export default function HomeScreen() {
     );
   };
 
+  const activeTabIndex = Math.max(0, orderedTabIds.indexOf(resolvedActiveTabId));
+
   const isCurrentRefreshing = useMemo(() => {
-    return !!refreshing[activeTab];
-  }, [activeTab, refreshing]);
+    return !!refreshing[resolvedActiveTabId];
+  }, [resolvedActiveTabId, refreshing]);
 
   const onFabPress = () => {
     if (!profile) {
@@ -1069,23 +982,23 @@ export default function HomeScreen() {
           { backgroundColor: headerChrome.backgroundColor, borderBottomColor: theme.colors.outline + '20' },
           centered && { width: '50%', alignSelf: 'center' },
         ]}>
-          {TABS.map((tab, index) => (
+          {orderedTabIds.map((tabId, index) => (
             <TouchableOpacity
-              key={index}
+              key={tabId}
               onPress={() => onTabPress(index)}
               style={[
                 styles.tabItem,
-                activeTab === index && { borderBottomColor: tabIndicatorColor },
+                resolvedActiveTabId === tabId && { borderBottomColor: tabIndicatorColor },
               ]}
             >
               <Text
                 style={[
                   styles.tabText,
-                  { color: activeTab === index ? tabActiveColor : tabInactiveColor, fontSize: Math.round(14 * fontScale) },
-                  activeTab === index && styles.activeTabText,
+                  { color: resolvedActiveTabId === tabId ? tabActiveColor : tabInactiveColor, fontSize: Math.round(14 * fontScale) },
+                  resolvedActiveTabId === tabId && styles.activeTabText,
                 ]}
               >
-                {tab}
+                {tabLabels[tabId]}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1093,21 +1006,26 @@ export default function HomeScreen() {
       </View>
 
       <TabPager
+        key={orderedTabIds.join('-')}
         ref={pagerRef}
         style={styles.pagerView}
-        initialPage={0}
+        initialPage={activeTabIndex}
         onPageSelected={onPageSelected}
       >
-        <View key="1" style={scrollFill}>{renderList(displayedSquareData, SQUARE_TAB_INDEX)}</View>
-        <View key="2" style={scrollFill}>{renderList(displayedFollowingData, FOLLOWING_TAB_INDEX)}</View>
-        <View key="3" style={scrollFill}>{renderList(messagesData, MESSAGES_TAB_INDEX)}</View>
-        <View key="4" style={scrollFill}>{renderList(selfData, SELF_TAB_INDEX)}</View>
+        {orderedTabIds.map((tabId) => (
+          <View key={tabId} style={scrollFill}>
+            {tabId === 'square' && renderList(displayedSquareData, 'square')}
+            {tabId === 'following' && renderList(displayedFollowingData, 'following')}
+            {tabId === 'messages' && renderList(messagesData, 'messages')}
+            {tabId === 'self' && renderList(selfData, 'self')}
+          </View>
+        ))}
       </TabPager>
 
       {error && (
         <View style={[styles.errorBar, { backgroundColor: theme.colors.errorContainer }]}>
           <Text style={{ color: theme.colors.onErrorContainer, flex: 1 }}>{error}</Text>
-          <Button onPress={() => loadData(activeTab)}>{t('home.retry')}</Button>
+          <Button onPress={() => loadData(resolvedActiveTabId)}>{t('home.retry')}</Button>
         </View>
       )}
 
@@ -1177,7 +1095,7 @@ export default function HomeScreen() {
       <FAB
         icon={isCurrentRefreshing ? 'autorenew' : 'refresh'}
         style={[styles.fabRefresh, { backgroundColor: theme.colors.secondaryContainer }, centered && { marginRight: '25%' }]}
-        onPress={() => loadData(activeTab, true)}
+        onPress={() => loadData(resolvedActiveTabId, true)}
         disabled={isCurrentRefreshing}
         color={theme.colors.onSecondaryContainer}
         small

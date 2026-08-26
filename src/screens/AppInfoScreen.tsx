@@ -67,6 +67,9 @@ export default function AppInfoScreen() {
               ) : null}
               <View style={styles.infoRow}>
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {t('profile.appAuthor')}: Logan Cham
+                </Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('profile.appVersion')}: {APP_VERSION}
                 </Text>
               </View>
@@ -162,6 +165,7 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     marginTop: 8,
+    gap: 4,
   },
   sectionSpacer: {
     height: 16,

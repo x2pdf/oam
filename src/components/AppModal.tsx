@@ -99,13 +99,17 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     borderRadius: 8,
+    maxWidth: '100%',
+    overflow: 'hidden',
+  },
+  body: {
+    marginBottom: 16,
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   modalTitle: {
     marginBottom: 16,
     textAlign: 'center',
-  },
-  body: {
-    marginBottom: 16,
   },
   scroll: {
     maxHeight: 360,

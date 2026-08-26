@@ -126,6 +126,7 @@ export default function SubscriptionDetailScreen({ route, navigation }: Props) {
           showFullAddress
           onCopied={() => setSnackbarVisible(true)}
           showInfo={false}
+          showFollow={false}
         />
 
         <View style={styles.buttonGroup}>

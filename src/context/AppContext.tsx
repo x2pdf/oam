@@ -17,7 +17,7 @@ import {
   SendDraftImage,
   normalizeSubscription,
 } from '../types';
-import { STORAGE_KEYS, API_CONFIG } from '../constants';
+import { STORAGE_KEYS, API_CONFIG, normalizeHomeTabWeights, type HomeTabId } from '../constants';
 import { migrateLegacyStorage } from '../storage/migrate';
 import { dataSourceManager } from '../datasource/DataSourceManager';
 
@@ -56,6 +56,7 @@ interface AppState {
   favorites: FavoriteItem[];
   drafts: SendDraft[];
   dataSourceWeights: Record<string, number>;
+  homeTabWeights: Record<HomeTabId, number>;
   isLoading: boolean;
 }
 
@@ -66,6 +67,7 @@ const initialState: AppState = {
   favorites: [],
   drafts: [],
   dataSourceWeights: {},
+  homeTabWeights: normalizeHomeTabWeights(),
   isLoading: true,
 };
 
@@ -87,6 +89,7 @@ type Action =
   | { type: 'UPSERT_DRAFT'; payload: SendDraft }
   | { type: 'REMOVE_DRAFT'; payload: string }
   | { type: 'SET_DATA_SOURCE_WEIGHTS'; payload: Record<string, number> }
+  | { type: 'SET_HOME_TAB_WEIGHTS'; payload: Record<HomeTabId, number> }
   | { type: 'SET_LOADING'; payload: boolean };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -149,6 +152,8 @@ function appReducer(state: AppState, action: Action): AppState {
       };
     case 'SET_DATA_SOURCE_WEIGHTS':
       return { ...state, dataSourceWeights: action.payload };
+    case 'SET_HOME_TAB_WEIGHTS':
+      return { ...state, homeTabWeights: action.payload };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     default:
@@ -175,6 +180,7 @@ interface AppContextType {
   upsertDraft: (draft: SendDraft) => Promise<void>;
   deleteDraft: (id: string) => Promise<void>;
   setDataSourceWeights: (weights: Record<string, number>) => Promise<void>;
+  setHomeTabWeights: (weights: Record<HomeTabId, number>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -204,6 +210,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
           STORAGE_KEYS.FAVORITES,
           STORAGE_KEYS.DRAFTS,
           STORAGE_KEYS.DATA_SOURCE_WEIGHTS,
+          STORAGE_KEYS.HOME_TAB_WEIGHTS,
         ]);
         const subsValue = results[0]?.[1];
         const profileValue = results[1]?.[1];
@@ -211,6 +218,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
         const favoritesValue = results[3]?.[1];
         const draftsValue = results[4]?.[1];
         const weightsValue = results[5]?.[1];
+        const homeTabWeightsValue = results[6]?.[1];
         if (subsValue) {
           const subs: Subscription[] = JSON.parse(subsValue);
           dispatch({
@@ -253,6 +261,13 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
           const weights = JSON.parse(weightsValue);
           dispatch({ type: 'SET_DATA_SOURCE_WEIGHTS', payload: weights });
           dataSourceManager.updateWeights(weights);
+        }
+        if (homeTabWeightsValue) {
+          const parsed = JSON.parse(homeTabWeightsValue);
+          dispatch({
+            type: 'SET_HOME_TAB_WEIGHTS',
+            payload: normalizeHomeTabWeights(parsed),
+          });
         }
       } catch (error) {
         console.warn('Failed to load persisted data:', error);
@@ -346,6 +361,13 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     dataSourceManager.updateWeights(weights);
   }, []);
 
+  const setHomeTabWeights = useCallback(async (weights: Record<HomeTabId, number>) => {
+    dispatch({
+      type: 'SET_HOME_TAB_WEIGHTS',
+      payload: normalizeHomeTabWeights(weights),
+    });
+  }, []);
+
   /* ---------- 同步 Profile 到 AsyncStorage ---------- */
   useEffect(() => {
     if (state.isLoading) return;
@@ -399,6 +421,16 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     }
   }, [state.dataSourceWeights, state.isLoading]);
 
+  /* ---------- 同步首页标签权重到 AsyncStorage ---------- */
+  useEffect(() => {
+    if (!state.isLoading) {
+      AsyncStorage.setItem(
+        STORAGE_KEYS.HOME_TAB_WEIGHTS,
+        JSON.stringify(state.homeTabWeights),
+      ).catch(console.warn);
+    }
+  }, [state.homeTabWeights, state.isLoading]);
+
   const value = useMemo<AppContextType>(
     () => ({
       state,
@@ -415,6 +447,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       upsertDraft,
       deleteDraft,
       setDataSourceWeights,
+      setHomeTabWeights,
     }),
     [
       state,
@@ -431,6 +464,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       upsertDraft,
       deleteDraft,
       setDataSourceWeights,
+      setHomeTabWeights,
     ],
   );
 

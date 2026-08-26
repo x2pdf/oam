@@ -84,6 +84,7 @@ export type RootStackParamList = {
     mode: 'add' | 'edit';
     source: 'subscriptions' | 'profile';
     subscription?: Subscription;
+    prefillAddress?: string;
   };
   AddInfoSelect: undefined;
   AddAddressForm: {
