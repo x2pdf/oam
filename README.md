@@ -158,7 +158,3 @@ v1 信封（固定前缀 20 字节 + PAYLOAD）：
 This project was developed with AI assistance.
 
 ---
-
-## 许可证
-
-本项目仅供学习和演示用途。
