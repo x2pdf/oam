@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { showConfirm } from '../utils/alert';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
@@ -13,6 +13,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
+import { useThemePreference } from '../context/ThemeContext';
 import { RootStackParamList, Subscription } from '../types';
 import { MAX_ADDRESS_LENGTH, MAX_DESCRIPTION_LENGTH, DEFAULT_CHAIN } from '../constants';
 
@@ -25,6 +26,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'AddAddressForm'>;
 export default function AddAddressFormScreen({ route, navigation }: Props) {
   const { mode, subscription } = route.params;
   const theme = useTheme();
+  const { fontScale } = useThemePreference();
   const { t } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
   const {
@@ -132,9 +134,23 @@ export default function AddAddressFormScreen({ route, navigation }: Props) {
           if (errors.address) setErrors((prev) => ({ ...prev, address: undefined }));
         }}
         maxLength={MAX_ADDRESS_LENGTH}
+        multiline
+        numberOfLines={3}
+        scrollEnabled={false}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="off"
+        spellCheck={false}
         autoFocus={mode === 'add'}
         error={!!errors.address}
         style={styles.input}
+        contentStyle={[
+          styles.addressContent,
+          { fontSize: Math.round(13 * fontScale) },
+          Platform.OS === 'web'
+            ? ({ wordBreak: 'break-all', overflowWrap: 'anywhere' } as object)
+            : null,
+        ]}
         outlineColor={theme.colors.outline}
         activeOutlineColor={theme.colors.primary}
       />
@@ -212,6 +228,14 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 0,
+    width: '100%',
+    maxWidth: '100%',
+  },
+  addressContent: {
+    minHeight: 56,
+    textAlignVertical: 'top',
+    paddingTop: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   buttonGroup: {
     marginTop: 32,

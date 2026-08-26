@@ -112,9 +112,9 @@ export const DATA_SOURCE_REQUEST_TIMEOUT_MS = 15000;
 
 /**
  * 关注页一次拉回的完整区块数，再到本地筛选。
- * 500 约为主网 100 分钟。
+ * 100 约为主网 20 分钟。窗口过大时部分 RPC 不返回整块交易。
  */
-export const FOLLOWING_BLOCK_WINDOW = 500;
+export const FOLLOWING_BLOCK_WINDOW = 100;
 
 /** 关注页并发拉取区块数（eth_getBlockByNumber）。 */
 export const FOLLOWING_BLOCK_FETCH_CONCURRENCY = 8;

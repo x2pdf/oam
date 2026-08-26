@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { showAlert, showConfirm } from '../utils/alert';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
@@ -171,16 +171,30 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
       </Text>
       <TextInput
         mode="outlined"
-        label={t('form.addressPlaceholder')}
+        placeholder={t('form.addressPlaceholder')}
         value={address}
         onChangeText={(text) => {
           setAddress(text);
           if (errors.address) setErrors((prev) => ({ ...prev, address: undefined }));
         }}
         maxLength={MAX_ADDRESS_LENGTH}
+        multiline
+        numberOfLines={3}
+        scrollEnabled={false}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="off"
+        spellCheck={false}
         autoFocus={mode === 'add' && !addressPrefill}
         error={!!errors.address}
         style={styles.input}
+        contentStyle={[
+          styles.addressContent,
+          { fontSize: Math.round(13 * fontScale) },
+          Platform.OS === 'web'
+            ? ({ wordBreak: 'break-all', overflowWrap: 'anywhere' } as object)
+            : null,
+        ]}
         outlineColor={theme.colors.outline}
         activeOutlineColor={theme.colors.primary}
       />
@@ -204,7 +218,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
       </Text>
       <TextInput
         mode="outlined"
-        label={t('form.descriptionPlaceholder')}
+        placeholder={t('form.descriptionPlaceholder')}
         value={description}
         onChangeText={(text) => {
           setDescription(text);
@@ -286,6 +300,14 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 0,
+    width: '100%',
+    maxWidth: '100%',
+  },
+  addressContent: {
+    minHeight: 56,
+    textAlignVertical: 'top',
+    paddingTop: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   counter: {
     textAlign: 'right',
