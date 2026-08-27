@@ -92,6 +92,7 @@
     "unlockHint": "Enter your payment password to view encrypted notes sent to yourself",
     "unlockButton": "Enter payment password",
     "passwordIncorrect": "Incorrect payment password",
+    "passwordLocked": "Too many incorrect passwords. Please wait {{seconds}} seconds before trying again",
     "readOnlyCannotDecrypt": "This is a read-only wallet, so encrypted notes to yourself cannot be decrypted",
     "searchAddressTitle": "Look up address",
     "searchAddressHint": "Enter or paste an address to look up",

@@ -19,7 +19,8 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR } from '../wallet/session';
+import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR, PASSWORD_LOCKED_ERROR } from '../wallet/session';
+import { usePasswordLockRemaining } from '../wallet/WalletSessionContext';
 import { isAddress, parseEther, formatEther, parseUnits, formatUnits } from 'ethers';
 import { RootStackParamList, SendDraft, Subscription } from '../types';
 import { useAppContext } from '../context/AppContext';
@@ -200,6 +201,9 @@ export default function SendDataScreen() {
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const passwordLockRemainingMs = usePasswordLockRemaining(passwordVisible);
+  const passwordLocked = passwordLockRemainingMs > 0;
   const [imageNameDialogVisible, setImageNameDialogVisible] = useState(false);
   const [imageSourceDialogVisible, setImageSourceDialogVisible] = useState(false);
   const [currentPickingImage, setCurrentPickingImage] = useState<ImageItem | null>(null);
@@ -599,17 +603,19 @@ export default function SendDataScreen() {
   const startPasswordInput = () => {
     if (!canConfirmSend) return;
     closeConfirmDialog();
+    setPasswordError(null);
     setPasswordVisible(true);
   };
 
   const executeSend = async () => {
+    if (passwordLocked) return;
     if (!password) {
-      setSnackbarMessage(t('send.passwordLabel'));
-      setSnackbarVisible(true);
+      setPasswordError(t('send.passwordLabel'));
       return;
     }
 
     setLoading(true);
+    setPasswordError(null);
     try {
       const wallet = await unlockSession(password);
       const client = new OAMPClient(wallet.privateKey);
@@ -647,19 +653,29 @@ export default function SendDataScreen() {
       setLoading(false);
 
       const isAuthError =
-        error?.name === NO_KEYSTORE_ERROR || error?.name === INVALID_PASSWORD_ERROR;
+        error?.name === NO_KEYSTORE_ERROR ||
+        error?.name === INVALID_PASSWORD_ERROR ||
+        error?.name === PASSWORD_LOCKED_ERROR;
 
       let draftSaved = false;
       if (!isAuthError) {
         draftSaved = await autoSaveDraftOnSendFailure();
       }
 
-      const message =
-        error?.name === NO_KEYSTORE_ERROR
-          ? t('send.noPrivateKey')
-          : error?.name === INVALID_PASSWORD_ERROR
-            ? t('home.passwordIncorrect')
-            : error.message;
+      if (error?.name === PASSWORD_LOCKED_ERROR) {
+        setPassword('');
+        return;
+      }
+
+      if (error?.name === NO_KEYSTORE_ERROR || error?.name === INVALID_PASSWORD_ERROR) {
+        setPasswordError(
+          error?.name === NO_KEYSTORE_ERROR ? t('send.noPrivateKey') : t('home.passwordIncorrect'),
+        );
+        setPassword('');
+        return;
+      }
+
+      const message = error.message;
 
       if (!isAuthError && (error instanceof AllRpcFailedError || error?.name === 'AllRpcFailedError')) {
         showAlert(
@@ -1121,6 +1137,7 @@ export default function SendDataScreen() {
           if (!loading) {
             setPasswordVisible(false);
             setPassword('');
+            setPasswordError(null);
           }
         }}
         dismissable={!loading}
@@ -1132,13 +1149,14 @@ export default function SendDataScreen() {
             onPress: () => {
               setPasswordVisible(false);
               setPassword('');
+              setPasswordError(null);
             },
           },
           {
             label: t('common.ok'),
             onPress: executeSend,
             loading,
-            disabled: loading,
+            disabled: loading || passwordLocked,
           },
         ]}
       >
@@ -1148,11 +1166,25 @@ export default function SendDataScreen() {
           secureTextEntry
           maxLength={16}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(value) => {
+            setPassword(value);
+            if (passwordError) setPasswordError(null);
+          }}
           autoFocus
+          disabled={loading || passwordLocked}
+          error={!!passwordError || passwordLocked}
           outlineColor={theme.colors.outline}
           activeOutlineColor={theme.colors.primary}
         />
+        {passwordLocked ? (
+          <HelperText type="error" visible>
+            {t('home.passwordLocked', { seconds: Math.ceil(passwordLockRemainingMs / 1000) })}
+          </HelperText>
+        ) : passwordError ? (
+          <HelperText type="error" visible>
+            {passwordError}
+          </HelperText>
+        ) : null}
       </AppModal>
 
       <AppModal

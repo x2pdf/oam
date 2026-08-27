@@ -92,6 +92,7 @@
     "unlockHint": "输入支付密码后可查看仅自己的加密内容",
     "unlockButton": "输入支付密码",
     "passwordIncorrect": "支付密码不正确",
+    "passwordLocked": "密码连续输错 5 次，请等待 {{seconds}} 秒后再试",
     "readOnlyCannotDecrypt": "当前为仅查询钱包，无法解密仅自己的加密内容",
     "searchAddressTitle": "查询地址",
     "searchAddressHint": "请输入或粘贴要查询的地址",

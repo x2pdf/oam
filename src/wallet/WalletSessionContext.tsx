@@ -10,6 +10,7 @@ import React, {
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import { ethers } from 'ethers';
 import {
+  getPasswordLockRemainingMs,
   getUnlockedWallet,
   isSessionUnlocked,
   lockSession,
@@ -88,4 +89,22 @@ export function useWalletSession(): WalletSessionContextType {
     throw new Error('useWalletSession must be used within a WalletSessionProvider');
   }
   return context;
+}
+
+/** Remaining lockout ms while `active` (e.g. password dialog open). */
+export function usePasswordLockRemaining(active: boolean): number {
+  const [ms, setMs] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setMs(0);
+      return;
+    }
+    const tick = () => setMs(getPasswordLockRemainingMs());
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [active]);
+
+  return ms;
 }

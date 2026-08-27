@@ -35,6 +35,7 @@ import { fetchBlockWindowTransactions, fetchLatestBlockNumberViaRpc } from '../d
 import { filterFollowedWithInput, mapToInputDataItem } from '../datasource/transactionMapper';
 import {
   isDesktopLockPolicy,
+  usePasswordLockRemaining,
   useWalletSession,
 } from '../wallet/WalletSessionContext';
 import {
@@ -42,6 +43,7 @@ import {
   isSessionUnlocked,
   INVALID_PASSWORD_ERROR,
   NO_KEYSTORE_ERROR,
+  PASSWORD_LOCKED_ERROR,
 } from '../wallet/session';
 import { AppModal } from '../components/AppModal';
 import { getHeaderChrome } from '../theme';
@@ -171,6 +173,8 @@ export default function HomeScreen() {
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  const passwordLockRemainingMs = usePasswordLockRemaining(passwordVisible);
+  const passwordLocked = passwordLockRemainingMs > 0;
 
   // 使用 Ref 存储分页参数和状态，避免 loadData 身份变化触发重复请求
   const flatListRefs = useRef<Partial<Record<HomeTabId, FlatList | null>>>({});
@@ -569,6 +573,7 @@ export default function HomeScreen() {
   }, [lock]);
 
   const handleUnlock = async () => {
+    if (passwordLocked) return;
     if (!password) {
       setPasswordError(t('send.passwordLabel'));
       return;
@@ -583,6 +588,8 @@ export default function HomeScreen() {
     } catch (e: any) {
       if (e?.name === NO_KEYSTORE_ERROR) {
         setPasswordError(t('send.noPrivateKey'));
+      } else if (e?.name === PASSWORD_LOCKED_ERROR) {
+        setPasswordError(null);
       } else if (e?.name === INVALID_PASSWORD_ERROR) {
         setPasswordError(t('home.passwordIncorrect'));
       } else {
@@ -1066,7 +1073,12 @@ export default function HomeScreen() {
         title={t('send.passwordTitle')}
         actions={[
           { label: t('common.cancel'), onPress: dismissPasswordDialog, disabled: unlocking },
-          { label: t('common.ok'), onPress: handleUnlock, loading: unlocking, disabled: unlocking },
+          {
+            label: t('common.ok'),
+            onPress: handleUnlock,
+            loading: unlocking,
+            disabled: unlocking || passwordLocked,
+          },
         ]}
       >
         <Text variant="bodyMedium" style={{ marginBottom: 12 }}>
@@ -1082,10 +1094,14 @@ export default function HomeScreen() {
             if (passwordError) setPasswordError(null);
           }}
           autoFocus
-          error={!!passwordError}
-          disabled={unlocking}
+          error={!!passwordError || passwordLocked}
+          disabled={unlocking || passwordLocked}
         />
-        {passwordError ? (
+        {passwordLocked ? (
+          <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 8 }}>
+            {t('home.passwordLocked', { seconds: Math.ceil(passwordLockRemainingMs / 1000) })}
+          </Text>
+        ) : passwordError ? (
           <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 8 }}>
             {passwordError}
           </Text>
