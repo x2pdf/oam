@@ -97,12 +97,17 @@
       word-break: break-all;
     }
     .images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-    .images img {
-      max-width: 220px;
-      max-height: 160px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
-    }
+      .images a {
+        display: inline-block;
+        max-width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        color: inherit;
+        text-decoration: none;
+        font-size: 0.85rem;
+        word-break: break-all;
+      }
     kbd {
       font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       background: var(--line);
@@ -188,6 +193,14 @@
           const src = escapeHtml(item.data);
           const altAttr = item.alt ? ` alt="${escapeHtml(item.alt)}"` : "";
           html += `<img src="${src}"${altAttr}>`;
+        } else if (item.type === "link") {
+          if (!/^https?:\/\//i.test(item.href || "")) continue;
+          let tag = `<a href="${escapeHtml(item.href)}" type="${escapeHtml(item.mime || "")}"`;
+          if (item.kind) tag += ` data-kind="${item.kind}"`;
+          if (item.arId) tag += ` data-ar-id="${escapeHtml(item.arId)}"`;
+          if (item.download) tag += " download";
+          tag += `>${escapeHtml(item.label || "")}</a>`;
+          html += tag;
         }
       }
       html += "</html>";
@@ -201,11 +214,13 @@
         return [{ type: "text", content: html }];
       }
       const items = [];
-      const tagRegex = /<pre>(.*?)<\/pre>|<img\s+([^>]*?)>/gs;
+      const tagRegex = /<pre>(.*?)<\/pre>|<img\s+([^>]*?)>|<a\s+([^>]*?)>(.*?)<\/a>/gs;
       let match;
       while ((match = tagRegex.exec(html)) !== null) {
         const textContent = match[1];
         const imgTagBody = match[2];
+        const aTagBody = match[3];
+        const aInner = match[4];
         if (textContent !== undefined) {
           items.push({ type: "text", content: unescapeHtml(textContent) });
         } else if (imgTagBody !== undefined) {
@@ -218,6 +233,24 @@
               alt: altMatch ? unescapeHtml(altMatch[1]) : undefined,
             });
           }
+        } else if (aTagBody !== undefined) {
+          const hrefMatch = aTagBody.match(/href="([^"]+)"/);
+          if (!hrefMatch) continue;
+          const href = unescapeHtml(hrefMatch[1]);
+          if (!/^https?:\/\//i.test(href)) continue;
+          const typeMatch = aTagBody.match(/\btype="([^"]+)"/);
+          const arIdMatch = aTagBody.match(/data-ar-id="([^"]+)"/);
+          const kindMatch = aTagBody.match(/data-kind="([^"]+)"/);
+          const kindRaw = kindMatch ? unescapeHtml(kindMatch[1]) : undefined;
+          items.push({
+            type: "link",
+            href,
+            mime: typeMatch ? unescapeHtml(typeMatch[1]) : "application/octet-stream",
+            label: unescapeHtml(aInner || ""),
+            arId: arIdMatch ? unescapeHtml(arIdMatch[1]) : undefined,
+            kind: kindRaw === "image" || kindRaw === "video" ? kindRaw : undefined,
+            download: /\bdownload\b/i.test(aTagBody) || undefined,
+          });
         }
       }
       return items;
@@ -295,12 +328,22 @@
     function renderImages(items) {
       $images.innerHTML = "";
       for (const item of items) {
-        if (item.type !== "image") continue;
-        const img = document.createElement("img");
-        img.src = item.data;
-        img.alt = item.alt || "image";
-        img.title = item.alt || "";
-        $images.appendChild(img);
+        if (item.type === "image") {
+          const img = document.createElement("img");
+          img.src = item.data;
+          img.alt = item.alt || "image";
+          img.title = item.alt || "";
+          $images.appendChild(img);
+        } else if (item.type === "link") {
+          const a = document.createElement("a");
+          a.href = item.href;
+          a.textContent = item.label || item.href;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          if (item.mime) a.type = item.mime;
+          if (item.download) a.setAttribute("download", "");
+          $images.appendChild(a);
+        }
       }
     }
 
@@ -347,11 +390,12 @@
         $output.value = text;
         renderImages(items);
         const imgCount = items.filter((i) => i.type === "image").length;
+        const linkCount = items.filter((i) => i.type === "link").length;
         $meta.textContent =
           "TYPE=" + TYPE_NAMES[msg.type] + " CRYPTO=NONE VERSION=1  payload=" + msg.payload.length +
           " 字节  文本段=" + items.filter((i) => i.type === "text").length +
-          "  图片=" + imgCount;
-        setStatus(text || imgCount ? "已解码为上传前明文（UTF-8 / mypayload）。" : "PAYLOAD 为空或无法解析出内容。", text || imgCount ? "ok" : "err");
+          "  图片=" + imgCount + "  附件=" + linkCount;
+        setStatus(text || imgCount || linkCount ? "已解码为上传前明文（UTF-8 / mypayload）。" : "PAYLOAD 为空或无法解析出内容。", text || imgCount || linkCount ? "ok" : "err");
       } catch (e) {
         setStatus("OAMP 解码失败：" + e.message, "err");
       }

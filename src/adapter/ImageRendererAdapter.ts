@@ -11,6 +11,8 @@ export interface PlatformImageProps {
   onLongPress?: () => void;
   /** Called when the user taps the image. */
   onPress?: () => void;
+  /** Called when the image fails to load. */
+  onError?: () => void;
 }
 
 export interface IImageRendererAdapter {

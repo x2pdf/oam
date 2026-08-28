@@ -15,11 +15,19 @@ import {
   InputDataItem,
   SendDraft,
   SendDraftImage,
+  SendDraftAttachment,
   normalizeSubscription,
 } from '../types';
 import { STORAGE_KEYS, API_CONFIG, normalizeHomeTabWeights, type HomeTabId } from '../constants';
 import { migrateLegacyStorage } from '../storage/migrate';
 import { dataSourceManager } from '../datasource/DataSourceManager';
+import {
+  ATTACHMENT_FILE_TYPES,
+  ATTACHMENT_SOURCES,
+  FILE_TYPE_TO_MIME,
+  type AttachmentFileType,
+  type AttachmentSource,
+} from '../utils/attachment';
 
 function isSendDraftImage(value: unknown): value is SendDraftImage {
   if (!value || typeof value !== 'object') return false;
@@ -31,6 +39,29 @@ function isSendDraftImage(value: unknown): value is SendDraftImage {
   );
 }
 
+function isAttachmentSource(value: unknown): value is AttachmentSource {
+  return (ATTACHMENT_SOURCES as readonly string[]).includes(value as string);
+}
+
+function isAttachmentFileType(value: unknown): value is AttachmentFileType {
+  return (ATTACHMENT_FILE_TYPES as readonly string[]).includes(value as string);
+}
+
+function isSendDraftAttachment(value: unknown): value is SendDraftAttachment {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as SendDraftAttachment;
+  return (
+    isAttachmentSource(item.source) &&
+    isAttachmentFileType(item.fileType) &&
+    typeof item.input === 'string' &&
+    typeof item.href === 'string' &&
+    typeof item.mime === 'string' &&
+    item.mime === FILE_TYPE_TO_MIME[item.fileType] &&
+    typeof item.label === 'string' &&
+    (item.arId === undefined || typeof item.arId === 'string')
+  );
+}
+
 function isSendDraft(value: unknown): value is SendDraft {
   if (!value || typeof value !== 'object') return false;
   const draft = value as SendDraft;
@@ -39,6 +70,8 @@ function isSendDraft(value: unknown): value is SendDraft {
     typeof draft.text === 'string' &&
     Array.isArray(draft.images) &&
     draft.images.every(isSendDraftImage) &&
+    (draft.attachments === undefined ||
+      (Array.isArray(draft.attachments) && draft.attachments.every(isSendDraftAttachment))) &&
     typeof draft.recipientAddress === 'string' &&
     typeof draft.encryptEnabled === 'boolean' &&
     typeof draft.updatedAt === 'number'

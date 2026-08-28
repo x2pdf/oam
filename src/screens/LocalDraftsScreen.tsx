@@ -102,6 +102,14 @@ export default function LocalDraftsScreen() {
                     {t('send.confirmDataImages', { count: item.images.length })}
                   </Text>
                 )}
+                {(item.attachments?.length ?? 0) > 0 && (
+                  <Text
+                    variant="bodySmall"
+                    style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}
+                  >
+                    {t('send.confirmDataAttachments', { count: item.attachments?.length ?? 0 })}
+                  </Text>
+                )}
                 <Text
                   variant="bodySmall"
                   style={{

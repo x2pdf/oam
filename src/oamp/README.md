@@ -125,7 +125,7 @@ OAMP **不规定** PAYLOAD 的内部编码。信封只保证：
 - `CRYPTO=0`：PAYLOAD 是应用层明文字节；
 - `CRYPTO=1`：PAYLOAD 是 AES-GCM 输出（见密码套件）。
 
-本仓库客户端使用独立的应用层 profile（`src/mypayload`：HTML 片段封装文本与图片）。更换内容编码只升级该 profile 或 OAMP `VERSION`，不改信封字段，也不把 HTML 绑进 OAMP。
+本仓库客户端使用独立的应用层 profile（`src/mypayload`：HTML 片段封装文本、内嵌图片与独立 `<a>` 附件）。更换内容编码只升级该 profile 或 OAMP `VERSION`，不改信封字段，也不把 HTML 绑进 OAMP。
 
 其他实现可以选用任意 PAYLOAD 编码；互操作需另行约定应用层 profile。
 

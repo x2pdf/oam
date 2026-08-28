@@ -22,11 +22,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR, PASSWORD_LOCKED_ERROR } from '../wallet/session';
 import { usePasswordLockRemaining } from '../wallet/WalletSessionContext';
 import { isAddress, parseEther, formatEther, parseUnits, formatUnits, Wallet } from 'ethers';
-import { RootStackParamList, SendDraft, Subscription } from '../types';
+import { RootStackParamList, SendDraft, SendDraftAttachment, Subscription } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
-import { ContentItem, createJpegItem, createPngItem, createGifItem } from '../mypayload';
+import { ContentItem, createJpegItem, createPngItem, createGifItem, createLinkItem } from '../mypayload';
+import { AddAttachmentModal } from '../components/AddAttachmentModal';
 import { estimateSendFeeFromAddress, OAMPClient, getFeeSuggestions, FeeOption, FeeSuggestions } from '../oamp/client';
 import { BLACK_HOLE } from '../oamp/protocol';
 import {
@@ -106,6 +107,9 @@ export default function SendDataScreen() {
   const [images, setImages] = useState<ImageItem[]>(() =>
     (initialDraft?.images ?? []).map(draftImageToItem),
   );
+  const [attachments, setAttachments] = useState<SendDraftAttachment[]>(
+    () => initialDraft?.attachments ?? [],
+  );
   const [recipientAddress, setRecipientAddress] = useState(
     initialDraft?.recipientAddress || route.params?.recipientAddress || profile?.address || BLACK_HOLE,
   );
@@ -175,8 +179,11 @@ export default function SendDataScreen() {
     if (images.length > 0) {
       lines.push(t('send.confirmDataImages', { count: images.length }));
     }
+    if (attachments.length > 0) {
+      lines.push(t('send.confirmDataAttachments', { count: attachments.length }));
+    }
     return lines.join('\n');
-  }, [text, images.length, t]);
+  }, [text, images.length, attachments.length, t]);
 
   // Dialog states
   const [confirmSendVisible, setConfirmSendVisible] = useState(false);
@@ -189,6 +196,7 @@ export default function SendDataScreen() {
   const passwordLocked = passwordLockRemainingMs > 0;
   const [imageNameDialogVisible, setImageNameDialogVisible] = useState(false);
   const [imageSourceDialogVisible, setImageSourceDialogVisible] = useState(false);
+  const [attachmentDialogVisible, setAttachmentDialogVisible] = useState(false);
   const [currentPickingImage, setCurrentPickingImage] = useState<ImageItem | null>(null);
 
   const [feeEstimate, setFeeEstimate] = useState<string | null>(null);
@@ -231,8 +239,18 @@ export default function SendDataScreen() {
         items.push(createJpegItem(img.base64, img.name));
       }
     }
+    for (const att of attachments) {
+      items.push(
+        createLinkItem({
+          href: att.href,
+          mime: att.mime,
+          label: att.label,
+          arId: att.arId,
+        }),
+      );
+    }
     return items;
-  }, [text, images]);
+  }, [text, images, attachments]);
 
   // Default to own address when profile becomes available (profile loads async)
   useEffect(() => {
@@ -254,6 +272,7 @@ export default function SendDataScreen() {
     appliedDraftRef.current = true;
     setText(draft.text);
     setImages(draft.images.map(draftImageToItem));
+    setAttachments(draft.attachments ?? []);
     setRecipientAddress(draft.recipientAddress || BLACK_HOLE);
     setEncryptEnabled(!!draft.encryptEnabled);
     setCurrentDraftId(draft.id);
@@ -493,8 +512,12 @@ export default function SendDataScreen() {
     setImages(newImages);
   };
 
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleCancel = () => {
-    if (text.length > 0 || images.length > 0) {
+    if (text.length > 0 || images.length > 0 || attachments.length > 0) {
       setCancelConfirmVisible(true);
     } else {
       navigation.goBack();
@@ -505,6 +528,7 @@ export default function SendDataScreen() {
     setCancelConfirmVisible(false);
     setText('');
     setImages([]);
+    setAttachments([]);
     navigation.goBack();
   };
 
@@ -514,13 +538,14 @@ export default function SendDataScreen() {
       id,
       text,
       images: images.map(({ base64, name, type }) => ({ base64, name, type })),
+      attachments,
       recipientAddress: recipientAddress.trim() || BLACK_HOLE,
       encryptEnabled,
       updatedAt: Date.now(),
     });
     setCurrentDraftId(id);
     return id;
-  }, [currentDraftId, encryptEnabled, images, recipientAddress, text, upsertDraft]);
+  }, [attachments, currentDraftId, encryptEnabled, images, recipientAddress, text, upsertDraft]);
 
   const saveAsDraft = async () => {
     if (draftSaving) return;
@@ -539,7 +564,7 @@ export default function SendDataScreen() {
   };
 
   const autoSaveDraftOnSendFailure = async (): Promise<boolean> => {
-    if (text.length === 0 && images.length === 0) return false;
+    if (text.length === 0 && images.length === 0 && attachments.length === 0) return false;
     try {
       await persistDraft();
       return true;
@@ -646,6 +671,7 @@ export default function SendDataScreen() {
 
       setText('');
       setImages([]);
+      setAttachments([]);
       setPassword('');
       if (currentDraftId) {
         await deleteDraft(currentDraftId);
@@ -839,6 +865,38 @@ export default function SendDataScreen() {
           {t('send.addImageHint')}
         </HelperText>
 
+        {attachments.map((att, index) => (
+          <Card
+            key={`att-${index}`}
+            mode="elevated"
+            style={[styles.imageListItem, { backgroundColor: theme.colors.surface }]}
+          >
+            <View style={styles.imageCardContent}>
+              <View style={styles.imageInfo}>
+                <Text variant="bodySmall" numberOfLines={1}>
+                  {att.label} · {t(`send.attachmentType.${att.fileType}`)}
+                </Text>
+                <Text variant="bodySmall" numberOfLines={2} style={{ marginTop: 2 }}>
+                  {wrapLongHex(att.href)}
+                </Text>
+              </View>
+              <IconButton icon="close" size={20} onPress={() => removeAttachment(index)} />
+            </View>
+          </Card>
+        ))}
+
+        <Button
+          mode="outlined"
+          icon="paperclip"
+          onPress={() => setAttachmentDialogVisible(true)}
+          style={styles.addImageButton}
+        >
+          {t('send.addAttachment')}
+        </Button>
+        <HelperText type="info" visible>
+          {t('send.addAttachmentHint')}
+        </HelperText>
+
         <Text
           variant="labelLarge"
           style={[styles.fieldLabel, styles.sectionLabel, { color: theme.colors.onSurface }]}
@@ -1001,6 +1059,15 @@ export default function SendDataScreen() {
           {t('send.pickImageFromFiles')}
         </Button>
       </AppModal>
+
+      <AddAttachmentModal
+        visible={attachmentDialogVisible}
+        onDismiss={() => setAttachmentDialogVisible(false)}
+        onConfirm={(attachment) => {
+          setAttachments((prev) => [...prev, attachment]);
+          setAttachmentDialogVisible(false);
+        }}
+      />
 
       <AppModal
         visible={imageNameDialogVisible}

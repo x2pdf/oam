@@ -4,6 +4,7 @@
 
 import { ContentItem } from '../mypayload';
 import { DEFAULT_CHAIN } from '../constants';
+import { AttachmentFileType, AttachmentSource } from '../utils/attachment';
 
 /** 链标识 slug，便于后续扩展多链 */
 export type ChainSlug = 'ethereum';
@@ -67,11 +68,23 @@ export interface SendDraftImage {
   type: 'image/jpeg' | 'image/png' | 'image/gif';
 }
 
+/** 发送页本地草稿中的外链 / Arweave 附件 */
+export interface SendDraftAttachment {
+  source: AttachmentSource;
+  fileType: AttachmentFileType;
+  input: string;
+  href: string;
+  mime: string;
+  label: string;
+  arId?: string;
+}
+
 /** 发送页本地草稿 */
 export interface SendDraft {
   id: string;
   text: string;
   images: SendDraftImage[];
+  attachments?: SendDraftAttachment[];
   recipientAddress: string;
   encryptEnabled: boolean;
   updatedAt: number;

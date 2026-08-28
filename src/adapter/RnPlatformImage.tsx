@@ -6,6 +6,14 @@ export const RnPlatformImage: React.FC<PlatformImageProps> = ({
   uri,
   style,
   resizeMode = 'contain',
+  onError,
 }) => {
-  return <Image source={{ uri }} style={style} resizeMode={resizeMode} />;
+  return (
+    <Image
+      source={{ uri }}
+      style={style}
+      resizeMode={resizeMode}
+      onError={onError}
+    />
+  );
 };
