@@ -1,5 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { View, FlatList, StyleSheet } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { scrollFill } from '../theme/scroll';
 import { useListColumnLayout } from '../theme/layout';
 import {
@@ -11,6 +12,7 @@ import {
   IconButton,
   Searchbar,
   Snackbar,
+  TextInput,
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,7 +22,15 @@ import { useThemePreference } from '../context/ThemeContext';
 import { Subscription, RootStackParamList } from '../types';
 import { useNavigation } from '@react-navigation/native';
 import { CopyableAddress } from '../components/CopyableAddress';
+import { AppModal } from '../components/AppModal';
+import { getHeaderChrome } from '../theme';
 import { shortenAddress } from '../utils/address';
+import { DEFAULT_CHAIN } from '../constants';
+import {
+  buildFollowListExport,
+  parseFollowListImport,
+  stringifyFollowListExport,
+} from '../utils/subscriptionExport';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -32,7 +42,7 @@ export default function SubscriptionsScreen() {
   const theme = useTheme();
   const { fontScale } = useThemePreference();
   const navigation = useNavigation<NavProp>();
-  const { state } = useAppContext();
+  const { state, addSubscriptions } = useAppContext();
   const { t } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
 
@@ -40,6 +50,39 @@ export default function SubscriptionsScreen() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [ioModal, setIoModal] = useState<'none' | 'menu' | 'export' | 'import'>('none');
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState('');
+
+  const exportJson = useMemo(
+    () =>
+      stringifyFollowListExport(
+        buildFollowListExport(
+          t('nav.subscriptions'),
+          state.subscriptions.map((s) => ({
+            address: s.address,
+            description: s.description,
+          })),
+        ),
+      ),
+    [state.subscriptions, t],
+  );
+
+  useLayoutEffect(() => {
+    const headerChrome = getHeaderChrome(theme);
+    navigation.setOptions({
+      headerRight: () => (
+        <IconButton
+          icon="swap-vertical"
+          iconColor={headerChrome.tintColor}
+          size={22}
+          accessibilityLabel={t('subscriptions.importExport')}
+          onPress={() => setIoModal('menu')}
+        />
+      ),
+    });
+  }, [navigation, t, theme]);
 
   // 排序：置顶项按 pinWeight 降序 → 同权重按描述 a-z；普通项按描述 a-z
   const sortedSubscriptions = useMemo(() => {
@@ -81,9 +124,80 @@ export default function SubscriptionsScreen() {
     }
   }, [sortedSubscriptions, searchQuery]);
 
-  const showCopiedSnackbar = useCallback(() => {
+  const showSnackbar = useCallback((message: string) => {
+    setSnackbarMessage(message);
     setSnackbarVisible(true);
   }, []);
+
+  const showCopiedSnackbar = useCallback(() => {
+    showSnackbar(t('common.copied'));
+  }, [showSnackbar, t]);
+
+  const closeIoModal = useCallback(() => {
+    setIoModal('none');
+    setImportText('');
+    setImportError('');
+  }, []);
+
+  const handleCopyExportJson = useCallback(async () => {
+    await Clipboard.setStringAsync(exportJson);
+    closeIoModal();
+    showCopiedSnackbar();
+  }, [closeIoModal, exportJson, showCopiedSnackbar]);
+
+  const handleImportConfirm = useCallback(async () => {
+    const parsed = parseFollowListImport(importText);
+    if (!parsed.ok) {
+      const message =
+        parsed.error === 'invalidJson'
+          ? t('subscriptions.importInvalidJson')
+          : parsed.error === 'invalidFormat'
+            ? t('subscriptions.importInvalidFormat')
+            : t('subscriptions.importEmpty');
+      setImportError(message);
+      return;
+    }
+
+    const existing = new Set(
+      state.subscriptions.map((s) => s.address.trim().toLowerCase()),
+    );
+    const toAdd: Subscription[] = [];
+    let skipped = 0;
+    const baseId = Date.now();
+    parsed.items.forEach((item, index) => {
+      const key = item.address.toLowerCase();
+      if (existing.has(key)) {
+        skipped += 1;
+        return;
+      }
+      existing.add(key);
+      toAdd.push({
+        id: `${baseId}-${index}`,
+        address: item.address,
+        description: item.description,
+        chain: DEFAULT_CHAIN,
+      });
+    });
+
+    if (toAdd.length === 0) {
+      closeIoModal();
+      showSnackbar(t('subscriptions.importResultNoNew'));
+      return;
+    }
+
+    await addSubscriptions(toAdd);
+    closeIoModal();
+    showSnackbar(
+      t('subscriptions.importResult', { added: toAdd.length, skipped }),
+    );
+  }, [
+    addSubscriptions,
+    closeIoModal,
+    importText,
+    showSnackbar,
+    state.subscriptions,
+    t,
+  ]);
 
   const handleToggleSearch = useCallback(() => {
     setSearchVisible((prev) => {
@@ -239,8 +353,82 @@ export default function SubscriptionsScreen() {
         onDismiss={() => setSnackbarVisible(false)}
         duration={2000}
       >
-        {t('common.copied')}
+        {snackbarMessage || t('common.copied')}
       </Snackbar>
+      <AppModal
+        visible={ioModal === 'menu'}
+        onDismiss={closeIoModal}
+        title={t('subscriptions.importExportTitle')}
+        actions={[
+          {
+            label: t('subscriptions.exportData'),
+            onPress: () => setIoModal('export'),
+            mode: 'outlined',
+          },
+          {
+            label: t('subscriptions.importData'),
+            onPress: () => {
+              setImportText('');
+              setImportError('');
+              setIoModal('import');
+            },
+          },
+        ]}
+      />
+      <AppModal
+        visible={ioModal === 'export'}
+        onDismiss={closeIoModal}
+        title={t('subscriptions.exportTitle')}
+        scrollable
+        actions={[
+          { label: t('common.close'), onPress: closeIoModal },
+          { label: t('subscriptions.copyJson'), onPress: handleCopyExportJson },
+        ]}
+      >
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+          {state.subscriptions.length === 0
+            ? t('subscriptions.exportEmpty')
+            : t('subscriptions.exportHint')}
+        </Text>
+        <TextInput
+          mode="outlined"
+          multiline
+          value={exportJson}
+          editable={false}
+          style={styles.jsonInput}
+        />
+      </AppModal>
+      <AppModal
+        visible={ioModal === 'import'}
+        onDismiss={closeIoModal}
+        title={t('subscriptions.importTitle')}
+        scrollable
+        actions={[
+          { label: t('common.cancel'), onPress: closeIoModal },
+          { label: t('subscriptions.importConfirm'), onPress: handleImportConfirm },
+        ]}
+      >
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+          {t('subscriptions.importHint')}
+        </Text>
+        <TextInput
+          mode="outlined"
+          multiline
+          value={importText}
+          onChangeText={(value) => {
+            setImportText(value);
+            if (importError) setImportError('');
+          }}
+          placeholder={t('subscriptions.importPlaceholder')}
+          error={!!importError}
+          style={styles.jsonInput}
+        />
+        {importError ? (
+          <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 8 }}>
+            {importError}
+          </Text>
+        ) : null}
+      </AppModal>
       <FAB
         icon={searchVisible ? 'close' : 'magnify'}
         style={[styles.fabSearch, { backgroundColor: theme.colors.secondaryContainer }]}
@@ -334,5 +522,8 @@ const styles = StyleSheet.create({
   },
   searchbarInput: {
     fontSize: 14,
+  },
+  jsonInput: {
+    minHeight: 180,
   },
 });

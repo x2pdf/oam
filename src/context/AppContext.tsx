@@ -111,6 +111,7 @@ const initialState: AppState = {
 type Action =
   | { type: 'SET_SUBSCRIPTIONS'; payload: Subscription[] }
   | { type: 'ADD_SUBSCRIPTION'; payload: Subscription }
+  | { type: 'ADD_SUBSCRIPTIONS'; payload: Subscription[] }
   | { type: 'UPDATE_SUBSCRIPTION'; payload: Subscription }
   | { type: 'DELETE_SUBSCRIPTION'; payload: string }
   | { type: 'SET_PROFILE'; payload: Subscription | null }
@@ -133,6 +134,12 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         subscriptions: [...state.subscriptions, action.payload],
+      };
+    case 'ADD_SUBSCRIPTIONS':
+      if (action.payload.length === 0) return state;
+      return {
+        ...state,
+        subscriptions: [...state.subscriptions, ...action.payload],
       };
     case 'UPDATE_SUBSCRIPTION':
       return {
@@ -201,6 +208,7 @@ function appReducer(state: AppState, action: Action): AppState {
 interface AppContextType {
   state: AppState;
   addSubscription: (item: Subscription) => Promise<void>;
+  addSubscriptions: (items: Subscription[]) => Promise<void>;
   updateSubscription: (item: Subscription) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   saveProfile: (item: Subscription) => Promise<void>;
@@ -314,6 +322,11 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
   const addSubscription = useCallback(async (item: Subscription) => {
     dispatch({ type: 'ADD_SUBSCRIPTION', payload: item });
     // 获取最新列表需通过函数式更新，这里简化处理
+  }, []);
+
+  const addSubscriptions = useCallback(async (items: Subscription[]) => {
+    if (items.length === 0) return;
+    dispatch({ type: 'ADD_SUBSCRIPTIONS', payload: items });
   }, []);
 
   const updateSubscription = useCallback(async (item: Subscription) => {
@@ -468,6 +481,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     () => ({
       state,
       addSubscription,
+      addSubscriptions,
       updateSubscription,
       deleteSubscription,
       saveProfile,
@@ -485,6 +499,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     [
       state,
       addSubscription,
+      addSubscriptions,
       updateSubscription,
       deleteSubscription,
       saveProfile,
