@@ -24,7 +24,7 @@
 | :--- | :--- | :--- | :--- |
 | **文本** | `<pre>` | 无 | 内部文本会进行 HTML 转义 |
 | **图片** | `<img>` | `src`, `alt` | `src` 包含 Data URI，`alt` 存储文件名 |
-| **链接** | `<a>` | `href`, `type`, `data-kind`, `data-ar-id`, `download` | 支持 MIME 类型和 Arweave 扩展属性 |
+| **链接** | `<a>` | `href`, `type`, `data-ar-id`, `download` | 附件类型看 `type`（MIME）；Arweave 另写 `data-ar-id` |
 
 ### 2.2 安全处理
 所有内容（文本、属性值）在编码前都会经过 `escapeHtml` 函数处理，转义 `&`, `<`, `>`, `"` 字符，防止标签截断和属性注入。

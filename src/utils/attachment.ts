@@ -47,19 +47,9 @@ export function isImageMime(mime: string): boolean {
   return IMAGE_MIMES.has(mime.toLowerCase());
 }
 
-export function isVideoMime(mime: string): boolean {
-  return mime.toLowerCase() === 'video/mp4';
-}
-
 export function shouldDownload(mime: string): boolean {
   const m = mime.toLowerCase();
   return m === 'application/pdf' || m === 'application/zip' || m === 'application/octet-stream';
-}
-
-export function linkKind(mime: string): 'image' | 'video' | undefined {
-  if (isImageMime(mime)) return 'image';
-  if (isVideoMime(mime)) return 'video';
-  return undefined;
 }
 
 export function isHttpUrl(value: string): boolean {

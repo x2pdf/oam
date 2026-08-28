@@ -1,5 +1,5 @@
 import { toUtf8Bytes, toUtf8String } from "ethers";
-import { isHttpUrl, linkKind, shouldDownload } from "../utils/attachment";
+import { isHttpUrl, shouldDownload } from "../utils/attachment";
 
 export type ContentItem =
   | { type: "text"; content: string }
@@ -10,7 +10,6 @@ export type ContentItem =
       mime: string;
       label: string;
       arId?: string;
-      kind?: "image" | "video";
       download?: boolean;
     };
 
@@ -68,14 +67,12 @@ export function createLinkItem(opts: {
   label: string;
   arId?: string;
 }): ContentItem {
-  const kind = opts.arId ? linkKind(opts.mime) : undefined;
   return {
     type: "link",
     href: opts.href,
     mime: opts.mime,
     label: opts.label,
     arId: opts.arId,
-    kind,
     download: shouldDownload(opts.mime) || undefined,
   };
 }
@@ -137,9 +134,6 @@ export function payloadEncode(items: ContentItem[]): Uint8Array {
       const mime = escapeHtml(item.mime);
       const label = escapeHtml(item.label);
       let tag = `<a href="${href}" type="${mime}"`;
-      if (item.kind) {
-        tag += ` data-kind="${item.kind}"`;
-      }
       if (item.arId) {
         tag += ` data-ar-id="${escapeHtml(item.arId)}"`;
       }
@@ -203,10 +197,7 @@ export function payloadDecode(data: Uint8Array | string): ContentItem[] {
 
         const typeMatch = aTagBody.match(/\btype="([^"]+)"/);
         const arIdMatch = aTagBody.match(/data-ar-id="([^"]+)"/);
-        const kindMatch = aTagBody.match(/data-kind="([^"]+)"/);
         const mime = typeMatch ? unescapeHtml(typeMatch[1]) : "application/octet-stream";
-        const kindRaw = kindMatch ? unescapeHtml(kindMatch[1]) : undefined;
-        const kind = kindRaw === "image" || kindRaw === "video" ? kindRaw : undefined;
 
         items.push({
           type: "link",
@@ -214,7 +205,6 @@ export function payloadDecode(data: Uint8Array | string): ContentItem[] {
           mime,
           label: unescapeHtml(aInner ?? ""),
           arId: arIdMatch ? unescapeHtml(arIdMatch[1]) : undefined,
-          kind,
           download: /\bdownload\b/i.test(aTagBody) || undefined,
         });
       }

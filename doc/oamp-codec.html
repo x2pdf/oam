@@ -196,7 +196,6 @@
         } else if (item.type === "link") {
           if (!/^https?:\/\//i.test(item.href || "")) continue;
           let tag = `<a href="${escapeHtml(item.href)}" type="${escapeHtml(item.mime || "")}"`;
-          if (item.kind) tag += ` data-kind="${item.kind}"`;
           if (item.arId) tag += ` data-ar-id="${escapeHtml(item.arId)}"`;
           if (item.download) tag += " download";
           tag += `>${escapeHtml(item.label || "")}</a>`;
@@ -240,15 +239,12 @@
           if (!/^https?:\/\//i.test(href)) continue;
           const typeMatch = aTagBody.match(/\btype="([^"]+)"/);
           const arIdMatch = aTagBody.match(/data-ar-id="([^"]+)"/);
-          const kindMatch = aTagBody.match(/data-kind="([^"]+)"/);
-          const kindRaw = kindMatch ? unescapeHtml(kindMatch[1]) : undefined;
           items.push({
             type: "link",
             href,
             mime: typeMatch ? unescapeHtml(typeMatch[1]) : "application/octet-stream",
             label: unescapeHtml(aInner || ""),
             arId: arIdMatch ? unescapeHtml(arIdMatch[1]) : undefined,
-            kind: kindRaw === "image" || kindRaw === "video" ? kindRaw : undefined,
             download: /\bdownload\b/i.test(aTagBody) || undefined,
           });
         }
