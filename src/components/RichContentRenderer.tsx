@@ -4,15 +4,18 @@ import { Text, Portal, Snackbar, useTheme } from 'react-native-paper';
 import { ContentItem } from '../mypayload';
 import { getImageRendererAdapter, saveImageToAlbum } from '../adapter';
 import { useTranslation } from 'react-i18next';
+import { truncateListText } from '../utils/text';
+import { openImageLightbox } from './ImageLightbox';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
 interface Props {
   items: ContentItem[];
   selectable?: boolean;
+  truncate?: boolean;
 }
 
-export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false }) => {
+export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false, truncate = false }) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
@@ -46,7 +49,7 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
               style={[styles.preText, { color: theme.colors.onSurface }]}
               selectable={selectable}
             >
-              {item.content}
+              {truncate ? truncateListText(item.content) : item.content}
             </Text>
           );
         } else if (item.type === 'image') {
@@ -56,6 +59,7 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
               uri={item.data}
               style={[styles.image, { backgroundColor: theme.colors.surfaceVariant }]}
               resizeMode="contain"
+              onPress={() => openImageLightbox(item.data)}
               onLongPress={() => handleSaveImage(item.data)}
             />
           );

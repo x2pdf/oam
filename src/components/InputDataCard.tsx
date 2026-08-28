@@ -8,6 +8,8 @@ import { shortenAddress, isBlackHoleAddress } from '../utils/address';
 import { CONTENT_KIND_I18N_KEY } from '../display';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
+import { truncateListText } from '../utils/text';
+import { wasRecentImagePress } from '../adapter/wrapImagePress';
 
 interface InputDataCardProps {
   item: InputDataItem;
@@ -43,13 +45,13 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
 
     const renderBody = () => {
       if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-        return <RichContentRenderer items={item.oampItems} />;
+        return <RichContentRenderer items={item.oampItems} truncate />;
       }
 
       if (kind === 'UTF-8' && item.textContent) {
         return (
           <Text variant="bodyMedium" style={styles.inputDataText}>
-            {item.textContent}
+            {truncateListText(item.textContent)}
           </Text>
         );
       }
@@ -65,7 +67,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
             </Text>
           ) : null}
           <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} numberOfLines={8}>
-            {rawHex}
+            {truncateListText(rawHex)}
           </Text>
         </View>
       );
@@ -121,7 +123,15 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
 
     if (onPress) {
       return (
-        <Pressable onPress={onPress} android_ripple={{ color: theme.colors.primary + '20' }}>
+        <Pressable
+          onPress={() => {
+            if (wasRecentImagePress()) {
+              return;
+            }
+            onPress();
+          }}
+          android_ripple={{ color: theme.colors.primary + '20' }}
+        >
           {card}
         </Pressable>
       );

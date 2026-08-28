@@ -8,6 +8,7 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import { WalletSessionProvider } from './src/wallet/WalletSessionContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import SplashScreen from './src/components/SplashScreen';
+import { ImageLightboxHost } from './src/components/ImageLightbox';
 
 const SPLASH_MIN_DURATION_MS = 2000;
 
@@ -30,6 +31,7 @@ function AppContent() {
     <>
       <StatusBar style="light" />
       <AppNavigator />
+      <ImageLightboxHost />
     </>
   );
 }

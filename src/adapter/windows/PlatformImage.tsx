@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { PlatformImageProps } from '../ImageRendererAdapter';
 import { GifWebView } from '../GifWebView';
 import { RnPlatformImage } from '../RnPlatformImage';
+import { wrapImagePress } from '../wrapImagePress';
 import { hashBase64, isGifUri, parseDataUrl } from '../imageUri';
 
 async function materializeUri(uri: string): Promise<string> {
@@ -42,7 +43,7 @@ async function materializeUri(uri: string): Promise<string> {
 }
 
 export const WindowsPlatformImage: React.FC<PlatformImageProps> = (props) => {
-  const { uri, style, mimeType, onLongPress } = props;
+  const { uri, style, mimeType, onPress, onLongPress } = props;
   const gif = isGifUri(uri, mimeType);
   const [localUri, setLocalUri] = useState<string | null>(null);
 
@@ -74,13 +75,5 @@ export const WindowsPlatformImage: React.FC<PlatformImageProps> = (props) => {
     <RnPlatformImage {...props} uri={localUri} />
   );
 
-  if (!onLongPress) {
-    return inner;
-  }
-
-  return (
-    <Pressable onLongPress={onLongPress} delayLongPress={400}>
-      {inner}
-    </Pressable>
-  );
+  return wrapImagePress(inner, { onPress, onLongPress });
 };

@@ -240,15 +240,14 @@ export async function broadcastRawTx(signedTx: string): Promise<string> {
     throw new AllRpcFailedError();
   }
 
-  const extra = Math.min(BROADCAST_EXTRA_NODES, Math.max(0, RPC_NODES.length - 1));
-  for (let k = 1; k <= extra; k++) {
+  const extraCount = Math.min(BROADCAST_EXTRA_NODES, Math.max(0, RPC_NODES.length - 1));
+  for (let k = 1; k <= extraCount; k++) {
     const idx = (acceptedIndex + k) % RPC_NODES.length;
     if (idx === acceptedIndex) break;
-    try {
-      await broadcastToNode(RPC_NODES[idx], signedTx, hash, idx, false);
-    } catch (err) {
-      console.warn(`extra broadcast to ${RPC_NODES[idx]} ignored:`, errorText(err));
-    }
+    // Fire and forget extra broadcasts to avoid blocking the user
+    broadcastToNode(RPC_NODES[idx], signedTx, hash, idx, false).catch((err) => {
+      console.warn(`extra broadcast to ${RPC_NODES[idx]} failed:`, errorText(err));
+    });
   }
 
   return hash;

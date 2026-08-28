@@ -9,6 +9,8 @@ export interface PlatformImageProps {
   mimeType?: string;
   /** Called when the user long-presses the image. */
   onLongPress?: () => void;
+  /** Called when the user taps the image. */
+  onPress?: () => void;
 }
 
 export interface IImageRendererAdapter {

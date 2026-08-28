@@ -109,6 +109,7 @@ export type RootStackParamList = {
   LocalFavorites: undefined;
   LocalDrafts: undefined;
   AppInfo: undefined;
+  FollowListSelection: undefined;
 };
 
 export type MainTabParamList = {

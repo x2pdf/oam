@@ -16,7 +16,7 @@ import {
 } from "./crypto";
 import { broadcastRawTx, withRpcFallback } from "../rpc/rpcClient";
 
-export type SendMode = "broadcast" | "personal" | "unencrypted" | "p2p";
+export type SendMode = "broadcast" | "personal" | "unencrypted" | "p2p" | "raw";
 
 export interface BuiltTxRequest {
   to: string;
@@ -407,6 +407,18 @@ export class OAMPClient {
   ): Promise<string> {
     const built = await this.buildUnencryptedMessageTx(recipientAddress, content);
     return this.sendBuilt(built, undefined, feeOption);
+  }
+
+  /**
+   * Send raw hex data to a specific address
+   */
+  async sendRawHex(
+    recipientAddress: string,
+    hexData: string,
+    feeOption?: FeeOption
+  ): Promise<string> {
+    const to = recipientAddress.trim() || BLACK_HOLE;
+    return this.sendBuilt({ to, data: hexData, mode: "raw" }, undefined, feeOption);
   }
 
   /**

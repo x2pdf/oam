@@ -32,6 +32,7 @@ import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
 import LocalFavoritesScreen from '../screens/LocalFavoritesScreen';
 import LocalDraftsScreen from '../screens/LocalDraftsScreen';
 import AppInfoScreen from '../screens/AppInfoScreen';
+import FollowListSelectionScreen from '../screens/FollowListSelectionScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { getHeaderChrome } from '../theme';
 
@@ -292,6 +293,13 @@ export default function AppNavigator() {
           component={AppInfoScreen}
           options={{
             title: t('nav.appInfo'),
+          }}
+        />
+        <Stack.Screen
+          name="FollowListSelection"
+          component={FollowListSelectionScreen}
+          options={{
+            title: t('send.recipientFollowingTitle'),
           }}
         />
       </Stack.Navigator>

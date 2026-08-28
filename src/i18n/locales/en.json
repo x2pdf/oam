@@ -29,7 +29,7 @@
   },
   "nav": {
     "home": "Home",
-    "subscriptions": "Following",
+    "subscriptions": "Subscriptions",
     "profile": "Profile",
     "addInfoSelect": "Add Info Select",
     "addAddressForm": "Add Address (Read Only)",
@@ -46,7 +46,7 @@
     "privateKeySetup": "Private Key Setup",
     "sendData": "Send Data",
     "inputDataDetail": "Data Detail",
-    "subscriptionDetail": "Following Detail",
+    "subscriptionDetail": "Subscription Detail",
     "addressDataList": "Address Data",
     "conversation": "Conversation",
     "localFavorites": "Local Favorites",
@@ -65,7 +65,7 @@
       "filterAll": "All",
       "filterUTF8": "Plain Text",
       "filterOAMP": "OAMP",
-      "filterSubscribed": "Following"
+      "filterSubscribed": "Subscribed"
     },
     "noApiKeyWarning": "Etherscan API Key not set, some data may be unavailable",
     "upToDate": "Data is up to date",
@@ -99,8 +99,8 @@
     "searchAddressPlaceholder": "0x…"
   },
   "subscriptions": {
-    "noSubscriptions": "No following yet",
-    "addHint": "Tap + to add a following address",
+    "noSubscriptions": "No subscriptions yet",
+    "addHint": "Tap + to add a subscription",
     "viewAllData": "All their data",
     "viewConversation": "My conversation with them",
     "sendToThem": "Send to them",
@@ -198,8 +198,8 @@
     "balanceEstimateHint": "Estimated value based on Chainlink oracle price"
   },
   "form": {
-    "addSubscription": "Add Following",
-    "editSubscription": "Edit Following",
+    "addSubscription": "Add Subscription",
+    "editSubscription": "Edit Subscription",
     "addressRequired": "Address is required",
     "descriptionRequired": "Description is required",
     "addressPlaceholder": "Please enter address",
@@ -217,7 +217,7 @@
     "payPasswordMinLength": "Payment password must be at least 6 digits",
     "payPasswordMaxLength": "Payment password cannot exceed 16 digits",
     "payPasswordMismatch": "Payment passwords do not match",
-    "addressDuplicate": "This address is already in your following list ({{desc}}). Please do not add it again."
+    "addressDuplicate": "This address is already in your subscription list ({{desc}}). Please do not add it again."
   },
   "wallet": {
     "selectAddMethod": "Select Add Method",
@@ -306,9 +306,10 @@
     "recipientTitle": "Send to",
     "recipientSelf": "Myself",
     "recipientBlackHole": "Black Hole",
-    "recipientFollowing": "Following",
-    "recipientFollowingTitle": "Choose a followed address",
-    "recipientFollowingEmpty": "No followed addresses yet. Add some in Following first.",
+    "recipientFollowing": "Subscriptions",
+    "recipientRandom": "Random",
+    "recipientFollowingTitle": "Choose a subscription",
+    "recipientFollowingEmpty": "No subscriptions yet. Add some in Subscriptions first.",
     "recipientBroadcast": "Public",
     "recipientCustom": "Custom",
     "recipientPlaceholder": "Enter 0x recipient address",
@@ -338,6 +339,11 @@
     "publicKeyMismatch": "This public key does not match the recipient address.",
     "invalidFeeInput": "Please enter valid fee values",
     "sendButton": "Send",
+    "hexSendButton": "Direct Hex Send",
+    "hexSendTitle": "Directly Send Hex Data",
+    "hexSendPlaceholder": "Enter Hex data starting with 0x...",
+    "hexSendHint": "Please ensure the data you are sending is already converted to Hex type. The data will be sent to the chain exactly as is (in raw data format) without any additional encapsulation.",
+    "hexSendInvalid": "Please enter valid Hex data starting with 0x",
     "payloadSizeHint": "Keep the combined text and image data under 100kB. Larger payloads are very likely to fail to land on-chain.",
     "imageNameDialogTitle": "Attach Image Name",
     "imageNameDialogMsg": "Attach the original name of the image when sending?",

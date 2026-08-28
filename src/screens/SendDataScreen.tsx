@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR, PASSWORD_LOCKED_ERROR } from '../wallet/session';
 import { usePasswordLockRemaining } from '../wallet/WalletSessionContext';
-import { isAddress, parseEther, formatEther, parseUnits, formatUnits } from 'ethers';
+import { isAddress, parseEther, formatEther, parseUnits, formatUnits, Wallet } from 'ethers';
 import { RootStackParamList, SendDraft, Subscription } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
@@ -119,8 +119,12 @@ export default function SendDataScreen() {
   const [manualPubkey, setManualPubkey] = useState('');
   const [manualPubkeyError, setManualPubkeyError] = useState('');
   const [encryptUnavailableVisible, setEncryptUnavailableVisible] = useState(false);
-  const [followListVisible, setFollowListVisible] = useState(false);
-  const [followSearchQuery, setFollowSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (route.params?.recipientAddress) {
+      setRecipientAddress(route.params.recipientAddress);
+    }
+  }, [route.params?.recipientAddress]);
 
   const isSelf = useMemo(() => {
     if (!profile?.address || !recipientAddress) return false;
@@ -143,38 +147,17 @@ export default function SendDataScreen() {
     return t('send.confirmModeUnencrypted');
   }, [isSelf, recipientAddress, encryptEnabled, t]);
 
-  const sortedSubscriptions = useMemo(
-    () => sortSubscriptions(subscriptions),
-    [subscriptions],
-  );
-
-  const displaySubscriptions = useMemo(() => {
-    const q = followSearchQuery.trim();
-    if (!q) return sortedSubscriptions;
-    try {
-      const re = new RegExp(q, 'i');
-      return sortedSubscriptions.filter(
-        (s) => re.test(s.address) || re.test(s.description),
-      );
-    } catch {
-      const lower = q.toLowerCase();
-      return sortedSubscriptions.filter(
-        (s) =>
-          s.address.toLowerCase().includes(lower) ||
-          s.description.toLowerCase().includes(lower),
-      );
-    }
-  }, [sortedSubscriptions, followSearchQuery]);
-
   const openFollowList = () => {
-    setFollowSearchQuery('');
-    setFollowListVisible(true);
+    navigation.navigate('FollowListSelection');
   };
 
-  const selectFollowedAddress = (item: Subscription) => {
-    setRecipientAddress(item.address);
-    setFollowListVisible(false);
-    setFollowSearchQuery('');
+  const handleRandomAddress = () => {
+    try {
+      const randomWallet = Wallet.createRandom();
+      setRecipientAddress(randomWallet.address);
+    } catch (e) {
+      console.error('Failed to generate random address', e);
+    }
   };
 
   const dataSummary = useMemo(() => {
@@ -228,6 +211,11 @@ export default function SendDataScreen() {
 
   const [sendSuccessVisible, setSendSuccessVisible] = useState(false);
   const [sendSuccessHash, setSendSuccessHash] = useState('');
+
+  const [hexSendVisible, setHexSendVisible] = useState(false);
+  const [hexData, setHexData] = useState('');
+  const [hexSendLoading, setHexSendLoading] = useState(false);
+  const [passwordAction, setPasswordAction] = useState<'send' | 'hexSend'>('send');
 
   const buildContentItems = useCallback((): ContentItem[] => {
     const items: ContentItem[] = [];
@@ -604,6 +592,20 @@ export default function SendDataScreen() {
     if (!canConfirmSend) return;
     closeConfirmDialog();
     setPasswordError(null);
+    setPasswordAction('send');
+    setPasswordVisible(true);
+  };
+
+  const startHexPasswordInput = () => {
+    const trimmedHex = hexData.trim();
+    if (!trimmedHex || !trimmedHex.startsWith('0x')) {
+      setSnackbarMessage(t('send.hexSendInvalid'));
+      setSnackbarVisible(true);
+      return;
+    }
+    setHexSendVisible(false);
+    setPasswordError(null);
+    setPasswordAction('hexSend');
     setPasswordVisible(true);
   };
 
@@ -694,11 +696,59 @@ export default function SendDataScreen() {
         return;
       }
 
-      setSnackbarMessage(
-        draftSaved
-          ? t('send.sendFailedDraftSaved', { error: message })
-          : t('send.sendFailed', { error: message }),
-      );
+      setPassword('');
+    }
+  };
+
+  const executeHexSend = async () => {
+    if (passwordLocked) return;
+    if (!password) {
+      setPasswordError(t('send.passwordLabel'));
+      return;
+    }
+
+    const trimmedHex = hexData.trim();
+    if (!trimmedHex.startsWith('0x')) {
+      setSnackbarMessage(t('send.hexSendInvalid'));
+      setSnackbarVisible(true);
+      return;
+    }
+
+    setLoading(true);
+    setPasswordError(null);
+    try {
+      const wallet = await unlockSession(password);
+      const client = new OAMPClient(wallet.privateKey);
+
+      const target = recipientAddress.trim() || BLACK_HOLE;
+      const txHash = await client.sendRawHex(target, trimmedHex, feeOption || undefined);
+
+      setLoading(false);
+      setPasswordVisible(false);
+      setHexSendVisible(false);
+      setSendSuccessHash(txHash);
+      setSendSuccessVisible(true);
+
+      setHexData('');
+      setPassword('');
+    } catch (error: any) {
+      console.error('Hex send error:', error);
+      setLoading(false);
+
+      if (error?.name === PASSWORD_LOCKED_ERROR) {
+        setPassword('');
+        return;
+      }
+
+      if (error?.name === NO_KEYSTORE_ERROR || error?.name === INVALID_PASSWORD_ERROR) {
+        setPasswordError(
+          error?.name === NO_KEYSTORE_ERROR ? t('send.noPrivateKey') : t('home.passwordIncorrect'),
+        );
+        setPassword('');
+        return;
+      }
+
+      setSnackbarMessage(t('send.sendFailed', { error: error.message }));
       setSnackbarVisible(true);
       setPassword('');
     }
@@ -842,6 +892,15 @@ export default function SendDataScreen() {
           >
             {t('send.recipientFollowing')}
           </Button>
+          <Button
+            mode="outlined"
+            compact
+            onPress={handleRandomAddress}
+            style={styles.shortcutButton}
+            labelStyle={[styles.shortcutLabel, { fontSize: Math.round(12 * fontScale) }]}
+          >
+            {t('send.recipientRandom')}
+          </Button>
         </View>
 
         {isSelf && (
@@ -879,9 +938,20 @@ export default function SendDataScreen() {
         )}
 
         <View style={styles.buttonGroup}>
-          <HelperText type="info" visible style={{ paddingHorizontal: 0, marginBottom: 4 }}>
-            {t('send.payloadSizeHint')}
-          </HelperText>
+          <View style={styles.payloadHintRow}>
+            <HelperText type="info" visible style={styles.payloadHintText}>
+              {t('send.payloadSizeHint')}
+            </HelperText>
+            <Button
+              mode="outlined"
+              compact
+              onPress={() => setHexSendVisible(true)}
+              style={[styles.hexSendButton, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant }]}
+              labelStyle={[styles.hexSendBtnLabel, { color: theme.colors.onSurfaceVariant }]}
+            >
+              {t('send.hexSendButton')}
+            </Button>
+          </View>
           <Button
             mode="contained"
             onPress={handleSend}
@@ -904,82 +974,6 @@ export default function SendDataScreen() {
         </View>
         </ListColumn>
       </ScrollView>
-
-      <AppModal
-        visible={followListVisible}
-        onDismiss={() => {
-          setFollowListVisible(false);
-          setFollowSearchQuery('');
-        }}
-        title={t('send.recipientFollowingTitle')}
-        actions={[
-          {
-            label: t('common.cancel'),
-            onPress: () => {
-              setFollowListVisible(false);
-              setFollowSearchQuery('');
-            },
-          },
-        ]}
-      >
-        {sortedSubscriptions.length === 0 ? (
-          <Text style={[styles.dialogBody, { fontSize: Math.round(14 * fontScale), lineHeight: Math.round(20 * fontScale) }]}>
-            {t('send.recipientFollowingEmpty')}
-          </Text>
-        ) : (
-          <>
-            <Searchbar
-              placeholder={t('subscriptions.searchPlaceholder')}
-              onChangeText={setFollowSearchQuery}
-              value={followSearchQuery}
-              style={styles.followSearchbar}
-              inputStyle={[styles.followSearchInput, { fontSize: Math.round(14 * fontScale) }]}
-            />
-            <ScrollView
-              style={styles.followList}
-              keyboardShouldPersistTaps="handled"
-            >
-              {displaySubscriptions.length === 0 ? (
-                <Text style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}>
-                  {t('subscriptions.searchNoResult')}
-                </Text>
-              ) : (
-                displaySubscriptions.map((item) => {
-                  const isPinned = (item.pinWeight ?? 0) > 0;
-                  return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => selectFollowedAddress(item)}
-                      style={[
-                        styles.followItem,
-                        { borderBottomColor: theme.colors.outlineVariant },
-                      ]}
-                    >
-                      <View style={styles.followItemText}>
-                        <Text
-                          variant="labelMedium"
-                          style={{ color: theme.colors.onSurface }}
-                          numberOfLines={1}
-                        >
-                          {item.description || shortenAddress(item.address)}
-                          {isPinned ? ` · ${t('subscriptions.pin')}` : ''}
-                        </Text>
-                        <Text
-                          variant="bodySmall"
-                          style={[styles.followAddress, { color: theme.colors.primary }]}
-                          numberOfLines={1}
-                        >
-                          {shortenAddress(item.address)}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })
-              )}
-            </ScrollView>
-          </>
-        )}
-      </AppModal>
 
       <AppModal
         visible={imageSourceDialogVisible}
@@ -1154,7 +1148,7 @@ export default function SendDataScreen() {
           },
           {
             label: t('common.ok'),
-            onPress: executeSend,
+            onPress: passwordAction === 'hexSend' ? executeHexSend : executeSend,
             loading,
             disabled: loading || passwordLocked,
           },
@@ -1164,6 +1158,7 @@ export default function SendDataScreen() {
           mode="outlined"
           label={t('send.passwordLabel')}
           secureTextEntry
+          keyboardType="numeric"
           maxLength={16}
           value={password}
           onChangeText={(value) => {
@@ -1367,6 +1362,34 @@ export default function SendDataScreen() {
         </Text>
       </AppModal>
 
+      <AppModal
+        visible={hexSendVisible}
+        onDismiss={() => setHexSendVisible(false)}
+        title={t('send.hexSendTitle')}
+        scrollable
+        actions={[
+          { label: t('common.cancel'), onPress: () => setHexSendVisible(false) },
+          { label: t('send.sendButton'), onPress: startHexPasswordInput },
+        ]}
+      >
+        <TextInput
+          mode="outlined"
+          placeholder={t('send.hexSendPlaceholder')}
+          value={hexData}
+          onChangeText={setHexData}
+          multiline
+          numberOfLines={4}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.hexInput}
+          outlineColor={theme.colors.outline}
+          activeOutlineColor={theme.colors.primary}
+        />
+        <HelperText type="info" visible style={styles.hexHint}>
+          {t('send.hexSendHint')}
+        </HelperText>
+      </AppModal>
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -1450,28 +1473,6 @@ const styles = StyleSheet.create({
   },
   shortcutLabel: {
     fontSize: 12,
-  },
-  followSearchbar: {
-    marginBottom: 8,
-    elevation: 0,
-    borderRadius: 12,
-  },
-  followSearchInput: {
-    fontSize: 14,
-  },
-  followList: {
-    maxHeight: 320,
-    marginBottom: 8,
-  },
-  followItem: {
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  followItemText: {
-    gap: 2,
-  },
-  followAddress: {
-    fontFamily: 'monospace',
   },
   encryptSection: {
     marginTop: 16,
@@ -1576,5 +1577,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginBottom: 4,
+  },
+  payloadHintRow: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  payloadHintText: {
+    paddingHorizontal: 0,
+    marginBottom: 0,
+  },
+  hexSendButton: {
+    marginTop: 0,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    minWidth: 0,
+  },
+  hexSendBtnLabel: {
+    fontSize: 10,
+    marginVertical: 2,
+    marginHorizontal: 8,
+  },
+  hexInput: {
+    marginTop: 8,
+    minHeight: 100,
+  },
+  hexHint: {
+    paddingHorizontal: 0,
+    marginTop: 8,
   },
 });

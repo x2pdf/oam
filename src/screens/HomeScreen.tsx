@@ -1087,6 +1087,7 @@ export default function HomeScreen() {
         <PaperTextInput
           label={t('send.passwordLabel')}
           secureTextEntry
+          keyboardType="numeric"
           maxLength={16}
           value={password}
           onChangeText={(value) => {
