@@ -130,10 +130,22 @@ export default function SendDataScreen() {
     }
   }, [route.params?.recipientAddress]);
 
+  const recipientKey = recipientAddress.trim().toLowerCase();
+
   const isSelf = useMemo(() => {
-    if (!profile?.address || !recipientAddress) return false;
-    return recipientAddress.toLowerCase() === profile.address.toLowerCase();
-  }, [profile?.address, recipientAddress]);
+    if (!profile?.address || !recipientKey) return false;
+    return recipientKey === profile.address.toLowerCase();
+  }, [profile?.address, recipientKey]);
+
+  const isBlackHoleRecipient = useMemo(
+    () => recipientKey === BLACK_HOLE.toLowerCase(),
+    [recipientKey],
+  );
+
+  const isFollowingRecipient = useMemo(() => {
+    if (!recipientKey || isBlackHoleRecipient || isSelf) return false;
+    return subscriptions.some((s) => s.address.toLowerCase() === recipientKey);
+  }, [recipientKey, isBlackHoleRecipient, isSelf, subscriptions]);
 
   const canChooseEncrypt = useMemo(() => {
     const target = recipientAddress.trim();
@@ -922,9 +934,11 @@ export default function SendDataScreen() {
         />
         <View style={styles.shortcutRow}>
           <Button
-            mode="outlined"
+            mode={isBlackHoleRecipient ? 'contained' : 'outlined'}
             compact
             onPress={() => setRecipientAddress(BLACK_HOLE)}
+            buttonColor={isBlackHoleRecipient ? theme.colors.primary : undefined}
+            textColor={isBlackHoleRecipient ? '#FFFFFF' : undefined}
             style={styles.shortcutButton}
             labelStyle={[styles.shortcutLabel, { fontSize: Math.round(12 * fontScale) }]}
           >
@@ -932,9 +946,11 @@ export default function SendDataScreen() {
           </Button>
           {profile?.address && (
             <Button
-              mode="outlined"
+              mode={isSelf ? 'contained' : 'outlined'}
               compact
               onPress={() => setRecipientAddress(profile.address)}
+              buttonColor={isSelf ? theme.colors.primary : undefined}
+              textColor={isSelf ? '#FFFFFF' : undefined}
               style={styles.shortcutButton}
               labelStyle={[styles.shortcutLabel, { fontSize: Math.round(12 * fontScale) }]}
             >
@@ -942,9 +958,11 @@ export default function SendDataScreen() {
             </Button>
           )}
           <Button
-            mode="outlined"
+            mode={isFollowingRecipient ? 'contained' : 'outlined'}
             compact
             onPress={openFollowList}
+            buttonColor={isFollowingRecipient ? theme.colors.primary : undefined}
+            textColor={isFollowingRecipient ? '#FFFFFF' : undefined}
             style={styles.shortcutButton}
             labelStyle={[styles.shortcutLabel, { fontSize: Math.round(12 * fontScale) }]}
           >
