@@ -28,7 +28,7 @@ import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
 import { ContentItem, createJpegItem, createPngItem, createGifItem, createLinkItem } from '../mypayload';
 import { AddAttachmentModal } from '../components/AddAttachmentModal';
-import { estimateSendFeeFromAddress, OAMPClient, getFeeSuggestions, FeeOption, FeeSuggestions } from '../oamp/client';
+import { estimateSendFeeFromAddress, OAMPClient, getFeeSuggestions, FeeOption, FeeSuggestions, intrinsicGas } from '../oamp/client';
 import { BLACK_HOLE } from '../oamp/protocol';
 import {
   lookupRecipientPublicKey,
@@ -235,7 +235,15 @@ export default function SendDataScreen() {
   const [hexSendVisible, setHexSendVisible] = useState(false);
   const [hexData, setHexData] = useState('');
   const [hexSendLoading, setHexSendLoading] = useState(false);
-  const [passwordAction, setPasswordAction] = useState<'send' | 'hexSend'>('send');
+
+  const [ethSendVisible, setEthSendVisible] = useState(false);
+  const [ethAmount, setEthAmount] = useState('');
+  const [ethAmountError, setEthAmountError] = useState(false);
+  const [ethBalance, setEthBalance] = useState<bigint | null>(null);
+  const [ethBalanceLoading, setEthBalanceLoading] = useState(false);
+  const [fastFeeWei, setFastFeeWei] = useState<bigint>(0n);
+
+  const [passwordAction, setPasswordAction] = useState<'send' | 'hexSend' | 'ethSend'>('send');
 
   const buildContentItems = useCallback((): ContentItem[] => {
     const items: ContentItem[] = [];
@@ -312,6 +320,14 @@ export default function SendDataScreen() {
     setFeeSuggestions(null);
   };
 
+  const ethValueToSend = useMemo(() => {
+    try {
+      return ethAmount ? parseEther(ethAmount) : 0n;
+    } catch {
+      return 0n;
+    }
+  }, [ethAmount]);
+
   const canConfirmSend = useMemo(
     () => !feeLoading && !feeError && !!feeEstimate && !insufficientBalance,
     [feeLoading, feeError, feeEstimate, insufficientBalance],
@@ -359,6 +375,7 @@ export default function SendDataScreen() {
             encrypt: encryptEnabled && !!resolvedKey,
             recipientPublicKey: resolvedKey || undefined,
             feeOption: currentFeeOption || undefined,
+            value: ethValueToSend,
           },
         ),
         withRpcFallback((provider) => provider.getBalance(fromAddress)),
@@ -366,7 +383,7 @@ export default function SendDataScreen() {
       ]);
       setFeeEstimate(feeEth);
       setBalanceEth(formatEther(balanceWei));
-      setInsufficientBalance(balanceWei < parseEther(feeEth));
+      setInsufficientBalance(balanceWei < (parseEther(feeEth) + ethValueToSend));
       if (price != null) setEthUsdPrice(price);
     } catch (error) {
       console.error('Fee estimate error:', error);
@@ -396,7 +413,54 @@ export default function SendDataScreen() {
     loadFeeSuggestions();
   };
 
-  const handleSelectFeeLevel = (level: "slow" | "normal" | "fast") => {
+  const openEthSendModal = async () => {
+    setEthSendVisible(true);
+    setEthBalanceLoading(true);
+    setEthAmount('');
+    setEthBalance(null);
+    setFastFeeWei(0n);
+    try {
+      const fromAddress = profile?.address;
+      if (!fromAddress) return;
+
+      const [balanceWei, suggestions, { built }] = await Promise.all([
+        withRpcFallback((provider) => provider.getBalance(fromAddress)),
+        getFeeSuggestions(),
+        estimateSendFeeFromAddress(
+          fromAddress,
+          recipientAddress.trim() || BLACK_HOLE,
+          buildContentItems(),
+          isSelf,
+          { encrypt: encryptEnabled && !!recipientPublicKey, recipientPublicKey: recipientPublicKey || undefined }
+        ),
+      ]);
+
+      setEthBalance(balanceWei);
+      const gasLimit = intrinsicGas(built.data);
+      const fastFee = gasLimit * (suggestions.fast.maxFeePerGas || suggestions.fast.gasPrice || 20000000000n);
+      setFastFeeWei(fastFee);
+    } catch (err) {
+      console.warn('Failed to fetch balance or fee for ETH send', err);
+    } finally {
+      setEthBalanceLoading(false);
+    }
+  };
+
+  const startEthSendConfirm = () => {
+    if (ethAmountError) return;
+    const amountWei = ethValueToSend;
+    if (amountWei > 0n && ethBalance != null) {
+      const maxAvailable = ethBalance > fastFeeWei ? ethBalance - fastFeeWei : 0n;
+      if (amountWei > maxAvailable) {
+        setSnackbarMessage(t('send.insufficientBalance'));
+        setSnackbarVisible(true);
+        return;
+      }
+    }
+    setEthSendVisible(false);
+    handleSend();
+  };
+  const handleFeeLevelSelect = (level: 'slow' | 'normal' | 'fast') => {
     if (!feeSuggestions) return;
     const selected = feeSuggestions[level];
     setFeeOption(selected);
@@ -541,6 +605,7 @@ export default function SendDataScreen() {
     setText('');
     setImages([]);
     setAttachments([]);
+    setEthAmount('');
     navigation.goBack();
   };
 
@@ -587,6 +652,12 @@ export default function SendDataScreen() {
   };
 
   const handleSend = async () => {
+    if (text.trim().length === 0 && images.length === 0 && attachments.length === 0) {
+      setSnackbarMessage(t('send.emptyContent'));
+      setSnackbarVisible(true);
+      return;
+    }
+
     const target = recipientAddress.trim() || BLACK_HOLE;
     const useP2PEncrypt = encryptEnabled && !isSelf && target.toLowerCase() !== BLACK_HOLE.toLowerCase();
 
@@ -664,16 +735,16 @@ export default function SendDataScreen() {
       const target = recipientAddress.trim() || BLACK_HOLE;
 
       if (isSelf) {
-        txHash = await client.sendPersonalNote(items, feeOption || undefined);
+        txHash = await client.sendPersonalNote(items, feeOption || undefined, ethValueToSend);
       } else if (target.toLowerCase() === BLACK_HOLE.toLowerCase()) {
-        txHash = await client.sendBroadcast(items, feeOption || undefined);
+        txHash = await client.sendBroadcast(items, feeOption || undefined, ethValueToSend);
       } else if (encryptEnabled) {
         if (!recipientPublicKey) {
           throw new Error(t('send.encryptUnavailableTitle'));
         }
-        txHash = await client.sendP2PMessage(target, recipientPublicKey, items, feeOption || undefined);
+        txHash = await client.sendP2PMessage(target, recipientPublicKey, items, feeOption || undefined, ethValueToSend);
       } else {
-        txHash = await client.sendUnencryptedMessage(target, items, feeOption || undefined);
+        txHash = await client.sendUnencryptedMessage(target, items, feeOption || undefined, ethValueToSend);
       }
 
       setLoading(false);
@@ -684,6 +755,7 @@ export default function SendDataScreen() {
       setText('');
       setImages([]);
       setAttachments([]);
+      setEthAmount('');
       setPassword('');
       if (currentDraftId) {
         await deleteDraft(currentDraftId);
@@ -759,7 +831,7 @@ export default function SendDataScreen() {
       const client = new OAMPClient(wallet.privateKey);
 
       const target = recipientAddress.trim() || BLACK_HOLE;
-      const txHash = await client.sendRawHex(target, trimmedHex, feeOption || undefined);
+      const txHash = await client.sendRawHex(target, trimmedHex, feeOption || undefined, ethValueToSend);
 
       setLoading(false);
       setPasswordVisible(false);
@@ -768,6 +840,7 @@ export default function SendDataScreen() {
       setSendSuccessVisible(true);
 
       setHexData('');
+      setEthAmount('');
       setPassword('');
     } catch (error: any) {
       console.error('Hex send error:', error);
@@ -1014,19 +1087,30 @@ export default function SendDataScreen() {
         )}
 
         <View style={styles.buttonGroup}>
-          <View style={styles.payloadHintRow}>
+          <View>
             <HelperText type="info" visible style={styles.payloadHintText}>
               {t('send.payloadSizeHint')}
             </HelperText>
-            <Button
-              mode="outlined"
-              compact
-              onPress={() => setHexSendVisible(true)}
-              style={[styles.hexSendButton, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant }]}
-              labelStyle={[styles.hexSendBtnLabel, { color: theme.colors.onSurfaceVariant }]}
-            >
-              {t('send.hexSendButton')}
-            </Button>
+            <View style={styles.secondaryActionsRow}>
+              <Button
+                mode="outlined"
+                compact
+                onPress={() => setHexSendVisible(true)}
+                style={[styles.hexSendButton, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant }]}
+                labelStyle={[styles.hexSendBtnLabel, { color: theme.colors.onSurfaceVariant }]}
+              >
+                {t('send.hexSendButton')}
+              </Button>
+              <Button
+                mode="outlined"
+                compact
+                onPress={openEthSendModal}
+                style={[styles.hexSendButton, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant }]}
+                labelStyle={[styles.hexSendBtnLabel, { color: theme.colors.onSurfaceVariant }]}
+              >
+                {t('send.ethSendButton')}
+              </Button>
+            </View>
           </View>
           <Button
             mode="contained"
@@ -1475,6 +1559,67 @@ export default function SendDataScreen() {
         </HelperText>
       </AppModal>
 
+      <AppModal
+        visible={ethSendVisible}
+        onDismiss={() => setEthSendVisible(false)}
+        title={t('send.ethSendTitle')}
+        scrollable
+        actions={[
+          { label: t('common.cancel'), onPress: () => setEthSendVisible(false) },
+          {
+            label: t('common.ok'),
+            onPress: startEthSendConfirm,
+            disabled: ethBalanceLoading || !ethBalance,
+          },
+        ]}
+      >
+        <View style={{ marginBottom: 16 }}>
+          <Text variant="labelLarge" style={styles.fieldLabel}>
+            {t('send.ethSendBalance')}
+          </Text>
+          {ethBalanceLoading ? (
+            <ActivityIndicator size="small" style={{ alignSelf: 'flex-start' }} />
+          ) : (
+            <Text variant="bodyLarge">
+              {ethBalance ? formatEther(ethBalance) : '0'} ETH
+            </Text>
+          )}
+        </View>
+
+        <TextInput
+          mode="outlined"
+          label={t('send.ethSendAmount')}
+          placeholder="0.0"
+          keyboardType="numeric"
+          value={ethAmount}
+          onChangeText={(val) => {
+            setEthAmount(val);
+            try {
+              if (val) parseEther(val);
+              setEthAmountError(false);
+            } catch {
+              setEthAmountError(true);
+            }
+          }}
+          disabled={ethBalanceLoading || !ethBalance}
+          error={ethAmountError}
+          style={{ marginBottom: 8 }}
+          outlineColor={theme.colors.outline}
+          activeOutlineColor={theme.colors.primary}
+        />
+        {ethAmountError && (
+          <HelperText type="error" visible>
+            {t('send.invalidFeeInput')}
+          </HelperText>
+        )}
+
+        {ethValueToSend > 0n && (
+          <HelperText type="info" visible style={{ color: theme.colors.error, paddingHorizontal: 0 }}>
+            {t('send.ethSendDisclaimer')}
+          </HelperText>
+        )}
+      </AppModal>
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -1663,20 +1808,21 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginBottom: 4,
   },
-  payloadHintRow: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
   payloadHintText: {
     paddingHorizontal: 0,
     marginBottom: 0,
+  },
+  secondaryActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   hexSendButton: {
     marginTop: 0,
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
     minWidth: 0,
+    marginRight: 8,
   },
   hexSendBtnLabel: {
     fontSize: 10,

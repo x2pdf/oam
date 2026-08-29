@@ -121,7 +121,7 @@
     <h1>OAMP / mypayload 编解码</h1>
     <p class="lead">
       把用户上传前的 UTF-8 文本编码成当前上链的 OAMP calldata hex，
-      或把链上 hex 解回 mypayload 明文。加密消息（AES-GCM）无法在此解密。
+      或把链上 hex 解回 mypayload 明文（支持文本、内联图片和 &lt;a&gt; 附件）。加密消息（AES-GCM）无法在此解密。
     </p>
 
     <div class="card">
@@ -313,7 +313,19 @@
     }
 
     function itemsToPlainText(items) {
-      return items.filter((i) => i.type === "text").map((i) => i.content).join("\n");
+      return items.map(item => {
+        if (item.type === "text") return item.content;
+        if (item.type === "image") {
+          const name = item.alt ? ` [${item.alt}]` : "";
+          return `[图片]${name} ${item.data.startsWith("data:") ? "(Base64 Data)" : item.data}`;
+        }
+        if (item.type === "link") {
+          const label = item.label ? ` [${item.label}]` : "";
+          const ar = item.arId ? ` (AR: ${item.arId})` : "";
+          return `[链接/附件]${label}${ar} ${item.href} [${item.mime}]`;
+        }
+        return "";
+      }).join("\n\n");
     }
 
     function setStatus(text, kind) {
@@ -325,18 +337,40 @@
       $images.innerHTML = "";
       for (const item of items) {
         if (item.type === "image") {
+          const container = document.createElement("div");
+          container.style.cssText = "display:flex; flex-direction:column; gap:6px; border:1px solid var(--line); padding:8px; border-radius:10px;";
+
           const img = document.createElement("img");
           img.src = item.data;
           img.alt = item.alt || "image";
-          img.title = item.alt || "";
-          $images.appendChild(img);
+          img.style.maxWidth = "240px";
+          img.style.maxHeight = "320px";
+          img.style.borderRadius = "6px";
+          container.appendChild(img);
+
+          if (item.alt) {
+            const span = document.createElement("span");
+            span.textContent = item.alt;
+            span.style.fontSize = "0.75rem";
+            span.style.color = "var(--muted)";
+            container.appendChild(span);
+          }
+          $images.appendChild(container);
         } else if (item.type === "link") {
           const a = document.createElement("a");
           a.href = item.href;
-          a.textContent = item.label || item.href;
           a.target = "_blank";
           a.rel = "noopener noreferrer";
-          if (item.mime) a.type = item.mime;
+
+          let label = item.label || "未命名附件";
+          if (item.arId) label = "📦 " + label;
+          a.textContent = label;
+
+          let title = `URL: ${item.href}\nMIME: ${item.mime}`;
+          if (item.arId) title += `\nArweave ID: ${item.arId}`;
+          if (item.download) title += "\n(建议下载)";
+          a.title = title;
+
           if (item.download) a.setAttribute("download", "");
           $images.appendChild(a);
         }

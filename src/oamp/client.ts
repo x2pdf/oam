@@ -22,6 +22,7 @@ export interface BuiltTxRequest {
   to: string;
   data: string;
   mode: SendMode;
+  value?: bigint;
 }
 
 export interface FeeOption {
@@ -95,7 +96,7 @@ function buildPlaceholderEncryptedTx(
  * Takes the max of the standard formula (EIP-2028) and the EIP-7623 floor,
  * then adds a 10 % safety margin.  Unused gas is refunded by the protocol.
  */
-function intrinsicGas(txData: string): bigint {
+export function intrinsicGas(txData: string): bigint {
   const hex = txData.startsWith("0x") ? txData.slice(2) : txData;
   let zero = 0n, nonZero = 0n;
   for (let i = 0; i < hex.length; i += 2) {
@@ -198,7 +199,7 @@ export async function estimateSendFeeFromAddress(
   recipientAddress: string,
   content: string | ContentItem[],
   isSelf: boolean,
-  options?: { encrypt?: boolean; recipientPublicKey?: string; feeOption?: FeeOption }
+  options?: { encrypt?: boolean; recipientPublicKey?: string; feeOption?: FeeOption; value?: bigint }
 ): Promise<{ feeEth: string; built: BuiltTxRequest }> {
   const target = recipientAddress.trim() || BLACK_HOLE;
   let built: BuiltTxRequest;
@@ -213,9 +214,14 @@ export async function estimateSendFeeFromAddress(
     built = buildUnencryptedMessageTx(target, content);
   }
 
+  if (options?.value) {
+    built.value = options.value;
+  }
+
   const feeEth = await estimateFeeEth(fromAddress, {
     to: built.to,
     data: built.data,
+    value: built.value,
   }, options?.feeOption);
   return { feeEth, built };
 }
@@ -261,6 +267,7 @@ export class OAMPClient {
         to: built.to,
         data: built.data,
         gasLimit,
+        value: built.value,
         ...(nonce !== undefined ? { nonce } : {}),
       };
 
@@ -364,17 +371,19 @@ export class OAMPClient {
   /**
    * Send a public broadcast message (A -> BLACK_HOLE)
    */
-  async sendBroadcast(content: string | ContentItem[], feeOption?: FeeOption): Promise<string> {
+  async sendBroadcast(content: string | ContentItem[], feeOption?: FeeOption, value?: bigint): Promise<string> {
     const built = await this.buildBroadcastTx(content);
+    if (value) built.value = value;
     return this.sendBuilt(built, undefined, feeOption);
   }
 
   /**
    * Send an encrypted personal note (A -> A)
    */
-  async sendPersonalNote(content: string | ContentItem[], feeOption?: FeeOption): Promise<string> {
+  async sendPersonalNote(content: string | ContentItem[], feeOption?: FeeOption, value?: bigint): Promise<string> {
     const txCount = await this.getPendingNonce();
     const built = await this.buildPersonalNoteTxFromNonce(content, txCount);
+    if (value) built.value = value;
     return this.sendBuilt(built, txCount, feeOption);
   }
 
@@ -385,7 +394,8 @@ export class OAMPClient {
     recipientAddress: string,
     recipientPublicKey: string,
     content: string | ContentItem[],
-    feeOption?: FeeOption
+    feeOption?: FeeOption,
+    value?: bigint
   ): Promise<string> {
     const txCount = await this.getPendingNonce();
     const built = await this.buildP2PMessageTxFromNonce(
@@ -394,6 +404,7 @@ export class OAMPClient {
       content,
       txCount
     );
+    if (value) built.value = value;
     return this.sendBuilt(built, txCount, feeOption);
   }
 
@@ -403,9 +414,11 @@ export class OAMPClient {
   async sendUnencryptedMessage(
     recipientAddress: string,
     content: string | ContentItem[],
-    feeOption?: FeeOption
+    feeOption?: FeeOption,
+    value?: bigint
   ): Promise<string> {
     const built = await this.buildUnencryptedMessageTx(recipientAddress, content);
+    if (value) built.value = value;
     return this.sendBuilt(built, undefined, feeOption);
   }
 
@@ -415,10 +428,13 @@ export class OAMPClient {
   async sendRawHex(
     recipientAddress: string,
     hexData: string,
-    feeOption?: FeeOption
+    feeOption?: FeeOption,
+    value?: bigint
   ): Promise<string> {
     const to = recipientAddress.trim() || BLACK_HOLE;
-    return this.sendBuilt({ to, data: hexData, mode: "raw" }, undefined, feeOption);
+    const built: BuiltTxRequest = { to, data: hexData, mode: "raw" };
+    if (value) built.value = value;
+    return this.sendBuilt(built, undefined, feeOption);
   }
 
   /**
