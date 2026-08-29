@@ -460,7 +460,7 @@ export default function SendDataScreen() {
     setEthSendVisible(false);
     handleSend();
   };
-  const handleFeeLevelSelect = (level: 'slow' | 'normal' | 'fast') => {
+  const handleSelectFeeLevel = (level: 'slow' | 'normal' | 'fast') => {
     if (!feeSuggestions) return;
     const selected = feeSuggestions[level];
     setFeeOption(selected);
