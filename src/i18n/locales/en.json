@@ -418,6 +418,7 @@
     "confirmModePersonal": "To self (encrypted)",
     "confirmModeUnencrypted": "To address (plaintext)",
     "confirmModeEncrypted": "To address (encrypted)",
+    "confirmEthAmount": "Transfer Amount (ETH)",
     "confirmDataText": "Text: {{text}}",
     "confirmDataImages": "Images: {{count}}",
     "confirmDataAttachments": "Attachments: {{count}}",

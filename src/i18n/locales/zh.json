@@ -418,6 +418,7 @@
     "confirmModePersonal": "发给自己（加密）",
     "confirmModeUnencrypted": "指定地址（明文）",
     "confirmModeEncrypted": "指定地址（加密）",
+    "confirmEthAmount": "转账金额 (ETH)",
     "confirmDataText": "文本：{{text}}",
     "confirmDataImages": "图片：{{count}} 张",
     "confirmDataAttachments": "附件：{{count}} 个",

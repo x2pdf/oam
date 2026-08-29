@@ -1217,6 +1217,15 @@ export default function SendDataScreen() {
           <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{dataSummary}</Text>
         </View>
 
+        {ethValueToSend > 0n && (
+          <View style={styles.confirmRow}>
+            <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmEthAmount')}</Text>
+            <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale), color: theme.colors.primary, fontWeight: 'bold' }]}>
+              {ethAmount} ETH
+            </Text>
+          </View>
+        )}
+
         <View style={styles.confirmRow}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmBalance')}</Text>
           <View style={styles.feeRow}>
