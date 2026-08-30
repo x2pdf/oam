@@ -212,7 +212,7 @@ npm run build:web
 | `npm run build:web` | 导出静态 `dist/` |
 | `npm run desktop` | 先起 Expo Web，再开 Tauri 开发窗口 |
 | `npm run build:desktop` | 先 `build:web`，再编 Rust，再打 Windows 安装包 |
-| `doc\deploy\build-windows.cmd` | **推荐**：环境检查 + 固定产物目录 + NSIS/加密回退的一键打包 |
+| `doc\deploy\windows-build.cmd` | **推荐**：环境检查 + 固定产物目录 + NSIS/加密回退的一键打包 |
 
 ### 4.1 只看浏览器（建议先跑通这一步）
 
@@ -248,8 +248,8 @@ npm run desktop
 日常直接跑仓库里的脚本（会处理本次踩过的坑，见第 11、12 节）：
 
 ```powershell
-# 在仓库根目录，或双击 doc\deploy\build-windows.cmd
-.\doc\deploy\build-windows.cmd
+# 在仓库根目录，或双击 doc\deploy\windows-build.cmd
+.\doc\deploy\windows-build.cmd
 ```
 
 等价的手动命令是：
@@ -580,7 +580,7 @@ npm run build:desktop
 4. `npm run build:web`，确认出现 `dist/index.html`
 5. `npm run web`，浏览器里主流程能点
 6. `npm run desktop`，桌面窗口里同样能点
-7. `.\doc\deploy\build-windows.cmd`（推荐）或 `npm run build:desktop`，拿到 exe / NSIS 安装包
+7. `.\doc\deploy\windows-build.cmd`（推荐）或 `npm run build:desktop`，拿到 exe / NSIS 安装包
 8. （可选）`npm start` + Expo Go 扫码
 
 第 5 步过了，说明 Expo + react-native-web 没问题。第 6 步过了，说明 Tauri 壳子能加载同一套 UI。第 7 步才是「能发给别人的 Windows 包」。
@@ -591,8 +591,8 @@ npm run build:desktop
 
 路径：
 
-- `doc/deploy/build-windows.cmd` — 双击或在 cmd / PowerShell 里运行
-- `doc/deploy/build-windows.ps1` — 实际逻辑
+- `doc/deploy/windows-build.cmd` — 双击或在 cmd / PowerShell 里运行
+- `doc/deploy/windows-build.ps1` — 实际逻辑
 
 脚本会：
 
@@ -607,10 +607,10 @@ npm run build:desktop
 
 ```powershell
 # 仓库根目录
-.\doc\deploy\build-windows.cmd
+.\doc\deploy\windows-build.cmd
 
 # 已装过依赖、跳过 npm install
-powershell -NoProfile -ExecutionPolicy Bypass -File .\doc\deploy\build-windows.ps1 -SkipNpmInstall
+powershell -NoProfile -ExecutionPolicy Bypass -File .\doc\deploy\windows-build.ps1 -SkipNpmInstall
 ```
 
 脚本**不会**替你装 Node / Rust / VS Build Tools / WebView2。缺环境时会停在检查步骤，并指出缺什么。

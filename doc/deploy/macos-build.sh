@@ -3,8 +3,8 @@
 # Verified on M1 MacBook Air 13, macOS 14.8.7, Node v20.20.2, Rust 1.95.0.
 #
 # Usage:
-#   bash doc/deploy/build-macos.sh
-#   bash doc/deploy/build-macos.sh --skip-npm-install
+#   bash doc/deploy/macos-build.sh
+#   bash doc/deploy/macos-build.sh --skip-npm-install
 set -euo pipefail
 
 SKIP_NPM=0

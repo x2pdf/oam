@@ -26,7 +26,7 @@ App.tsx / src/**（业务 UI）
 
 ```bash
 # 一键打包（环境检查 + web 导出 + Rust 编译 + 打 .app/.dmg）
-bash doc/deploy/build-macos.sh --skip-npm-install
+bash doc/deploy/macos-build.sh --skip-npm-install
 ```
 
 约 3 分钟（首次 Rust 编译约 2.5 分钟，增量编译约 30 秒）。产物：
@@ -338,7 +338,7 @@ npm run build:web
 | `npm run desktop` | 先起 Expo Web，再开 Tauri 开发窗口 |
 | `npm run build:desktop` | **不要直接用**（见下方说明） |
 | `npx tauri build --bundles app,dmg` | 先 `build:web`，再编 Rust，再打 `.app` / `.dmg` |
-| `bash doc/deploy/build-macos.sh` | **推荐**：环境检查 + 固定产物目录 + 覆盖 bundle 目标 |
+| `bash doc/deploy/macos-build.sh` | **推荐**：环境检查 + 固定产物目录 + 覆盖 bundle 目标 |
 
 ### 4.1 不要直接 `npm run build:desktop`
 
@@ -420,15 +420,15 @@ npm run desktop
 
 ```bash
 # 在仓库根目录
-bash doc/deploy/build-macos.sh
+bash doc/deploy/macos-build.sh
 ```
 
 若脚本是从 Windows 拷过来的、带 CRLF，先清换行再赋权：
 
 ```bash
-sed -i '' $'s/\r$//' doc/deploy/build-macos.sh
-chmod +x doc/deploy/build-macos.sh
-./doc/deploy/build-macos.sh
+sed -i '' $'s/\r$//' doc/deploy/macos-build.sh
+chmod +x doc/deploy/macos-build.sh
+./doc/deploy/macos-build.sh
 ```
 
 等价的手动命令：
@@ -523,8 +523,8 @@ oam/
   doc/deploy/
     windows-desktop.md    Windows 打包文档（已实机）
     macos-desktop.md      本文（已实机验证）
-    build-windows.cmd/.ps1
-    build-macos.sh        macOS 一键打包（已实机验证）
+    windows-build.cmd/.ps1
+    macos-build.sh        macOS 一键打包（已实机验证）
 ```
 
 改界面只动 `src/`（以及样式）。不要在桌面端另写一套 HTML，否则三端就分叉了。
@@ -593,7 +593,7 @@ lsof -nP -iTCP:19006 -sTCP:LISTEN
 npx tauri build --bundles app,dmg
 ```
 
-或跑 `bash doc/deploy/build-macos.sh`。
+或跑 `bash doc/deploy/macos-build.sh`。
 
 ### 8.4 架构混用（Rosetta / x64 Node）
 
@@ -665,7 +665,7 @@ export CARGO_TARGET_DIR="$PWD/src-tauri/target"
 npx tauri build --bundles app,dmg
 ```
 
-`build-macos.sh` 已做这一步。
+`macos-build.sh` 已做这一步。
 
 ### 8.10 `tsc` 在 TS 6 上报 `baseUrl` deprecated
 
@@ -712,7 +712,7 @@ if (Platform.OS !== 'web') {
 4. `npm run build:web`，确认出现 `dist/index.html`
 5. `npm run web`，浏览器里主流程能点
 6. `npm run desktop`，桌面窗口里同样能点
-7. `bash doc/deploy/build-macos.sh`（推荐）或 `npx tauri build --bundles app,dmg`，拿到 `.app`（11 MB）/ `.dmg`（5.2 MB）
+7. `bash doc/deploy/macos-build.sh`（推荐）或 `npx tauri build --bundles app,dmg`，拿到 `.app`（11 MB）/ `.dmg`（5.2 MB）
 8. `open` 一下 `.app`（若被拦，按 8.5）
 9. （可选）`npm start` + Expo Go 扫码
 10. （可选）完整 Xcode 就绪后再 `npm run ios`
@@ -729,7 +729,7 @@ if (Platform.OS !== 'web') {
 
 ## 11. 一键打包脚本（仅 macOS，已实机验证）
 
-路径：`doc/deploy/build-macos.sh`（已在 M1 实机验证）
+路径：`doc/deploy/macos-build.sh`（已在 M1 实机验证）
 
 脚本会：
 
@@ -743,10 +743,10 @@ if (Platform.OS !== 'web') {
 
 ```bash
 # 仓库根目录
-bash doc/deploy/build-macos.sh
+bash doc/deploy/macos-build.sh
 
 # 已装过依赖、跳过 npm install
-bash doc/deploy/build-macos.sh --skip-npm-install
+bash doc/deploy/macos-build.sh --skip-npm-install
 ```
 
 脚本**不会**替你装 Node / Rust / Xcode CLT / Homebrew。缺环境时会停在检查步骤，并指出缺什么。
@@ -811,7 +811,7 @@ if (Platform.OS !== 'web') {
 
 **原因：** `bundle.targets` 锁定 `nsis`，这是 Windows 安装包格式。
 
-**处理：** `--bundles app,dmg`，或用 `build-macos.sh`。不要为了 Mac 去改掉 Windows 的 `nsis`。
+**处理：** `--bundles app,dmg`，或用 `macos-build.sh`。不要为了 Mac 去改掉 Windows 的 `nsis`。
 
 **实机确认：** 使用 `npx tauri build --bundles app,dmg` 顺利绕过，未触发 NSIS 相关错误。
 
@@ -858,6 +858,6 @@ macOS 较新版本对未公证应用更严。本机用 8.5 的 `xattr -cr` + 右
 | Rust host | `x86_64-pc-windows-msvc` | `aarch64-apple-darwin` |
 | 打包目标 | `nsis`（配置默认） | 必须 `--bundles app,dmg` 覆盖 |
 | 产物 | `app.exe` + `*_x64-setup.exe` | `OAM.app`（11 MB）+ `*_aarch64.dmg`（5.2 MB） |
-| 一键脚本 | `doc/deploy/build-windows.cmd`（已实机） | `doc/deploy/build-macos.sh`（已实机） |
+| 一键脚本 | `doc/deploy/windows-build.cmd`（已实机） | `doc/deploy/macos-build.sh`（已实机） |
 | 分发门槛 | 有 WebView2 即可跑 | 未签名时对方可能被 Gatekeeper 拦 |
 | 已知坑 | — | `react-native-quick-crypto` 需 `Platform.OS` 守卫，否则白屏 |

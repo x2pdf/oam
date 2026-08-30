@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
   One-click Windows desktop packager for this Expo + Tauri repo.
@@ -13,8 +13,8 @@
   Skip `npm install` even when node_modules is missing.
 
 .EXAMPLE
-  .\doc\deploy\build-windows.ps1
-  .\doc\deploy\build-windows.cmd
+  .\doc\deploy\windows-build.ps1
+  .\doc\deploy\windows-build.cmd
 #>
 [CmdletBinding()]
 param(
