@@ -29,6 +29,14 @@ export class DataSourceManager {
     return [...this.sources];
   }
 
+  /**
+   * 清除本会话中已跳过（因为连续失败）的源。
+   * 当用户手动刷新或网络状态变更重试时调用。
+   */
+  public clearSkipped() {
+    this.skipped.clear();
+  }
+
   public static getInstance(): DataSourceManager {
     if (!DataSourceManager.instance) {
       DataSourceManager.instance = new DataSourceManager();

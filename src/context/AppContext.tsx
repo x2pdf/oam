@@ -364,6 +364,8 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
   const setApiKey = useCallback(async (key: string) => {
     dispatch({ type: 'SET_API_KEY', payload: key });
     API_CONFIG.ETHERSCAN_API_KEY = key;
+    // 更新 Key 时清除之前的跳过状态，让数据源有机会重新尝试
+    dataSourceManager.clearSkipped();
   }, []);
 
   /* ---------- 本地收藏 CRUD ---------- */

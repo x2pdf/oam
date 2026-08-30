@@ -272,6 +272,11 @@ export default function HomeScreen() {
     // 如果是加载更多，但已经没有更多了，或者正在加载中，则返回
     if (isLoadMore && (!hasMoreRef.current[internalIndex] || loadingMoreRef.current[internalIndex])) return;
 
+    // 非加载更多（即刷新或初次加载）时，清除之前会话中可能因网络问题被跳过的数据源
+    if (!isLoadMore) {
+      dataSourceManager.clearSkipped();
+    }
+
     const loadGen = isLoadMore
       ? loadGenRef.current[internalIndex]
       : ++loadGenRef.current[internalIndex];

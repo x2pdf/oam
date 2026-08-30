@@ -127,6 +127,11 @@ export default function AddressDataListScreen() {
     async (isRefreshing = false, isLoadMore = false) => {
       if (isLoadMore && (!hasMoreRef.current || loadingMoreRef.current)) return;
 
+      // 非加载更多时，尝试恢复之前被禁用的数据源（可能因 VPN 恢复）
+      if (!isLoadMore) {
+        dataSourceManager.clearSkipped();
+      }
+
       const loadGen = isLoadMore ? loadGenRef.current : ++loadGenRef.current;
       const isStale = () => loadGen !== loadGenRef.current;
 
