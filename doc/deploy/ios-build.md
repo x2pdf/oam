@@ -18,7 +18,7 @@ App.tsx / src/**（业务 UI）
 | 产品名 | `OAM` |
 | 全称 | `Onchain Attachment Message` |
 | Bundle Identifier | `com.oam.app` |
-| 版本 | `26.1.0` |
+| 版本 | `26.1.1` |
 | 最低 iOS 部署版本 | `16.0` |
 | JS 引擎 | Hermes |
 | 新架构 | 已启用（`newArchEnabled: true`） |
@@ -350,7 +350,7 @@ oam/
 | 文件 | 关键配置 |
 | --- | --- |
 | `app.json` | `ios.bundleIdentifier: "com.oam.app"` |
-| `ios/OAM/Info.plist` | 版本号 `26.1.0`，最低系统 `12.0`（实际部署目标由 Podfile 控制为 `16.0`） |
+| `ios/OAM/Info.plist` | 版本号 `26.1.1`，最低系统 `12.0`（实际部署目标由 Podfile 控制为 `16.0`） |
 | `ios/Podfile` | `platform :ios, '16.0'`，`post_install` 强制所有 Pod 使用 iOS 16.0 |
 | `ios/Podfile.properties.json` | `expo.jsEngine: hermes`，`newArchEnabled: true` |
 
@@ -491,9 +491,9 @@ pod install
 
 | 文件 | 字段 | 示例 |
 | --- | --- | --- |
-| `app.json` | `expo.version` | `"26.1.0"` |
-| `package.json` | `version` | `"26.1.0"` |
-| `ios/OAM/Info.plist` | `CFBundleShortVersionString` | `26.1.0` |
+| `app.json` | `expo.version` | `"26.1.1"` |
+| `package.json` | `version` | `"26.1.1"` |
+| `ios/OAM/Info.plist` | `CFBundleShortVersionString` | `26.1.1` |
 | `ios/OAM/Info.plist` | `CFBundleVersion` | `1`（构建号，每次提审递增） |
 
 `CFBundleVersion` 是构建号（正整数），每次提交 App Store 时需要递增。`CFBundleShortVersionString` 是用户可见的版本号。
