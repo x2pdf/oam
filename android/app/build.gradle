@@ -45,8 +45,8 @@ android {
         applicationId "com.oam.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2601001
-        versionName "26.1.1"
+        versionCode 2601002
+        versionName "26.1.2"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

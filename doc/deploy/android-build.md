@@ -18,8 +18,8 @@ App.tsx / src/**（业务 UI）
 | 产品名 | `OAM` |
 | 全称 | `Onchain Attachment Message` |
 | Application ID | `com.oam.app` |
-| versionName | `26.1.1` |
-| versionCode | `2601001`（编码规则：major×1000000 + minor×1000 + patch） |
+| versionName | `26.1.2` |
+| versionCode | `2601002`（编码规则：major×1000000 + minor×1000 + patch） |
 | 最低 SDK | 由 Expo SDK 54 决定（通常 API 24 / Android 7.0） |
 | 目标 SDK | 由 Expo SDK 54 决定（通常 API 35） |
 | JS 引擎 | Hermes |
@@ -347,7 +347,7 @@ oam/
 | 文件 | 关键配置 |
 | --- | --- |
 | `app.json` | `android.package: "com.oam.app"` |
-| `android/app/build.gradle` | `applicationId "com.oam.app"`，`versionCode 2601000`，`versionName "26.1.1"` |
+| `android/app/build.gradle` | `applicationId "com.oam.app"`，`versionCode 2601002`，`versionName "26.1.2"` |
 | `android/gradle.properties` | `hermesEnabled=true`，`newArchEnabled=true`，`reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64` |
 | `android/build.gradle` | 阿里云 Maven 镜像优先 |
 
@@ -363,8 +363,9 @@ versionCode = major × 1,000,000 + minor × 1,000 + patch
 
 | versionName | versionCode | 计算 |
 | --- | --- | --- |
-| 26.1.1 | 2601000 | 26×1000000 + 1×1000 + 0 |
+| 26.1.0 | 2601000 | 26×1000000 + 1×1000 + 0 |
 | 26.1.1 | 2601001 | 26×1000000 + 1×1000 + 1 |
+| 26.1.2 | 2601002 | 26×1000000 + 1×1000 + 2 |
 | 26.2.0 | 2602000 | 26×1000000 + 2×1000 + 0 |
 | 27.0.0 | 2700000 | 27×1000000 + 0×1000 + 0 |
 
@@ -372,10 +373,10 @@ versionCode = major × 1,000,000 + minor × 1,000 + patch
 
 | 文件 | 字段 | 示例 |
 | --- | --- | --- |
-| `app.json` | `expo.version` | `"26.1.1"` |
-| `package.json` | `version` | `"26.1.1"` |
-| `android/app/build.gradle` | `versionName` | `"26.1.1"` |
-| `android/app/build.gradle` | `versionCode` | `2601000` |
+| `app.json` | `expo.version` | `"26.1.2"` |
+| `package.json` | `version` | `"26.1.2"` |
+| `android/app/build.gradle` | `versionName` | `"26.1.2"` |
+| `android/app/build.gradle` | `versionCode` | `2601002` |
 
 ---
 

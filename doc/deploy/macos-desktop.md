@@ -34,7 +34,7 @@ bash doc/deploy/build-macos.sh --skip-npm-install
 | 产物 | 路径 | 体积 |
 | --- | --- | --- |
 | 应用包 | `src-tauri/target/release/bundle/macos/OAM.app` | 11 MB |
-| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_26.1.1_aarch64.dmg` | 5.2 MB |
+| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_26.1.2_aarch64.dmg` | 5.2 MB |
 
 打开 `.app` 若被 Gatekeeper 拦截：
 
@@ -70,12 +70,12 @@ open src-tauri/target/release/bundle/macos/OAM.app
 | 全称 | `Onchain Attachment Message` |
 | 窗口标题 | `OAM` |
 | 标识符 | `com.oam.desktop` |
-| 版本 | `26.1.1` |
+| 版本 | `26.1.2` |
 | Web 开发端口 | `19006` |
 | 预期 `.app` | `src-tauri/target/release/bundle/macos/OAM.app`（实产 11 MB） |
-| 预期 `.dmg` | `src-tauri/target/release/bundle/dmg/OAM_26.1.1_aarch64.dmg`（实产 5.2 MB） |
+| 预期 `.dmg` | `src-tauri/target/release/bundle/dmg/OAM_26.1.2_aarch64.dmg`（实产 5.2 MB） |
 
-Windows 安装包是 NSIS（`OAM_26.1.1_x64-setup.exe`）。macOS 对应的是 **`.app` 包 + `.dmg` 磁盘镜像**，不能在 Mac 上打 Windows 的 NSIS，也不能在 Windows 上打 `.dmg`。
+Windows 安装包是 NSIS（`OAM_26.1.2_x64-setup.exe`）。macOS 对应的是 **`.app` 包 + `.dmg` 磁盘镜像**，不能在 Mac 上打 Windows 的 NSIS，也不能在 Windows 上打 `.dmg`。
 
 ---
 
@@ -446,13 +446,13 @@ npx tauri build --bundles app,dmg
 | --- | --- | --- |
 | 可执行文件 | `src-tauri/target/release/app` | — |
 | 应用包 | `src-tauri/target/release/bundle/macos/OAM.app` | **11 MB** |
-| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_26.1.1_aarch64.dmg` | **5.2 MB** |
+| 磁盘镜像 | `src-tauri/target/release/bundle/dmg/OAM_26.1.2_aarch64.dmg` | **5.2 MB** |
 
 若显式加了 `--target aarch64-apple-darwin`，cargo 会把产物放到带 triple 的目录：
 
 ```text
 src-tauri/target/aarch64-apple-darwin/release/bundle/macos/OAM.app
-src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OAM_26.1.1_aarch64.dmg
+src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OAM_26.1.2_aarch64.dmg
 ```
 
 实机体积：`.app` 约 11 MB、`.dmg` 约 5.2 MB（Apple Silicon M1, macOS 14.8.7）。universal 会明显更大。
@@ -493,7 +493,7 @@ Tauri 窗口里跑的是 **react-native-web**，在 Mac 上同样是 `Platform.O
 生产：npx tauri build --bundles app,dmg
   → expo export --platform web  →  dist/index.html + JS
   → cargo 编出 app 二进制，把 dist 打进 OAM.app
-  → 再打成 OAM_26.1.1_aarch64.dmg
+  → 再打成 OAM_26.1.2_aarch64.dmg
 ```
 
 手机侧全程不经过 `dist/` 和 `src-tauri/`。迁桌面是**加一条发行通道**，不是把 iOS/Android 工程改掉。
@@ -766,7 +766,7 @@ bash doc/deploy/build-macos.sh --skip-npm-install
 1. **环境确认**：`uname -m` → `arm64`，`node -v` → `v20.20.2`，`rustc` → `1.95.0`，`clang` → `16.0.0`
 2. **Web 导出**：`npm run build:web` 一次通过，仅一条 `@noble/hashes` exports 警告（可忽略）
 3. **Tauri 打包**：`npx tauri build --bundles app,dmg`，Rust 首次编译约 **2 分 28 秒**
-4. **产物**：`OAM.app`（11 MB）、`OAM_26.1.1_aarch64.dmg`（5.3 MB）
+4. **产物**：`OAM.app`（11 MB）、`OAM_26.1.2_aarch64.dmg`（5.3 MB）
 
 到此打包本身是成功的。但安装 DMG 后打开应用遇到了白屏问题（见 12.2）。
 
@@ -826,7 +826,7 @@ if (Platform.OS !== 'web') {
 | 产物 | 体积 |
 | --- | --- |
 | `OAM.app` | 11 MB |
-| `OAM_26.1.1_aarch64.dmg` | 5.2 MB |
+| `OAM_26.1.2_aarch64.dmg` | 5.2 MB |
 
 与 Windows 那条线（exe 约 13 MB、NSIS 约 6.3 MB）基本同一量级。
 

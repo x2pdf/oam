@@ -26,9 +26,9 @@ App.tsx / src/**（业务 UI）
 | 全称 | `Onchain Attachment Message` |
 | 窗口标题 | `OAM` |
 | 标识符 | `com.oam.desktop` |
-| 版本 | `26.1.1` |
+| 版本 | `26.1.2` |
 | Web 开发端口 | `19006` |
-| 安装包 | `src-tauri/target/release/bundle/nsis/OAM_26.1.1_x64-setup.exe` |
+| 安装包 | `src-tauri/target/release/bundle/nsis/OAM_26.1.2_x64-setup.exe` |
 
 ---
 
@@ -272,7 +272,7 @@ npm run build:desktop
 | 产物 | 路径 | 大约体积 |
 | --- | --- | --- |
 | 可执行文件 | `src-tauri/target/release/app.exe` | ~13 MB |
-| 安装包 | `src-tauri/target/release/bundle/nsis/OAM_26.1.1_x64-setup.exe` | ~6.3 MB |
+| 安装包 | `src-tauri/target/release/bundle/nsis/OAM_26.1.2_x64-setup.exe` | ~6.3 MB |
 
 `src-tauri/target/` 体积很大，不要提交进 git。即使安装包某一步失败，**release 的 exe 往往已经编出来了**，可以直接双击跑（需本机有 WebView2）。
 

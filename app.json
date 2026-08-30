@@ -2,7 +2,7 @@
   "expo": {
     "name": "OAM",
     "slug": "oam",
-    "version": "26.1.1",
+    "version": "26.1.2",
     "description": "Onchain Attachment Message",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

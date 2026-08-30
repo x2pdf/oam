@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "26.1.1"
+version = "26.1.2"
 description = "OAM (Onchain Attachment Message) desktop shell"
 authors = ["you"]
 license = ""
