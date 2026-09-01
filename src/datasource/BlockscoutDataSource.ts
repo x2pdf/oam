@@ -134,7 +134,11 @@ export class BlockscoutDataSource extends BaseDataSource {
       (addr) => this.shortenAddress(addr),
     );
 
-    return { items, next_page_params: data.next_page_params || null };
+    return {
+      items,
+      rawTransactions: txs,
+      next_page_params: data.next_page_params || null
+    };
   }
 
   async fetchOutgoingTransactions(address: string, params: any = null): Promise<OutgoingTxResult> {

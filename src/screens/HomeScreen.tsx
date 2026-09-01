@@ -32,7 +32,8 @@ import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
 import { makeBlockWindow } from '../datasource/blockRange';
 import { fetchBlockWindowTransactions, fetchLatestBlockNumberViaRpc } from '../datasource/fetchBlockWindow';
-import { filterFollowedWithInput, mapToInputDataItem } from '../datasource/transactionMapper';
+import { filterFollowedWithInput, mapToInputDataItem, mapTransactionsToMessages } from '../datasource/transactionMapper';
+import { cacheService } from '../datasource/cacheService';
 import {
   isDesktopLockPolicy,
   usePasswordLockRemaining,
@@ -163,6 +164,7 @@ export default function HomeScreen() {
   const [inboxData, setInboxData] = useState<InputDataItem[]>([]);
   const [loading, setLoading] = useState<Record<HomeTabId, boolean>>(TAB_LOADING_OFF);
   const [refreshing, setRefreshing] = useState<Record<HomeTabId, boolean>>(TAB_LOADING_OFF);
+  const [cacheLoaded, setCacheLoaded] = useState<Record<HomeTabId, boolean>>(TAB_LOADING_OFF);
   const [loadingMore, setLoadingMore] = useState<Record<HomeTabId, boolean>>(TAB_LOADING_OFF);
   const [hasMore, setHasMore] = useState<Record<HomeTabId, boolean>>(TAB_HAS_MORE_ON);
   const [error, setError] = useState<string | null>(null);
@@ -309,6 +311,7 @@ export default function HomeScreen() {
       let resultItems: InputDataItem[] = [];
       let nextParams: any = null;
       let allErrors: string[] = [];
+      let rawTxs: any[] = [];
 
       if (mode === 'square') {
         const withBlackHolePageSize = (pageParams: any) => ({
@@ -320,6 +323,7 @@ export default function HomeScreen() {
         /** 只查黑洞：大页 + 过滤后空页最多再续拉 BLACK_HOLE_EMPTY_CONTINUE_PAGES 次 */
         let pageParams = withBlackHolePageSize(isLoadMore ? params : null);
         const collected: InputDataItem[] = [];
+        const collectedRaw: any[] = [];
         const errors: string[] = [];
         let lastNext: any = null;
         let pages = 0;
@@ -328,9 +332,10 @@ export default function HomeScreen() {
         do {
           const res = await dataSourceManager.fetchAll(BLACK_HOLE_ADDRESS, 'square', pageParams).catch(e => {
             const message = e instanceof Error ? e.message : String(e);
-            return { items: [] as InputDataItem[], next_page_params: null, errors: [message] };
+            return { items: [] as InputDataItem[], rawTransactions: [], next_page_params: null, errors: [message] };
           });
           res.items.forEach(i => collected.push(i));
+          if (res.rawTransactions) collectedRaw.push(...res.rawTransactions);
           if (res.errors) errors.push(...res.errors);
           lastNext = res.next_page_params ?? null;
           pages += 1;
@@ -342,6 +347,7 @@ export default function HomeScreen() {
         if (errors.length) allErrors = errors;
         nextParams = lastNext;
         resultItems = collected.sort((a, b) => b.timestamp - a.timestamp);
+        rawTxs = collectedRaw;
       } else if (mode === 'following') {
         const seen = new Set<string>();
         const followedLower = new Set<string>();
@@ -369,6 +375,7 @@ export default function HomeScreen() {
 
           // 先把这一窗区块的交易完整拉回，再在内存里筛关注地址 + 非空 input。
           const windowTxs = await fetchBlockWindowTransactions(window.startBlock, window.endBlock);
+          rawTxs = windowTxs;
           const matched = filterFollowedWithInput(windowTxs, followedLower);
           resultItems = matched
             .map(tx => mapToInputDataItem(tx, 'all', '', formatListTimestamp, shortenAddress))
@@ -383,10 +390,33 @@ export default function HomeScreen() {
         const result = await dataSourceManager.fetchAll(profile!.address, mode, params);
         resultItems = result.items;
         nextParams = result.next_page_params;
+        rawTxs = result.rawTransactions || [];
         if (result.errors) allErrors = result.errors;
       }
 
       if (isStale()) return;
+
+      // Save new data to cache
+      if (rawTxs.length > 0) {
+        const saveToCache = (address: string, txs: typeof rawTxs) => {
+          cacheService.saveTransactions(address, txs).catch((e) => {
+            console.warn(`Failed to save cache for ${address}:`, e);
+          });
+        };
+        if (mode === 'square') {
+          saveToCache(BLACK_HOLE_ADDRESS, rawTxs);
+        } else if (mode === 'following') {
+          for (const s of subscriptions) {
+            const addr = s.address.toLowerCase();
+            const relevantTxs = rawTxs.filter(tx => tx.fromLower === addr || tx.toLower === addr);
+            if (relevantTxs.length > 0) {
+              saveToCache(addr, relevantTxs);
+            }
+          }
+        } else {
+          saveToCache(profile!.address, rawTxs);
+        }
+      }
 
       if ((mode === 'square' || mode === 'following') && resultItems.length === 0 && allErrors.length > 0) {
         if (allErrors.includes('MISSING_ETHERSCAN_API_KEY')) {
@@ -496,6 +526,83 @@ export default function HomeScreen() {
     };
     _loadData(tabToInternal[tabId], tabId, isRefreshing, isLoadMore);
   }, [_loadData]);
+
+  const loadCache = useCallback(async (tabId: HomeTabId) => {
+    try {
+      if (!(await cacheService.isGlobalCacheEnabled())) {
+        return;
+      }
+
+      const limit = await cacheService.getDefaultLimit();
+      let cachedTxs: any[] = [];
+
+      let items: InputDataItem[] = [];
+      if (tabId === 'square') {
+        cachedTxs = await cacheService.getTransactions([BLACK_HOLE_ADDRESS], limit);
+        items = mapTransactionsToMessages(cachedTxs, BLACK_HOLE_ADDRESS, 'square', formatListTimestamp, shortenAddress);
+      } else if (tabId === 'following') {
+        const addresses = subscriptions.map(s => s.address);
+        if (addresses.length > 0) {
+          cachedTxs = await cacheService.getTransactions(addresses, limit * 2);
+          const followedLower = new Set(addresses.map(a => a.toLowerCase()));
+          const matched = filterFollowedWithInput(cachedTxs, followedLower);
+          items = matched
+            .map(tx => mapToInputDataItem(tx, 'all', '', formatListTimestamp, shortenAddress))
+            .sort((a, b) => b.timestamp - a.timestamp);
+        }
+      } else if (tabId === 'messages') {
+        if (profile?.address) {
+          const txs = await cacheService.getTransactions([profile.address], limit * 2);
+          const sentItems = mapTransactionsToMessages(txs, profile.address, 'sent', formatListTimestamp, shortenAddress);
+          const inboxItems = mapTransactionsToMessages(txs, profile.address, 'inbox', formatListTimestamp, shortenAddress);
+          setSentData(sentItems);
+          setInboxData(inboxItems);
+        }
+      } else if (tabId === 'self') {
+        if (profile?.address) {
+          cachedTxs = await cacheService.getTransactions([profile.address], limit);
+          items = mapTransactionsToMessages(cachedTxs, profile.address, 'self', formatListTimestamp, shortenAddress);
+        }
+      }
+
+      if (items.length > 0) {
+        try {
+          let client: OAMPClient | null = null;
+          if (tabId === 'self' || tabId === 'messages') {
+            const wallet = getUnlockedWallet();
+            if (wallet) {
+              client = new OAMPClient(wallet.privateKey, DEFAULT_RPC_NODE);
+            }
+          }
+          const processed = await applyDisplayPipeline(items, {
+            userAddress: profile?.address,
+            client,
+          });
+          if (tabId === 'square') setSquareData(processed);
+          else if (tabId === 'following') setFollowingRawData(processed);
+          else if (tabId === 'self') setSelfData(processed);
+          if (tabId === 'messages' && profile?.address) {
+            const txs = await cacheService.getTransactions([profile.address], limit * 2);
+            const sentItems = mapTransactionsToMessages(txs, profile.address, 'sent', formatListTimestamp, shortenAddress);
+            const inboxItems = mapTransactionsToMessages(txs, profile.address, 'inbox', formatListTimestamp, shortenAddress);
+            const pSent = await applyDisplayPipeline(sentItems, { userAddress: profile.address, client });
+            const pInbox = await applyDisplayPipeline(inboxItems, { userAddress: profile.address, client });
+            setSentData(pSent);
+            setInboxData(pInbox);
+          }
+        } catch (e) {
+          console.warn('Cache display pipeline failed:', e);
+          if (tabId === 'square') setSquareData(items);
+          else if (tabId === 'following') setFollowingRawData(items);
+          else if (tabId === 'self') setSelfData(items);
+        }
+      }
+    } catch (e) {
+      console.warn(`Cache load failed for tab ${tabId}:`, e);
+    } finally {
+      setCacheLoaded(prev => ({ ...prev, [tabId]: true }));
+    }
+  }, [profile?.address, subscriptions]);
 
   const reclassifySelfData = useCallback(async (withClient: boolean) => {
     const gen = ++classifyGenRef.current;
@@ -616,11 +723,19 @@ export default function HomeScreen() {
   useEffect(() => {
     if (contextLoading || !filtersLoaded || initialLoadDoneRef.current) return;
     initialLoadDoneRef.current = true;
+
+    // Load from cache first for all tabs
+    loadCache('square');
+    loadCache('following');
+    loadCache('messages');
+    loadCache('self');
+
+    // Then trigger network load
     loadData('square');
     loadData('following');
     loadData('messages');
     loadData('self');
-  }, [contextLoading, filtersLoaded, loadData]);
+  }, [contextLoading, filtersLoaded, loadData, loadCache]);
 
   useEffect(() => {
     if (contextLoading || activeTabId != null) return;

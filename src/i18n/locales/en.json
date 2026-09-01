@@ -51,7 +51,8 @@
     "conversation": "Conversation",
     "localFavorites": "Local Favorites",
     "localDrafts": "Drafts",
-    "appInfo": "App Info"
+    "appInfo": "App Info",
+    "cacheManagement": "Cache Data Management"
   },
   "home": {
     "tabs": {
@@ -172,6 +173,7 @@
     "selectLanguage": "Select Language",
     "localFavorites": "Local Favorites",
     "localDrafts": "Drafts",
+    "cacheManagement": "Cache Data Management",
     "appearance": "Appearance",
     "selectAppearance": "Select Appearance",
     "themeLight": "Light",
@@ -213,7 +215,19 @@
     "balanceFailed": "Unable to fetch balance",
     "balanceEthValue": "{{balance}} ETH",
     "balanceUsdEstimate": "≈ {{usd}} USD",
-    "balanceEstimateHint": "Estimated value based on Chainlink oracle price"
+    "balanceEstimateHint": "Estimated value based on Chainlink oracle price",
+    "cacheRefreshing": "Refreshing cache...",
+    "cacheRefreshSuccess": "Cache refreshed successfully",
+    "cacheRefreshFailed": "Cache refresh failed",
+    "cacheCleared": "Cache cleared successfully",
+    "cacheClearConfirm": "Are you sure you want to clear all cached data?",
+    "cacheEnabled": "Enable Cache",
+    "cacheDisabled": "Disable Cache",
+    "cacheLimit": "Cache Size per Address",
+    "cacheRefreshProgress": "Refreshing: {{index}}/{{total}} - {{address}}",
+    "cacheRefreshHint": "Background refresh started. This may take some time depending on your subscriptions.",
+    "cacheRefreshComplete": "Cache refresh complete",
+    "cacheStats": "Cached: {{txCount}} transactions across {{addrCount}} addresses"
   },
   "form": {
     "addSubscription": "Add Subscription",

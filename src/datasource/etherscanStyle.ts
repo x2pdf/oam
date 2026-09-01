@@ -64,6 +64,7 @@ export function toMessageResult(
   const txs = parseEtherscanTxList(rawTxs);
   return {
     items: mapTransactionsToMessages(txs, cleanAddress, mode, formatTimestamp, shortenAddress),
+    rawTransactions: txs,
     next_page_params: nextPageParams(rawTxs.length, page, offset),
   };
 }
@@ -80,6 +81,7 @@ export function toRangeMessageResult(
   const txs = parseEtherscanTxList(rawTxs);
   return {
     items: mapTransactionsToMessages(txs, cleanAddress, mode, formatTimestamp, shortenAddress),
+    rawTransactions: txs,
     next_page_params: null,
     blocksScanned: endBlock - startBlock + 1,
   };

@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import './src/i18n'; // Initialize i18n
+import { initDatabase } from './src/storage/database';
 import { AppProvider, useAppContext } from './src/context/AppContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { WalletSessionProvider } from './src/wallet/WalletSessionContext';
@@ -43,6 +44,12 @@ function AppContent() {
  *   SafeAreaProvider → ThemeProvider → AppProvider → WalletSessionProvider → AppContent
  */
 export default function App() {
+  useEffect(() => {
+    initDatabase().catch((e) => {
+      console.warn('Failed to initialize cache database:', e);
+    });
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>

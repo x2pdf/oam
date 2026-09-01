@@ -1,9 +1,11 @@
 import { InputDataItem } from '../types';
+import { ChainTransaction } from './ChainTransaction';
 
 export type FetchMode = 'square' | 'self' | 'sent' | 'inbox' | 'all';
 
 export interface DataSourceResult {
   items: InputDataItem[];
+  rawTransactions?: ChainTransaction[];
   next_page_params: any;
   errors?: string[];
   /** 本次实际扫描的区块数（供 UI 展示回溯范围） */

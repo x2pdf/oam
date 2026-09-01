@@ -33,6 +33,7 @@ import LocalFavoritesScreen from '../screens/LocalFavoritesScreen';
 import LocalDraftsScreen from '../screens/LocalDraftsScreen';
 import AppInfoScreen from '../screens/AppInfoScreen';
 import FollowListSelectionScreen from '../screens/FollowListSelectionScreen';
+import CacheManagementScreen from '../screens/CacheManagementScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { getHeaderChrome } from '../theme';
 
@@ -293,6 +294,13 @@ export default function AppNavigator() {
           component={AppInfoScreen}
           options={{
             title: t('nav.appInfo'),
+          }}
+        />
+        <Stack.Screen
+          name="CacheManagement"
+          component={CacheManagementScreen}
+          options={{
+            title: t('profile.cacheManagement'),
           }}
         />
         <Stack.Screen

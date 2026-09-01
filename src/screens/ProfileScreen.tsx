@@ -580,6 +580,37 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
+        {/* 6.1 缓存数据管理 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={() => navigation.navigate('CacheManagement')}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="database-cog-outline"
+                style={{ backgroundColor: theme.colors.primaryContainer }}
+                color={theme.colors.primary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.cacheManagement')}
+                </Text>
+                <Text variant="titleMedium">
+                  {t('profile.cacheManagement')}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('CacheManagement')} />
+            </View>
+          </Card.Content>
+        </Card>
+
         {/* 7. Etherscan API Key */}
         <View style={styles.sectionSpacer} />
         <Card

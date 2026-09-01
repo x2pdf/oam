@@ -122,6 +122,7 @@ export type RootStackParamList = {
   LocalFavorites: undefined;
   LocalDrafts: undefined;
   AppInfo: undefined;
+  CacheManagement: undefined;
   FollowListSelection: undefined;
 };
 
