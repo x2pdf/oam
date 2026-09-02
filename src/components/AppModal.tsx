@@ -9,6 +9,8 @@ export type AppModalAction = {
   mode?: 'text' | 'contained' | 'outlined';
   loading?: boolean;
   disabled?: boolean;
+  textColor?: string;
+  style?: any;
 };
 
 type AppModalProps = {
@@ -82,7 +84,8 @@ export function AppModal({
                 onPress={action.onPress}
                 loading={action.loading}
                 disabled={action.disabled}
-                style={[styles.modalButton, stacked && styles.modalButtonStacked]}
+                textColor={action.textColor}
+                style={[styles.modalButton, action.style, stacked && styles.modalButtonStacked]}
               >
                 {action.label}
               </Button>

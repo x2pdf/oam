@@ -9,8 +9,6 @@ import {
   List,
   Divider,
   TextInput,
-  Portal,
-  Dialog,
   ActivityIndicator,
   Snackbar,
 } from 'react-native-paper';
@@ -20,6 +18,7 @@ import { useAppContext } from '../context/AppContext';
 import { BLACK_HOLE_ADDRESS } from '../utils/address';
 import { scrollFill } from '../theme/scroll';
 import { useListColumnLayout, ListColumn } from '../theme/layout';
+import { AppModal } from '../components/AppModal';
 
 export default function CacheManagementScreen() {
   const theme = useTheme();
@@ -135,7 +134,7 @@ export default function CacheManagementScreen() {
         contentContainerStyle={[styles.scrollContent, listContentStyle]}
       >
         <ListColumn>
-          <Card style={styles.card}>
+          <Card style={[styles.card, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content>
               <List.Item
                 title={t('profile.cacheEnabled')}
@@ -160,7 +159,7 @@ export default function CacheManagementScreen() {
                   disabled={!isEnabled || refreshing}
                 />
                 <Button
-                  mode="contained-tonal"
+                  mode="contained"
                   onPress={handleSaveLimit}
                   disabled={!isEnabled || refreshing}
                   style={styles.saveButton}
@@ -173,7 +172,7 @@ export default function CacheManagementScreen() {
 
           <View style={styles.sectionSpacer} />
 
-          <Card style={styles.card}>
+          <Card style={[styles.card, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Title title={t('common.tip')} />
             <Card.Content>
               {stats && (
@@ -226,20 +225,24 @@ export default function CacheManagementScreen() {
         </ListColumn>
       </ScrollView>
 
-      <Portal>
-        <Dialog visible={clearDialogVisible} onDismiss={() => setClearDialogVisible(false)}>
-          <Dialog.Title>{t('common.confirmDelete')}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">{t('profile.cacheClearConfirm')}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setClearDialogVisible(false)}>{t('common.cancel')}</Button>
-            <Button onPress={handleClearCache} textColor={theme.colors.error}>
-              {t('common.ok')}
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <AppModal
+        visible={clearDialogVisible}
+        onDismiss={() => setClearDialogVisible(false)}
+        title={t('common.confirmDelete')}
+        actions={[
+          { label: t('common.cancel'), onPress: () => setClearDialogVisible(false) },
+          {
+            label: t('common.delete'),
+            onPress: handleClearCache,
+            mode: 'contained',
+            style: { backgroundColor: theme.colors.error },
+          },
+        ]}
+      >
+        <Text variant="bodyMedium" style={{ textAlign: 'center' }}>
+          {t('profile.cacheClearConfirm')}
+        </Text>
+      </AppModal>
 
       <Snackbar
         visible={snackbarVisible}
@@ -267,6 +270,7 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 12,
+    elevation: 2,
   },
   sectionSpacer: {
     height: 16,
@@ -295,8 +299,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    padding: 8,
+    padding: 12,
     backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 8,
+    borderRadius: 12,
   },
 });

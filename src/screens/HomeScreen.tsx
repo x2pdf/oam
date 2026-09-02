@@ -473,7 +473,7 @@ export default function HomeScreen() {
         );
       };
 
-      if (isLoadMore) {
+      if (isLoadMore || (internalIndex === INTERNAL_FOLLOWING)) {
         if (internalIndex === INTERNAL_SQUARE) setSquareData(updateData);
         else if (internalIndex === INTERNAL_SENT) setSentData(updateData);
         else if (internalIndex === INTERNAL_INBOX) setInboxData(updateData);
@@ -484,7 +484,6 @@ export default function HomeScreen() {
         else if (internalIndex === INTERNAL_SENT) setSentData(processedItems);
         else if (internalIndex === INTERNAL_INBOX) setInboxData(processedItems);
         else if (internalIndex === INTERNAL_SELF) setSelfData(processedItems);
-        else if (internalIndex === INTERNAL_FOLLOWING) setFollowingRawData(processedItems);
 
         if (isRefreshing) {
           setSnackbarMessage(t('home.upToDate'));
@@ -535,37 +534,43 @@ export default function HomeScreen() {
 
       const limit = await cacheService.getDefaultLimit();
       let cachedTxs: any[] = [];
-
       let items: InputDataItem[] = [];
+      let sentItems: InputDataItem[] = [];
+      let inboxItems: InputDataItem[] = [];
+
       if (tabId === 'square') {
         cachedTxs = await cacheService.getTransactions([BLACK_HOLE_ADDRESS], limit);
         items = mapTransactionsToMessages(cachedTxs, BLACK_HOLE_ADDRESS, 'square', formatListTimestamp, shortenAddress);
+        if (items.length > 0) setSquareData(items);
       } else if (tabId === 'following') {
         const addresses = subscriptions.map(s => s.address);
         if (addresses.length > 0) {
-          cachedTxs = await cacheService.getTransactions(addresses, limit * 2);
+          cachedTxs = await cacheService.getTransactions(addresses, 50);
           const followedLower = new Set(addresses.map(a => a.toLowerCase()));
           const matched = filterFollowedWithInput(cachedTxs, followedLower);
           items = matched
             .map(tx => mapToInputDataItem(tx, 'all', '', formatListTimestamp, shortenAddress))
             .sort((a, b) => b.timestamp - a.timestamp);
+          if (items.length > 0) setFollowingRawData(items);
         }
       } else if (tabId === 'messages') {
         if (profile?.address) {
           const txs = await cacheService.getTransactions([profile.address], limit * 2);
-          const sentItems = mapTransactionsToMessages(txs, profile.address, 'sent', formatListTimestamp, shortenAddress);
-          const inboxItems = mapTransactionsToMessages(txs, profile.address, 'inbox', formatListTimestamp, shortenAddress);
-          setSentData(sentItems);
-          setInboxData(inboxItems);
+          sentItems = mapTransactionsToMessages(txs, profile.address, 'sent', formatListTimestamp, shortenAddress);
+          inboxItems = mapTransactionsToMessages(txs, profile.address, 'inbox', formatListTimestamp, shortenAddress);
+          if (sentItems.length > 0) setSentData(sentItems);
+          if (inboxItems.length > 0) setInboxData(inboxItems);
         }
       } else if (tabId === 'self') {
         if (profile?.address) {
           cachedTxs = await cacheService.getTransactions([profile.address], limit);
           items = mapTransactionsToMessages(cachedTxs, profile.address, 'self', formatListTimestamp, shortenAddress);
+          if (items.length > 0) setSelfData(items);
         }
       }
 
-      if (items.length > 0) {
+      const hasData = items.length > 0 || sentItems.length > 0 || inboxItems.length > 0;
+      if (hasData) {
         try {
           let client: OAMPClient | null = null;
           if (tabId === 'self' || tabId === 'messages') {
@@ -574,27 +579,25 @@ export default function HomeScreen() {
               client = new OAMPClient(wallet.privateKey, DEFAULT_RPC_NODE);
             }
           }
-          const processed = await applyDisplayPipeline(items, {
-            userAddress: profile?.address,
-            client,
-          });
-          if (tabId === 'square') setSquareData(processed);
-          else if (tabId === 'following') setFollowingRawData(processed);
-          else if (tabId === 'self') setSelfData(processed);
-          if (tabId === 'messages' && profile?.address) {
-            const txs = await cacheService.getTransactions([profile.address], limit * 2);
-            const sentItems = mapTransactionsToMessages(txs, profile.address, 'sent', formatListTimestamp, shortenAddress);
-            const inboxItems = mapTransactionsToMessages(txs, profile.address, 'inbox', formatListTimestamp, shortenAddress);
-            const pSent = await applyDisplayPipeline(sentItems, { userAddress: profile.address, client });
-            const pInbox = await applyDisplayPipeline(inboxItems, { userAddress: profile.address, client });
+
+          if (tabId === 'messages') {
+            const [pSent, pInbox] = await Promise.all([
+              applyDisplayPipeline(sentItems, { userAddress: profile?.address, client }),
+              applyDisplayPipeline(inboxItems, { userAddress: profile?.address, client }),
+            ]);
             setSentData(pSent);
             setInboxData(pInbox);
+          } else {
+            const processed = await applyDisplayPipeline(items, {
+              userAddress: profile?.address,
+              client,
+            });
+            if (tabId === 'square') setSquareData(processed);
+            else if (tabId === 'following') setFollowingRawData(processed);
+            else if (tabId === 'self') setSelfData(processed);
           }
         } catch (e) {
           console.warn('Cache display pipeline failed:', e);
-          if (tabId === 'square') setSquareData(items);
-          else if (tabId === 'following') setFollowingRawData(items);
-          else if (tabId === 'self') setSelfData(items);
         }
       }
     } catch (e) {
@@ -724,17 +727,21 @@ export default function HomeScreen() {
     if (contextLoading || !filtersLoaded || initialLoadDoneRef.current) return;
     initialLoadDoneRef.current = true;
 
-    // Load from cache first for all tabs
-    loadCache('square');
-    loadCache('following');
-    loadCache('messages');
-    loadCache('self');
+    (async () => {
+      // Load from cache first for all tabs and wait for completion
+      await Promise.all([
+        loadCache('square'),
+        loadCache('following'),
+        loadCache('messages'),
+        loadCache('self'),
+      ]);
 
-    // Then trigger network load
-    loadData('square');
-    loadData('following');
-    loadData('messages');
-    loadData('self');
+      // Then trigger network load
+      loadData('square');
+      loadData('following');
+      loadData('messages');
+      loadData('self');
+    })();
   }, [contextLoading, filtersLoaded, loadData, loadCache]);
 
   useEffect(() => {
