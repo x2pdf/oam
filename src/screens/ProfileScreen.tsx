@@ -510,7 +510,11 @@ export default function ProfileScreen() {
                   {t('profile.appearance')}
                 </Text>
                 <Text variant="titleMedium">
-                  {themeMode === 'dark' ? t('profile.themeDark') : t('profile.themeLight')}
+                  {themeMode === 'auto'
+                    ? t('profile.themeAuto')
+                    : themeMode === 'dark'
+                    ? t('profile.themeDark')
+                    : t('profile.themeLight')}
                 </Text>
               </View>
               <IconButton icon="chevron-right" onPress={showThemeDialog} />
@@ -815,6 +819,11 @@ export default function ProfileScreen() {
           onValueChange={(value) => changeTheme(value as ThemeMode)}
           value={themeMode}
         >
+          <RadioButton.Item
+            label={t('profile.themeAuto')}
+            value="auto"
+            style={styles.radioItem}
+          />
           <RadioButton.Item
             label={t('profile.themeLight')}
             value="light"

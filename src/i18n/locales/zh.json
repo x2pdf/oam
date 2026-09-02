@@ -176,6 +176,7 @@
     "cacheManagement": "缓存数据管理",
     "appearance": "外观",
     "selectAppearance": "选择外观",
+    "themeAuto": "自动",
     "themeLight": "浅色",
     "themeDark": "深色",
     "fontSize": "字体大小",

@@ -176,6 +176,7 @@
     "cacheManagement": "Cache Data Management",
     "appearance": "Appearance",
     "selectAppearance": "Select Appearance",
+    "themeAuto": "Automatic",
     "themeLight": "Light",
     "themeDark": "Dark",
     "fontSize": "Font Size",

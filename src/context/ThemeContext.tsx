@@ -7,13 +7,14 @@ import React, {
   useState,
   ReactNode,
 } from 'react';
+import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PaperProvider } from 'react-native-paper';
 import { lightTheme, darkTheme, buildScaledTheme } from '../theme';
 import { STORAGE_KEYS } from '../constants';
 import { migrateLegacyStorage } from '../storage/migrate';
 
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark' | 'auto';
 
 /** 字体缩放预设档位 */
 export const FONT_SCALE_PRESETS = [
@@ -42,7 +43,8 @@ interface Props {
 }
 
 export const ThemeProvider: React.FC<Props> = ({ children }) => {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
+  const systemColorScheme = useColorScheme();
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('auto');
   const [fontScale, setFontScaleState] = useState<number>(DEFAULT_FONT_SCALE);
 
   useEffect(() => {
@@ -50,8 +52,8 @@ export const ThemeProvider: React.FC<Props> = ({ children }) => {
       try {
         await migrateLegacyStorage();
         const saved = await AsyncStorage.getItem(STORAGE_KEYS.THEME);
-        if (saved === 'light' || saved === 'dark') {
-          setThemeModeState(saved);
+        if (saved === 'light' || saved === 'dark' || saved === 'auto') {
+          setThemeModeState(saved as ThemeMode);
         }
         const savedScale = await AsyncStorage.getItem(STORAGE_KEYS.FONT_SCALE);
         if (savedScale !== null) {
@@ -84,8 +86,8 @@ export const ThemeProvider: React.FC<Props> = ({ children }) => {
     }
   }, []);
 
-  const baseTheme = themeMode === 'dark' ? darkTheme : lightTheme;
-  const isDark = themeMode === 'dark';
+  const isDark = themeMode === 'auto' ? systemColorScheme === 'dark' : themeMode === 'dark';
+  const baseTheme = isDark ? darkTheme : lightTheme;
 
   const scaledTheme = useMemo(
     () => buildScaledTheme(baseTheme, fontScale),
