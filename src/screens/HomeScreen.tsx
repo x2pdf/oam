@@ -61,6 +61,8 @@ const INTERNAL_INBOX = 2;
 const INTERNAL_SELF = 3;
 const INTERNAL_FOLLOWING = 4;
 
+const CACHE_LOAD_LIMIT = 20;
+
 const TAB_LOADING_OFF: Record<HomeTabId, boolean> = {
   square: false,
   following: false,
@@ -532,20 +534,19 @@ export default function HomeScreen() {
         return;
       }
 
-      const limit = await cacheService.getDefaultLimit();
       let cachedTxs: any[] = [];
       let items: InputDataItem[] = [];
       let sentItems: InputDataItem[] = [];
       let inboxItems: InputDataItem[] = [];
 
       if (tabId === 'square') {
-        cachedTxs = await cacheService.getTransactions([BLACK_HOLE_ADDRESS], limit);
+        cachedTxs = await cacheService.getTransactions([BLACK_HOLE_ADDRESS], CACHE_LOAD_LIMIT);
         items = mapTransactionsToMessages(cachedTxs, BLACK_HOLE_ADDRESS, 'square', formatListTimestamp, shortenAddress);
         if (items.length > 0) setSquareData(items);
       } else if (tabId === 'following') {
         const addresses = subscriptions.map(s => s.address);
         if (addresses.length > 0) {
-          cachedTxs = await cacheService.getTransactions(addresses, 50);
+          cachedTxs = await cacheService.getTransactions(addresses, CACHE_LOAD_LIMIT);
           const followedLower = new Set(addresses.map(a => a.toLowerCase()));
           const matched = filterFollowedWithInput(cachedTxs, followedLower);
           items = matched
@@ -555,7 +556,7 @@ export default function HomeScreen() {
         }
       } else if (tabId === 'messages') {
         if (profile?.address) {
-          const txs = await cacheService.getTransactions([profile.address], limit * 2);
+          const txs = await cacheService.getTransactions([profile.address], CACHE_LOAD_LIMIT);
           sentItems = mapTransactionsToMessages(txs, profile.address, 'sent', formatListTimestamp, shortenAddress);
           inboxItems = mapTransactionsToMessages(txs, profile.address, 'inbox', formatListTimestamp, shortenAddress);
           if (sentItems.length > 0) setSentData(sentItems);
@@ -563,7 +564,7 @@ export default function HomeScreen() {
         }
       } else if (tabId === 'self') {
         if (profile?.address) {
-          cachedTxs = await cacheService.getTransactions([profile.address], limit);
+          cachedTxs = await cacheService.getTransactions([profile.address], CACHE_LOAD_LIMIT);
           items = mapTransactionsToMessages(cachedTxs, profile.address, 'self', formatListTimestamp, shortenAddress);
           if (items.length > 0) setSelfData(items);
         }
