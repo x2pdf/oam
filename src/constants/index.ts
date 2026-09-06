@@ -127,3 +127,6 @@ export const FOLLOWING_RPC_BATCH_SIZE = 10;
 
 /** 拉取整块时的 HTTP 超时（整块含完整交易，比普通 RPC 读更慢）。 */
 export const FOLLOWING_BLOCK_FETCH_TIMEOUT_MS = 20000;
+
+/** 关注页按地址拉取时的并发限制 (每秒请求数) */
+export const FOLLOWING_ADDRESS_FETCH_RATE_LIMIT = 5;

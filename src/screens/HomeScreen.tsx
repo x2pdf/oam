@@ -23,7 +23,7 @@ import { InputDataCard } from '../components/InputDataCard';
 import { CopyableAddress } from '../components/CopyableAddress';
 import { shortenAddress, BLACK_HOLE_ADDRESS } from '../utils/address';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FILTER_STATE_KEY, getHomeTabOrder, type HomeTabId, FOLLOWING_BLOCK_WINDOW } from '../constants';
+import { FILTER_STATE_KEY, getHomeTabOrder, type HomeTabId } from '../constants';
 import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
 import { cacheService } from '../datasource/cacheService';
@@ -540,9 +540,7 @@ export default function HomeScreen() {
               <>
                 <ActivityIndicator size="small" color={theme.colors.primary} />
                 <Text variant="bodyMedium" style={{ marginTop: 12 }}>
-                  {isFollowingList
-                    ? t('home.followingLoadingOlder', { count: FOLLOWING_BLOCK_WINDOW })
-                    : t('home.loadingData', { tab: tabLabels[tabId] })}
+                  {t('home.loadingData', { tab: tabLabels[tabId] })}
                 </Text>
               </>
             ) : (
@@ -551,7 +549,7 @@ export default function HomeScreen() {
                   {isFollowingList && subscriptions.length === 0
                     ? t('subscriptions.noSubscriptions')
                     : isFollowingList
-                      ? t('home.followingEmptyWindow', { count: FOLLOWING_BLOCK_WINDOW })
+                      ? t('home.followingEmpty')
                       : t('home.noMessages')}
                 </Text>
                 {state.hasMore ? (
@@ -560,9 +558,7 @@ export default function HomeScreen() {
                     onPress={() => triggerLoadMore(tabId)}
                     style={{ marginTop: 8 }}
                   >
-                    {isFollowingList
-                      ? t('home.followingLoadOlder', { count: FOLLOWING_BLOCK_WINDOW })
-                      : t('home.loadMore')}
+                    {t('home.loadMore')}
                   </Button>
                 ) : null}
               </>

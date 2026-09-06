@@ -11,7 +11,7 @@ function toBlockHex(n: number): string {
   return `0x${n.toString(16)}`;
 }
 
-async function mapPool<T, R>(
+export async function mapPool<T, R>(
   items: T[],
   limit: number,
   worker: (item: T, index: number) => Promise<R>,

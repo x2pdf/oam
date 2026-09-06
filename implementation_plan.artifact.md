@@ -1,37 +1,39 @@
-# Fix: Scrolling and Refresh not loading more data on Web
+# Update Following Tab Data Fetching Strategy
 
-The user reported that on Web, scrolling to 19-20 items doesn't trigger loading more data, and the manual refresh button also doesn't help, leaving the list stuck at 20 items.
-
-## Analysis of the issue
-
-1.  **Missing manual "Load More" button in `HomeScreen` for Web**: While `AddressDataListScreen` has a manual "Load More" button for Web (as a fallback for `onEndReached` issues), `HomeScreen` does not. In some Web environments (especially inside a `PagerView`), `FlatList` `onEndReached` may not fire reliably.
-2.  **`hasMore` state killed by incremental refresh**: In `DataRepository.ts`, the `refresh` method clears `nextParams[tabId]` and then overwrites it with the result of a `startblock` (incremental) query. If the refresh finds no new transactions (0 items), `result.nextParams` will be `null`, which causes `hasMore` to become `false`. This prevents any subsequent "Load More" attempts for older data.
-3.  **Missing `CACHE_LOAD_LIMIT` constant**: `DataRepository.ts` imports `CACHE_LOAD_LIMIT` from `../constants`, but it is not exported in `src/constants/index.ts`. This leads to `undefined` being passed to `cacheService.getTransactions`, falling back to a default of 20.
+The goal is to change the data fetching logic for the "Following" (关注) tab in the Home screen. Instead of scanning a fixed window of blocks (e.g., last 100 blocks), the app will now fetch the latest 20 items for each followed address individually, merge them, and store them in the cache.
 
 ## Proposed Changes
 
-### [Component Name] Core Logic & Constants
+### [onchaindata] Component
 
-#### [MODIFY] [index.ts](file:///Users/megan/code/oam/src/constants/index.ts)
-- Export `CACHE_LOAD_LIMIT = 20` to match the intended pagination size.
+The core changes will be in the `DataRepository` class, which manages the data flow between the network, cache, and UI.
 
 #### [MODIFY] [DataRepository.ts](file:///Users/megan/code/oam/src/datasource/DataRepository.ts)
-- Fix the `refresh` method to avoid killing the `hasMore` state when an incremental refresh returns no new items.
-- Ensure `nextParams` (the cursor for older data) is only updated when loading more or during a full (non-incremental) refresh.
-
-### [Component Name] UI components
-
-#### [MODIFY] [HomeScreen.tsx](file:///Users/megan/code/oam/src/screens/HomeScreen.tsx)
-- Add a manual "Load More" button in the `FlatList` footer for Web, consistent with `AddressDataListScreen.tsx`. This provides a fallback if `onEndReached` doesn't fire.
+- Update `fetchFromNetwork` for the `following` tab:
+    - Replace the block-window scanning logic with a per-address fetching loop.
+    - Fetch the latest 20 items for each address in the subscription list in parallel.
+    - Merge, deduplicate (by transaction hash/id), and sort the results by timestamp descending.
+    - Save all fetched raw transactions to `cacheService` for future cache-first loads.
+- Update `refresh` logic to ensure `following` tab correctly handles the new strategy.
+- Update `loadMore` logic for `following` tab:
+    - Since the cursor-based pagination (block numbers) is no longer suitable, we'll need to adapt `loadMore` to fetch the next page for each address or rely on cache-only loads for older data.
+    - *Decision*: For now, I will implement `loadMore` to also fetch the next 20 items per address, maintaining a per-address offset if possible, or simplifying it to a simpler "fetch more" if appropriate. The user specifically asked for the refresh/initial load logic.
 
 ## Verification Plan
 
-### Automated Tests
-- N/A (UI and integration flow)
-
 ### Manual Verification
-1.  Run the app in Web mode.
-2.  Navigate to a tab with more than 20 items available.
-3.  Verify that scrolling to the bottom triggers a load more, OR the "Load More" button appears and works.
-4.  Verify that clicking the "Refresh" FAB button doesn't disable the "Load More" button if there are still older items to fetch.
-5.  Verify that `CACHE_LOAD_LIMIT` is now correctly defined and used.
+1.  **Empty Cache Test**:
+    - Clear the app cache.
+    - Go to the "Following" tab.
+    - Verify that it fetches data for each subscribed address (latest 20 items).
+    - Verify that the data is displayed and sorted correctly.
+2.  **Cache-First Test**:
+    - Restart the app.
+    - Go to the "Following" tab.
+    - Verify that it loads data from the cache immediately.
+3.  **Refresh Test**:
+    - Pull to refresh the "Following" tab.
+    - Verify that it fetches the latest data for each address and updates the list.
+4.  **Subscription Change Test**:
+    - Add or remove a subscription.
+    - Verify that the "Following" tab updates its data accordingly.

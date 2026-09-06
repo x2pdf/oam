@@ -10,6 +10,7 @@ import { isBlackHoleAddress, shortenAddress, BLACK_HOLE_ADDRESS } from '../utils
 import {
   CACHE_LOAD_LIMIT,
   FOLLOWING_BLOCK_WINDOW,
+  FOLLOWING_ADDRESS_FETCH_RATE_LIMIT,
   BLACK_HOLE_PAGE_SIZE,
   BLACK_HOLE_EMPTY_CONTINUE_PAGES,
 } from '../constants';
@@ -18,8 +19,6 @@ import {
   filterFollowedWithInput,
   mapToInputDataItem,
 } from './transactionMapper';
-import { fetchLatestBlockNumberViaRpc, fetchBlockWindowTransactions } from './fetchBlockWindow';
-import { makeBlockWindow } from './blockRange';
 
 export interface DataState {
   data: InputDataItem[];
@@ -232,6 +231,15 @@ export class DataRepository {
       if (tabId === 'square') {
         const txs = await cacheService.getTransactions([BLACK_HOLE_ADDRESS], CACHE_LOAD_LIMIT, currentOffset);
         cachedItems = mapTransactionsToMessages(txs, BLACK_HOLE_ADDRESS, 'square', this.formatTimestamp, shortenAddress);
+      } else if (tabId === 'following') {
+        const addresses = subscriptions.map(s => s.address).filter(Boolean);
+        if (addresses.length > 0) {
+          const txs = await cacheService.getTransactions(addresses, CACHE_LOAD_LIMIT, currentOffset);
+          const followedLower = new Set(addresses.map(a => a.toLowerCase()));
+          cachedItems = filterFollowedWithInput(txs, followedLower)
+            .map(tx => mapToInputDataItem(tx, 'all', '', this.formatTimestamp, shortenAddress))
+            .sort((a, b) => b.timestamp - a.timestamp);
+        }
       } else if (tabId === 'self') {
         if (userAddress) {
           const txs = await cacheService.getTransactions([userAddress], CACHE_LOAD_LIMIT, currentOffset);
@@ -305,24 +313,50 @@ export class DataRepository {
       resultItems = collected;
       rawTxs = collectedRaw;
     } else if (tabId === 'following') {
-      const followedLower = new Set(subscriptions.map(s => s.address?.toLowerCase()).filter(Boolean) as string[]);
-      if (followedLower.size === 0) {
+      const addresses = subscriptions.map(s => s.address?.toLowerCase()).filter(Boolean) as string[];
+      if (addresses.length === 0) {
         console.log('[DataRepository] fetchFromNetwork (following) - No subscriptions.');
         return { items: [], nextParams: null, followingNextEndBlock: null };
       }
 
-      const windowEnd = params?.endBlock ?? await fetchLatestBlockNumberViaRpc();
-      const window = makeBlockWindow(windowEnd, FOLLOWING_BLOCK_WINDOW);
-      console.log(`[DataRepository] fetchFromNetwork (following) window=[${window.startBlock}, ${window.endBlock}]`);
-      const windowTxs = await fetchBlockWindowTransactions(window.startBlock, window.endBlock);
-      rawTxs = windowTxs;
-      const matched = filterFollowedWithInput(windowTxs, followedLower);
-      resultItems = matched
-        .map(tx => mapToInputDataItem(tx, 'all', '', this.formatTimestamp, shortenAddress))
-        .sort((a, b) => b.timestamp - a.timestamp);
+      console.log(`[DataRepository] fetchFromNetwork (following) - Fetching latest 20 for ${addresses.length} addresses with rate limit ${FOLLOWING_ADDRESS_FETCH_RATE_LIMIT}/s.`);
 
-      nextParams = window.nextEndBlock != null ? { endBlock: window.nextEndBlock } : null;
-      followingNextEndBlock = window.nextEndBlock;
+      const results: any[] = [];
+      for (let i = 0; i < addresses.length; i += FOLLOWING_ADDRESS_FETCH_RATE_LIMIT) {
+        const batch = addresses.slice(i, i + FOLLOWING_ADDRESS_FETCH_RATE_LIMIT);
+        console.log(`[DataRepository] Fetching batch ${i / FOLLOWING_ADDRESS_FETCH_RATE_LIMIT + 1}, addresses: ${batch.length}`);
+        const batchResults = await Promise.all(
+          batch.map(async (addr) => {
+            try {
+              return await dataSourceManager.fetchAll(addr, 'all', params);
+            } catch (e) {
+              console.warn(`[DataRepository] Failed to fetch for ${addr}:`, e);
+              return { items: [], next_page_params: null, rawTransactions: [] };
+            }
+          })
+        );
+        results.push(...batchResults);
+
+        // Wait 1 second before next batch to respect 5 requests per second limit
+        if (i + FOLLOWING_ADDRESS_FETCH_RATE_LIMIT < addresses.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      const allItems: InputDataItem[] = [];
+      const allRaw: any[] = [];
+      results.forEach(res => {
+        allItems.push(...res.items);
+        if (res.rawTransactions) allRaw.push(...res.rawTransactions);
+      });
+
+      const map = new Map<string, InputDataItem>();
+      allItems.forEach(i => map.set(i.id, i));
+      resultItems = Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+      rawTxs = allRaw;
+
+      nextParams = null;
+      followingNextEndBlock = null;
     } else if (tabId === 'messages') {
       if (!userAddress) throw new Error('Address required');
       console.log(`[DataRepository] fetchFromNetwork (messages) address=${userAddress}`);
