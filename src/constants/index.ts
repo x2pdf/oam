@@ -40,6 +40,9 @@ export const MAX_DATA_SOURCE_CYCLES = 3;
 /** 单次向数据源请求的交易条数。偏小以避免限流 */
 export const DATA_SOURCE_PAGE_SIZE = 20;
 
+/** 从本地缓存加载时的单页条数 */
+export const CACHE_LOAD_LIMIT = 20;
+
 /**
  * 广场黑洞地址专用页大小（原始交易条数，过滤无 input 之后更少）。
  * 大于普通页，以提高公开广播命中率；过大易超时/限流。

@@ -145,8 +145,6 @@ export class DataRepository {
 
     try {
       dataSourceManager.clearSkipped();
-      this.nextParams[tabId] = null;
-      if (tabId === 'following') this.followingNextEndBlock = null;
 
       // Incremental refresh: find latest block in cache
       let startBlock: number | undefined;
@@ -159,6 +157,13 @@ export class DataRepository {
         startBlock = await cacheService.getLatestBlockNumber([userAddress]);
       }
 
+      const isIncremental = !!startBlock;
+      // Only reset pagination cursor if this is a full (non-incremental) refresh
+      if (!isIncremental) {
+        this.nextParams[tabId] = null;
+        if (tabId === 'following') this.followingNextEndBlock = null;
+      }
+
       const fetchParams = startBlock ? { startblock: startBlock } : null;
       const result = await this.fetchFromNetwork(tabId, userAddress, subscriptions, fetchParams);
 
@@ -166,13 +171,21 @@ export class DataRepository {
       this.rawData[tabId] = mergedRaw;
       const processed = await this.processItems(mergedRaw, userAddress);
 
-      this.nextParams[tabId] = result.nextParams;
-      if (tabId === 'following') this.followingNextEndBlock = result.followingNextEndBlock;
+      // For incremental refresh, only update cursor if we actually found a next page in the NEW results.
+      // Otherwise, keep the existing cursor (which points to OLDER data).
+      if (!isIncremental || result.nextParams) {
+        this.nextParams[tabId] = result.nextParams;
+      }
+      if (tabId === 'following' && (!isIncremental || result.followingNextEndBlock != null)) {
+        this.followingNextEndBlock = result.followingNextEndBlock;
+      }
 
       this.updateState(tabId, {
         data: processed,
         refreshing: false,
-        hasMore: !!result.nextParams || (tabId === 'following' && result.followingNextEndBlock != null)
+        hasMore: isIncremental
+          ? (this.states[tabId].hasMore || !!result.nextParams)
+          : (!!result.nextParams || (tabId === 'following' && result.followingNextEndBlock != null))
       });
     } catch (e: any) {
       this.updateState(tabId, { refreshing: false, error: e.message || 'Fetch failed' });

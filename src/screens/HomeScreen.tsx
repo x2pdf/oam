@@ -522,6 +522,10 @@ export default function HomeScreen() {
             <View style={styles.footerContainer}>
               {state.loadingMore ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : Platform.OS === 'web' && state.hasMore ? (
+                <Button mode="text" onPress={() => triggerLoadMore(tabId)}>
+                  {t('home.loadMore')}
+                </Button>
               ) : !state.hasMore ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('home.noMoreData')}
