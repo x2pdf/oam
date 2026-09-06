@@ -71,7 +71,7 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
             <PlatformImage
               key={index}
               uri={item.data}
-              style={[styles.image, { backgroundColor: theme.colors.surfaceVariant }]}
+              style={[styles.image, { backgroundColor: theme.dark ? '#262626' : '#F5F5F5' }]}
               resizeMode="contain"
               onPress={() => openImageLightbox(item.data)}
               onLongPress={() => handleSaveImage(item.data)}
@@ -124,7 +124,7 @@ function LinkAttachment({
     return (
       <PlatformImage
         uri={href}
-        style={[styles.image, { backgroundColor: theme.colors.surfaceVariant }]}
+        style={[styles.image, { backgroundColor: theme.dark ? '#262626' : '#F5F5F5' }]}
         resizeMode="contain"
         onPress={() => openImageLightbox(href)}
         onError={() => setImageFailed(true)}

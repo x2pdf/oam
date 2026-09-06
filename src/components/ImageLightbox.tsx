@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   BackHandler,
+  Image,
   Modal,
   PanResponder,
   Platform,
@@ -67,6 +68,8 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
   const pinchStartScale = useRef(1);
   const usedMultiTouch = useRef(false);
   const moved = useRef(false);
+  const lastTapTime = useRef(0);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
 
   const resetTransform = useCallback(() => {
     currentScale.current = 1;
@@ -78,10 +81,18 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     pinchStartScale.current = 1;
     usedMultiTouch.current = false;
     moved.current = false;
+    setImageSize(null);
   }, [scale, translateX, translateY]);
 
   useEffect(() => {
     resetTransform();
+    if (uri) {
+      Image.getSize(
+        uri,
+        (w, h) => setImageSize({ width: w, height: h }),
+        () => setImageSize(null),
+      );
+    }
   }, [uri, resetTransform]);
 
   useEffect(() => {
@@ -120,6 +131,30 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     },
     [height, width],
   );
+
+  const getImageLayout = useCallback(() => {
+    const defaultLayout = { x: 0, y: 0, w: width, h: height };
+    if (!imageSize) return defaultLayout;
+
+    const screenRatio = width / height;
+    const imageRatio = imageSize.width / imageSize.height;
+
+    let w, h;
+    if (imageRatio > screenRatio) {
+      w = width;
+      h = width / imageRatio;
+    } else {
+      h = height;
+      w = height * imageRatio;
+    }
+
+    return {
+      x: (width - w) / 2,
+      y: (height - h) / 2,
+      w,
+      h,
+    };
+  }, [imageSize, width, height]);
 
   const panResponder = useMemo(
     () =>
@@ -165,11 +200,14 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             );
             translateX.setValue(next.x);
             translateY.setValue(next.y);
-          } else if (Math.abs(gesture.dx) > TAP_MOVE_THRESHOLD || Math.abs(gesture.dy) > TAP_MOVE_THRESHOLD) {
-            moved.current = true;
+          } else {
+            if (Math.abs(gesture.dx) > TAP_MOVE_THRESHOLD || Math.abs(gesture.dy) > TAP_MOVE_THRESHOLD) {
+              moved.current = true;
+            }
+            translateY.setValue(gesture.dy);
           }
         },
-        onPanResponderRelease: (_evt, gesture) => {
+        onPanResponderRelease: (evt, gesture) => {
           if (currentScale.current > MIN_SCALE) {
             const next = clampTranslate(
               currentTranslate.current.x + gesture.dx,
@@ -179,6 +217,16 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             currentTranslate.current = next;
             translateX.setValue(next.x);
             translateY.setValue(next.y);
+          } else {
+            if (Math.abs(gesture.dy) > 100) {
+              onClose();
+              return;
+            } else {
+              Animated.spring(translateY, {
+                toValue: 0,
+                useNativeDriver: true,
+              }).start();
+            }
           }
 
           const isTap =
@@ -192,10 +240,34 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           moved.current = false;
 
           if (isTap) {
-            if (currentScale.current > MIN_SCALE) {
-              applyScale(MIN_SCALE);
-            } else {
+            const { locationX, locationY } = evt.nativeEvent;
+            const layout = getImageLayout();
+            const isInside =
+              locationX >= layout.x &&
+              locationX <= layout.x + layout.w &&
+              locationY >= layout.y &&
+              locationY <= layout.y + layout.h;
+
+            if (!isInside) {
               onClose();
+            } else {
+              const now = Date.now();
+              if (now - lastTapTime.current < 300) {
+                // Double tap
+                if (currentScale.current > MIN_SCALE) {
+                  Animated.spring(scale, { toValue: MIN_SCALE, useNativeDriver: true }).start();
+                  Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+                  Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+                  currentScale.current = MIN_SCALE;
+                  currentTranslate.current = { x: 0, y: 0 };
+                } else {
+                  Animated.spring(scale, { toValue: 3, useNativeDriver: true }).start();
+                  currentScale.current = 3;
+                }
+                lastTapTime.current = 0;
+              } else {
+                lastTapTime.current = now;
+              }
             }
           }
         },
@@ -203,9 +275,12 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           pinchStartDistance.current = 0;
           usedMultiTouch.current = false;
           moved.current = false;
+          if (currentScale.current === MIN_SCALE) {
+            Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+          }
         },
       }),
-    [applyScale, clampTranslate, onClose, translateX, translateY],
+    [applyScale, clampTranslate, onClose, translateX, translateY, width, height, imageSize, getImageLayout, scale],
   );
 
   const handleWheel = useCallback(
@@ -222,6 +297,12 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     return null;
   }
 
+  const backgroundColor = translateY.interpolate({
+    inputRange: [-height / 2, 0, height / 2],
+    outputRange: ['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.96)', 'rgba(0,0,0,0.5)'],
+    extrapolate: 'clamp',
+  });
+
   return (
     <Modal
       visible
@@ -232,8 +313,8 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
       onRequestClose={onClose}
       supportedOrientations={['portrait', 'landscape']}
     >
-      <View
-        style={styles.backdrop}
+      <Animated.View
+        style={[styles.backdrop, { backgroundColor }]}
         {...panResponder.panHandlers}
         {...(Platform.OS === 'web' ? ({ onWheel: handleWheel } as object) : {})}
       >
@@ -250,7 +331,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
         >
           <PlatformImage uri={uri} style={{ width, height }} resizeMode="contain" />
         </Animated.View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 };
