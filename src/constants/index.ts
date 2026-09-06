@@ -35,7 +35,7 @@ export const LEGACY_STORAGE_KEYS = {
 export const FILTER_STATE_KEY = '@oam_filter_state';
 
 /** 单次请求内，遍历所有数据源失败后的最大重试轮数 */
-export const MAX_DATA_SOURCE_CYCLES = 3;
+export const MAX_DATA_SOURCE_CYCLES = 2;
 
 /** 单次向数据源请求的交易条数。偏小以避免限流 */
 export const DATA_SOURCE_PAGE_SIZE = 20;

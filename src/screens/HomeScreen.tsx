@@ -483,7 +483,7 @@ export default function HomeScreen() {
       );
     }
 
-    if (state.loading && data.length === 0) {
+    if ((state.loading || state.refreshing) && data.length === 0) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -518,15 +518,15 @@ export default function HomeScreen() {
         }}
         onEndReachedThreshold={0.2}
         ListFooterComponent={
-          data.length > 0 ? (
+          data.length > 0 || state.hasMore ? (
             <View style={styles.footerContainer}>
               {state.loadingMore ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : Platform.OS === 'web' && state.hasMore ? (
+              ) : state.hasMore ? (
                 <Button mode="text" onPress={() => triggerLoadMore(tabId)}>
                   {t('home.loadMore')}
                 </Button>
-              ) : !state.hasMore ? (
+              ) : !state.hasMore && data.length > 0 ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('home.noMoreData')}
                 </Text>
@@ -536,11 +536,13 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            {isFollowingList && state.loadingMore ? (
+            {state.loadingMore ? (
               <>
                 <ActivityIndicator size="small" color={theme.colors.primary} />
                 <Text variant="bodyMedium" style={{ marginTop: 12 }}>
-                  {t('home.followingLoadingOlder', { count: FOLLOWING_BLOCK_WINDOW })}
+                  {isFollowingList
+                    ? t('home.followingLoadingOlder', { count: FOLLOWING_BLOCK_WINDOW })
+                    : t('home.loadingData', { tab: tabLabels[tabId] })}
                 </Text>
               </>
             ) : (
@@ -552,13 +554,15 @@ export default function HomeScreen() {
                       ? t('home.followingEmptyWindow', { count: FOLLOWING_BLOCK_WINDOW })
                       : t('home.noMessages')}
                 </Text>
-                {isFollowingList && subscriptions.length > 0 && state.hasMore ? (
+                {state.hasMore ? (
                   <Button
                     mode="text"
                     onPress={() => triggerLoadMore(tabId)}
                     style={{ marginTop: 8 }}
                   >
-                    {t('home.followingLoadOlder', { count: FOLLOWING_BLOCK_WINDOW })}
+                    {isFollowingList
+                      ? t('home.followingLoadOlder', { count: FOLLOWING_BLOCK_WINDOW })
+                      : t('home.loadMore')}
                   </Button>
                 ) : null}
               </>
@@ -679,8 +683,9 @@ export default function HomeScreen() {
 
   const activeTabIndex = Math.max(0, orderedTabIds.indexOf(resolvedActiveTabId));
 
-  const isCurrentRefreshing = useMemo(() => {
-    return !!repoState[resolvedActiveTabId].refreshing;
+  const [activeRefreshing, setActiveRefreshing] = useState(false);
+  useEffect(() => {
+    setActiveRefreshing(!!repoState[resolvedActiveTabId].refreshing);
   }, [resolvedActiveTabId, repoState]);
 
   const onFabPress = () => {
@@ -828,10 +833,10 @@ export default function HomeScreen() {
       </AppModal>
 
       <FAB
-        icon={isCurrentRefreshing ? 'autorenew' : 'refresh'}
+        icon={activeRefreshing ? 'autorenew' : 'refresh'}
         style={[styles.fabRefresh, { backgroundColor: theme.colors.secondaryContainer }, centered && { marginRight: '25%' }]}
         onPress={() => triggerRefresh(resolvedActiveTabId)}
-        disabled={isCurrentRefreshing}
+        disabled={activeRefreshing}
         color={theme.colors.onSecondaryContainer}
         small
       />

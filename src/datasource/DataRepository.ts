@@ -142,53 +142,76 @@ export class DataRepository {
    */
   public async refresh(tabId: HomeTabId, userAddress?: string, subscriptions: any[] = []) {
     this.updateState(tabId, { refreshing: true, error: null });
+    console.log(`[DataRepository] Refreshing tab: ${tabId}`);
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Refresh timed out')), 30000)
+    );
 
     try {
-      dataSourceManager.clearSkipped();
+      await Promise.race([
+        (async () => {
+          dataSourceManager.clearSkipped();
 
-      // Incremental refresh: find latest block in cache
-      let startBlock: number | undefined;
-      if (tabId === 'square') {
-        startBlock = await cacheService.getLatestBlockNumber([BLACK_HOLE_ADDRESS]);
-      } else if (tabId === 'following') {
-        const addresses = subscriptions.map(s => s.address).filter(Boolean);
-        startBlock = await cacheService.getLatestBlockNumber(addresses);
-      } else if (userAddress) {
-        startBlock = await cacheService.getLatestBlockNumber([userAddress]);
-      }
+          // Incremental refresh: find latest block in cache
+          let startBlock: number | undefined;
+          if (tabId === 'square') {
+            startBlock = await cacheService.getLatestBlockNumber([BLACK_HOLE_ADDRESS]);
+          } else if (tabId === 'following') {
+            const addresses = subscriptions.map(s => s.address).filter(Boolean);
+            startBlock = await cacheService.getLatestBlockNumber(addresses);
+          } else if (userAddress) {
+            startBlock = await cacheService.getLatestBlockNumber([userAddress]);
+          }
 
-      const isIncremental = !!startBlock;
-      // Only reset pagination cursor if this is a full (non-incremental) refresh
-      if (!isIncremental) {
-        this.nextParams[tabId] = null;
-        if (tabId === 'following') this.followingNextEndBlock = null;
-      }
+          const isIncremental = !!startBlock;
+          // Only reset pagination cursor if this is a full (non-incremental) refresh
+          if (!isIncremental) {
+            this.nextParams[tabId] = null;
+            if (tabId === 'following') this.followingNextEndBlock = null;
+          }
 
-      const fetchParams = startBlock ? { startblock: startBlock } : null;
-      const result = await this.fetchFromNetwork(tabId, userAddress, subscriptions, fetchParams);
+          const fetchParams = startBlock ? { startblock: startBlock } : null;
+          console.log(`[DataRepository] Fetching from network. tab=${tabId}, isIncremental=${isIncremental}`);
+          let result = await this.fetchFromNetwork(tabId, userAddress, subscriptions, fetchParams);
 
-      const mergedRaw = this.mergeData(this.rawData[tabId], result.items);
-      this.rawData[tabId] = mergedRaw;
-      const processed = await this.processItems(mergedRaw, userAddress);
+          // Safety check: if incremental but no items and existing data is empty, try full refresh
+          if (isIncremental && result.items.length === 0 && this.rawData[tabId].length === 0) {
+            console.log(`[DataRepository] Incremental refresh returned nothing and rawData is empty. Retrying with full refresh.`);
+            this.nextParams[tabId] = null;
+            if (tabId === 'following') this.followingNextEndBlock = null;
+            result = await this.fetchFromNetwork(tabId, userAddress, subscriptions, null);
+          }
 
-      // For incremental refresh, only update cursor if we actually found a next page in the NEW results.
-      // Otherwise, keep the existing cursor (which points to OLDER data).
-      if (!isIncremental || result.nextParams) {
-        this.nextParams[tabId] = result.nextParams;
-      }
-      if (tabId === 'following' && (!isIncremental || result.followingNextEndBlock != null)) {
-        this.followingNextEndBlock = result.followingNextEndBlock;
-      }
+          const mergedRaw = this.mergeData(this.rawData[tabId], result.items);
+          this.rawData[tabId] = mergedRaw;
+          const processed = await this.processItems(mergedRaw, userAddress);
 
-      this.updateState(tabId, {
-        data: processed,
-        refreshing: false,
-        hasMore: isIncremental
-          ? (this.states[tabId].hasMore || !!result.nextParams)
-          : (!!result.nextParams || (tabId === 'following' && result.followingNextEndBlock != null))
-      });
+          // For incremental refresh, only update cursor if we actually found a next page in the NEW results.
+          // Otherwise, keep the existing cursor (which points to OLDER data).
+          if (!isIncremental || result.nextParams) {
+            this.nextParams[tabId] = result.nextParams;
+          }
+          if (tabId === 'following' && (!isIncremental || result.followingNextEndBlock != null)) {
+            this.followingNextEndBlock = result.followingNextEndBlock;
+          }
+
+          const hasMore = isIncremental
+            ? (this.states[tabId].hasMore || !!result.nextParams)
+            : (result.items.length > 0 && (!!result.nextParams || (tabId === 'following' && result.followingNextEndBlock != null)));
+
+          this.updateState(tabId, {
+            data: processed,
+            hasMore
+          });
+        })(),
+        timeoutPromise
+      ]);
     } catch (e: any) {
-      this.updateState(tabId, { refreshing: false, error: e.message || 'Fetch failed' });
+      console.error(`[DataRepository] Refresh failed for ${tabId}:`, e);
+      this.updateState(tabId, { error: e.message || 'Fetch failed' });
+    } finally {
+      this.updateState(tabId, { refreshing: false });
     }
   }
 
@@ -247,6 +270,7 @@ export class DataRepository {
   }
 
   private async fetchFromNetwork(tabId: HomeTabId, userAddress?: string, subscriptions: any[] = [], params: any) {
+    console.log(`[DataRepository] fetchFromNetwork started. tab=${tabId}, params=`, params);
     let resultItems: InputDataItem[] = [];
     let nextParams: any = null;
     let followingNextEndBlock: number | null = null;
@@ -266,6 +290,7 @@ export class DataRepository {
       const maxPages = 1 + BLACK_HOLE_EMPTY_CONTINUE_PAGES;
 
       do {
+        console.log(`[DataRepository] fetchFromNetwork (square) page=${pages + 1}`);
         const res = await dataSourceManager.fetchAll(BLACK_HOLE_ADDRESS, 'square', pageParams).catch(e => {
           throw e;
         });
@@ -282,11 +307,13 @@ export class DataRepository {
     } else if (tabId === 'following') {
       const followedLower = new Set(subscriptions.map(s => s.address?.toLowerCase()).filter(Boolean) as string[]);
       if (followedLower.size === 0) {
+        console.log('[DataRepository] fetchFromNetwork (following) - No subscriptions.');
         return { items: [], nextParams: null, followingNextEndBlock: null };
       }
 
       const windowEnd = params?.endBlock ?? await fetchLatestBlockNumberViaRpc();
       const window = makeBlockWindow(windowEnd, FOLLOWING_BLOCK_WINDOW);
+      console.log(`[DataRepository] fetchFromNetwork (following) window=[${window.startBlock}, ${window.endBlock}]`);
       const windowTxs = await fetchBlockWindowTransactions(window.startBlock, window.endBlock);
       rawTxs = windowTxs;
       const matched = filterFollowedWithInput(windowTxs, followedLower);
@@ -298,18 +325,21 @@ export class DataRepository {
       followingNextEndBlock = window.nextEndBlock;
     } else if (tabId === 'messages') {
       if (!userAddress) throw new Error('Address required');
+      console.log(`[DataRepository] fetchFromNetwork (messages) address=${userAddress}`);
       const res = await dataSourceManager.fetchAll(userAddress, 'all', params);
       resultItems = res.items;
       nextParams = res.next_page_params;
       rawTxs = res.rawTransactions || [];
     } else if (tabId === 'self') {
       if (!userAddress) throw new Error('Address required');
+      console.log(`[DataRepository] fetchFromNetwork (self) address=${userAddress}`);
       const res = await dataSourceManager.fetchAll(userAddress, 'self', params);
       resultItems = res.items;
       nextParams = res.next_page_params;
       rawTxs = res.rawTransactions || [];
     }
 
+    console.log(`[DataRepository] fetchFromNetwork completed. tab=${tabId}, itemsFetched=${resultItems.length}, hasNext=${!!nextParams}`);
     // Save to cache
     if (rawTxs.length > 0) {
       if (tabId === 'square') {
