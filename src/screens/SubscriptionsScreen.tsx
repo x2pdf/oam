@@ -44,7 +44,7 @@ export default function SubscriptionsScreen() {
   const navigation = useNavigation<NavProp>();
   const { state, addSubscriptions } = useAppContext();
   const { t } = useTranslation();
-  const { listContentStyle } = useListColumnLayout();
+  const { cardWidth, listContentStyle, centered } = useListColumnLayout();
 
   // 搜索状态
   const [searchVisible, setSearchVisible] = useState(false);
@@ -245,7 +245,10 @@ export default function SubscriptionsScreen() {
       const isPinned = (item.pinWeight ?? 0) > 0;
       return (
         <Card
-          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          style={[
+            styles.card,
+            { backgroundColor: theme.colors.surface, width: cardWidth, alignSelf: 'center' }
+          ]}
           mode="elevated"
           onPress={() => handleViewDetail(item)}
         >
@@ -310,7 +313,11 @@ export default function SubscriptionsScreen() {
           placeholder={t('subscriptions.searchPlaceholder')}
           onChangeText={setSearchQuery}
           value={searchQuery}
-          style={[styles.searchbar, { backgroundColor: theme.colors.elevation.level2 }]}
+          style={[
+            styles.searchbar,
+            { backgroundColor: theme.colors.elevation.level2 },
+            centered && { width: cardWidth, alignSelf: 'center' }
+          ]}
           inputStyle={[styles.searchbarInput, { fontSize: Math.round(14 * fontScale) }]}
           autoFocus
         />
@@ -431,13 +438,21 @@ export default function SubscriptionsScreen() {
       </AppModal>
       <FAB
         icon={searchVisible ? 'close' : 'magnify'}
-        style={[styles.fabSearch, { backgroundColor: theme.colors.secondaryContainer }]}
+        style={[
+          styles.fabSearch,
+          { backgroundColor: theme.colors.secondaryContainer },
+          centered && { marginLeft: '25%' }
+        ]}
         color={theme.colors.onSecondaryContainer}
         onPress={handleToggleSearch}
       />
       <FAB
         icon="plus"
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        style={[
+          styles.fab,
+          { backgroundColor: theme.colors.primary },
+          centered && { marginRight: '25%' }
+        ]}
         color="#FFFFFF"
         onPress={handleAdd}
       />

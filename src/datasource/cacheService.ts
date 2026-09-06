@@ -114,6 +114,29 @@ export class CacheService {
   }
 
   /**
+   * Get the latest block number in cache for a set of addresses
+   */
+  public async getLatestBlockNumber(addresses: string[]): Promise<number> {
+    if (!(await this.isGlobalCacheEnabled())) return 0;
+    if (addresses.length === 0) return 0;
+
+    const lowerAddresses = addresses.filter(Boolean).map((a) => a.toLowerCase());
+    if (lowerAddresses.length === 0) return 0;
+
+    const placeholders = lowerAddresses.map(() => '?').join(',');
+
+    return withDb(async (db) => {
+      const result = await db.getFirstAsync<{ maxBlock: string }>(
+        `SELECT MAX(CAST(t.blockNumber AS INTEGER)) as maxBlock FROM transactions t
+         JOIN address_tx_map m ON t.hash = m.txHash
+         WHERE m.address IN (${placeholders})`,
+        lowerAddresses
+      );
+      return result?.maxBlock ? parseInt(result.maxBlock, 10) : 0;
+    });
+  }
+
+  /**
    * Enforce the cache limit for an address
    */
   private async enforceLimit(address: string): Promise<void> {
@@ -153,7 +176,9 @@ export class CacheService {
     if (!(await this.isGlobalCacheEnabled())) return [];
     if (addresses.length === 0) return [];
 
-    const lowerAddresses = addresses.map((a) => a.toLowerCase());
+    const lowerAddresses = addresses.filter(Boolean).map((a) => a.toLowerCase());
+    if (lowerAddresses.length === 0) return [];
+
     const placeholders = lowerAddresses.map(() => '?').join(',');
 
     const rows = await withDb(async (db) =>

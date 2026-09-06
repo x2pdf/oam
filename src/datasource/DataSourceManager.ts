@@ -275,6 +275,7 @@ export class DataSourceManager {
   }
 
   async fetchAll(address: string, mode: FetchMode, params: any = null): Promise<DataSourceResult> {
+    if (!address) throw new Error('Address is required');
     // Black hole: empty terminal page (no items and no next) is treated as soft failure so
     // another explorer can be tried. Empty-but-has-next is returned for caller continue-logic.
     const failoverOnEmptyTerminal = isBlackHoleAddress(address);
