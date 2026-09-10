@@ -36,7 +36,8 @@ import {
   fetchExportMessages,
 } from '../export/fetchExportMessages';
 import { buildExportHtml } from '../export/buildExportHtml';
-import { buildExportFilename, generatePdfFromHtml } from '../export/generatePdf';
+import { buildExportFilename } from '../export/pdfTypes';
+import { generatePdfFromHtml } from '../export/generatePdf';
 import { savePdf } from '../adapter/savePdf';
 import { ContentKind } from '../types';
 

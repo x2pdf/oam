@@ -7,6 +7,21 @@ podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties
 # Aliyun Maven for React Native prebuilt tarballs (Hermes / RN core).
 ENV['ENTERPRISE_REPOSITORY'] ||= 'https://maven.aliyun.com/repository/central'
 
+# Official CDN returns 403 in mainland; do not probe it. Use the local trunk cache.
+begin
+  require 'cocoapods/sources_manager'
+rescue LoadError
+end
+if defined?(Pod::Source::Manager) && !Pod::Source::Manager.method_defined?(:__oam_cdn_url_patched)
+  class Pod::Source::Manager
+    alias_method :__oam_cdn_url_patched, :cdn_url?
+    def cdn_url?(url)
+      return true if url.to_s.include?('cdn.cocoapods.org')
+      __oam_cdn_url_patched(url)
+    end
+  end
+end
+
 # CocoaPods clones many pod sources from github.com; rewrite via a mainland-reachable proxy
 # without touching the user's git config files.
 unless ENV['GIT_CONFIG_COUNT']

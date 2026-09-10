@@ -77,6 +77,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - ExpoPrint (15.0.8):
+    - ExpoModulesCore
   - ExpoSecureStore (15.0.8):
     - ExpoModulesCore
   - ExpoSharing (14.0.8):
@@ -2035,6 +2037,7 @@ DEPENDENCIES:
   - ExpoImagePicker (from `../node_modules/expo-image-picker/ios`)
   - ExpoKeepAwake (from `../node_modules/expo/node_modules/expo-keep-awake/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
+  - ExpoPrint (from `../node_modules/expo-print/ios`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
   - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
@@ -2154,6 +2157,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo/node_modules/expo-keep-awake/ios"
   ExpoModulesCore:
     :path: "../node_modules/expo-modules-core"
+  ExpoPrint:
+    :path: "../node_modules/expo-print/ios"
   ExpoSecureStore:
     :path: "../node_modules/expo-secure-store/ios"
   ExpoSharing:
@@ -2330,6 +2335,7 @@ SPEC CHECKSUMS:
   ExpoImagePicker: 5d49cb62c78c86ee7945e10338210e69b9266064
   ExpoKeepAwake: 44bf6715bc1d2ddb17afe19d927cd039cda123f0
   ExpoModulesCore: 92b8d81c177eb970ee6e01b86e85bf296533c179
+  ExpoPrint: 3c795ec5e31734b52f48537322d5868892582142
   ExpoSecureStore: decd2943fa19fa6f02c5ef3689f9ba5012ad6a6d
   ExpoSharing: a0e593c497c49377e9797b72586964e31c17ca7c
   ExpoSQLite: 087db2057a7f1e9da38a8126f4388a324f9a4522
@@ -2418,6 +2424,6 @@ SPEC CHECKSUMS:
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
   Yoga: 5934998fbeaef7845dbf698f698518695ab4cd1a
 
-PODFILE CHECKSUM: 03c7ace2e2b2bd88a6acea5d912b5b751a5700cd
+PODFILE CHECKSUM: 31f36f6bd80c7016133a362f1ae3da0a83b08b31
 
 COCOAPODS: 1.17.0

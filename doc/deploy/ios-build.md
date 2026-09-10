@@ -129,13 +129,16 @@ npm install
 
 ### 3.1 安装 iOS Pods
 
+新增原生模块（例如导出 PDF 用的 `expo-print` / **ExpoPrint**）之后，必须重新 `pod install`，否则 Xcode 会报找不到 Pods，运行时会崩：`Cannot find native module 'ExpoPrint'`。只刷 JS / Reload 不够，需要重新编译原生 App。
+
 ```bash
-cd ios
-pod install
-cd ..
+npm run pods
+# 等价于：cd ios && ./ensure-pods.sh
 ```
 
-第一次 `pod install` 会拉取所有原生依赖（Hermes、React Native、Expo modules 等），可能需要 **5～10 分钟**。
+`npm install` 在 macOS 上也会走 `postinstall` 自动补齐 Pods（可用 `SKIP_POD_INSTALL=1` 跳过）。Xcode Archive 前同样会跑 `ios/ensure-pods.sh`。
+
+第一次完整 `pod install` 会拉取所有原生依赖（Hermes、React Native、Expo modules 等），可能需要 **5～10 分钟**。
 
 如果 `pod install` 失败，常见原因和处理：
 
@@ -442,6 +445,20 @@ pod install
 
 处理：始终打开 **`ios/OAM.xcworkspace`**，不要用 `.xcodeproj`。Workspace 包含了 CocoaPods 的依赖配置。
 
+### 8.5.1 新增 PDF 依赖后：Cannot find native module ExpoPrint
+
+症状：App 启动或导出数据时崩溃，日志为 `Cannot find native module 'ExpoPrint'`，或 Xcode 报 `Pods.xcodeproj` / `Pods-OAM.debug.xcconfig` 找不到。
+
+原因：`expo-print` 是原生模块。只 `npm install` 不会把它编进已有的 iOS 二进制；`ios/Pods` 未提交，必须 `pod install` 后再 **Clean + 重新编译**（不要只 Reload JS）。
+
+处理：
+
+```bash
+npm run pods
+npx expo run:ios
+# 或 Xcode 打开 ios/OAM.xcworkspace → Product → Clean Build Folder → Run / Archive
+```
+
 ### 8.6 中国大陆网络问题
 
 `pod install` 下载 Pod 时可能超时。可以配置 CocoaPods 使用镜像：
@@ -503,8 +520,8 @@ pod install
 ## 10. 建议验收顺序
 
 1. 确认 Xcode、CocoaPods、Node.js 版本符合要求（第 2 节）
-2. `npm install`
-3. `cd ios && pod install`
+2. `npm install`（macOS 上会自动 `pod install`）
+3. 若仍缺 ExpoPrint：`npm run pods`
 4. `npm run ios`（模拟器），确认 App 启动且主流程可用
 5. （可选）`npx expo run:ios --device`（真机），确认真机签名和 Metro 连接正常
 6. Xcode 打开 `ios/OAM.xcworkspace` → Product → Archive，确认能生成 .ipa
@@ -517,8 +534,8 @@ pod install
 
 ```bash
 # 安装依赖
-npm install
-cd ios && pod install && cd ..
+npm install                 # macOS 上 postinstall 会自动 pod install
+npm run pods                # 手动补齐 / 同步 ExpoPrint 等原生 Pod
 
 # 开发
 npm start                              # 启动 Metro

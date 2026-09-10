@@ -3,6 +3,8 @@ export type GeneratePdfResult =
   | { kind: 'bytes'; bytes: Uint8Array }
   | { kind: 'printed' };
 
+export type SavePdfStatus = 'saved' | 'cancelled' | 'printed';
+
 export function buildExportFilename(address: string): string {
   const id = address
     ? `${address.slice(0, 6)}-${address.slice(-4)}`
