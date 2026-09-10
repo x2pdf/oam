@@ -124,6 +124,7 @@ export type RootStackParamList = {
   AppInfo: undefined;
   CacheManagement: undefined;
   FollowListSelection: undefined;
+  ExportData: undefined;
 };
 
 export type MainTabParamList = {

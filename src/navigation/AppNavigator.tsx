@@ -34,6 +34,7 @@ import LocalDraftsScreen from '../screens/LocalDraftsScreen';
 import AppInfoScreen from '../screens/AppInfoScreen';
 import FollowListSelectionScreen from '../screens/FollowListSelectionScreen';
 import CacheManagementScreen from '../screens/CacheManagementScreen';
+import ExportDataScreen from '../screens/ExportDataScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { getHeaderChrome } from '../theme';
 
@@ -301,6 +302,13 @@ export default function AppNavigator() {
           component={CacheManagementScreen}
           options={{
             title: t('profile.cacheManagement'),
+          }}
+        />
+        <Stack.Screen
+          name="ExportData"
+          component={ExportDataScreen}
+          options={{
+            title: t('nav.exportData'),
           }}
         />
         <Stack.Screen

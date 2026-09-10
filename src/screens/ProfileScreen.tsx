@@ -710,7 +710,38 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 10. 应用信息 */}
+        {/* 10. 导出数据 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={() => navigation.navigate('ExportData')}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="export-variant"
+                style={{ backgroundColor: theme.colors.primaryContainer }}
+                color={theme.colors.primary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.exportData')}
+                </Text>
+                <Text variant="titleMedium">
+                  {t('profile.exportDataHint')}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('ExportData')} />
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* 11. 应用信息 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}

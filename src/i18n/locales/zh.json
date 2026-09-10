@@ -52,7 +52,8 @@
     "localFavorites": "我的本地收藏",
     "localDrafts": "我的草稿",
     "appInfo": "应用信息",
-    "cacheManagement": "缓存数据管理"
+    "cacheManagement": "缓存数据管理",
+    "exportData": "导出数据"
   },
   "home": {
     "tabs": {
@@ -169,6 +170,8 @@
     "addHint": "点击此处添加钱包信息",
     "language": "语言",
     "selectLanguage": "选择语言",
+    "exportData": "导出数据",
+    "exportDataHint": "将消息导出为 PDF",
     "localFavorites": "我的本地收藏",
     "localDrafts": "我的草稿",
     "cacheManagement": "缓存数据管理",
@@ -227,6 +230,35 @@
     "cacheRefreshHint": "已开始后台静默刷新，根据关注数量不同，这可能需要一些时间。",
     "cacheRefreshComplete": "缓存刷新完成",
     "cacheStats": "已缓存：{{txCount}} 条交易，涉及 {{addrCount}} 个地址"
+  },
+  "export": {
+    "addressLabel": "导出地址",
+    "addressPlaceholder": "0x…",
+    "invalidAddress": "请输入有效的以太坊地址",
+    "emptyAddress": "请先填写地址",
+    "limitLabel": "导出数据量最大限制",
+    "limitHint": "如果想要导出全部数据，请输入100000。",
+    "limitInvalid": "请输入 1 到 1000000 之间的整数",
+    "decryptLabel": "加密数据是否解密",
+    "decryptYes": "是",
+    "decryptNo": "否",
+    "decryptHint": "仅能解密当前已解锁钱包的个人加密笔记；P2P 加密消息可能仍无法解密。",
+    "start": "开始导出",
+    "cancelExport": "取消导出",
+    "fetching": "正在获取 {{count}} / {{limit}}，第 {{page}} 页",
+    "generating": "正在生成 PDF…",
+    "saving": "正在保存…",
+    "success": "导出完成",
+    "cancelled": "已取消导出",
+    "failed": "导出失败：{{message}}",
+    "noData": "没有可导出的数据",
+    "largeLimitTitle": "导出耗时可能较长",
+    "largeLimitMsg": "当前上限为 {{limit}} 条，拉取和生成 PDF 可能需要较长时间。确定继续？",
+    "printed": "已打开系统打印对话框，请选择存储为 PDF",
+    "title": "OAM 消息导出",
+    "generatedAt": "生成时间：{{time}}",
+    "itemCount": "共 {{count}} 条",
+    "attachment": "附件"
   },
   "form": {
     "addSubscription": "添加关注",

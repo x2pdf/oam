@@ -52,7 +52,8 @@
     "localFavorites": "Local Favorites",
     "localDrafts": "Drafts",
     "appInfo": "App Info",
-    "cacheManagement": "Cache Data Management"
+    "cacheManagement": "Cache Data Management",
+    "exportData": "Export Data"
   },
   "home": {
     "tabs": {
@@ -169,6 +170,8 @@
     "addHint": "Tap here to add wallet info",
     "language": "Language",
     "selectLanguage": "Select Language",
+    "exportData": "Export Data",
+    "exportDataHint": "Export messages as PDF",
     "localFavorites": "Local Favorites",
     "localDrafts": "Drafts",
     "cacheManagement": "Cache Data Management",
@@ -227,6 +230,35 @@
     "cacheRefreshHint": "Background refresh started. This may take some time depending on your subscriptions.",
     "cacheRefreshComplete": "Cache refresh complete",
     "cacheStats": "Cached: {{txCount}} transactions across {{addrCount}} addresses"
+  },
+  "export": {
+    "addressLabel": "Export address",
+    "addressPlaceholder": "0x…",
+    "invalidAddress": "Please enter a valid Ethereum address",
+    "emptyAddress": "Please enter an address",
+    "limitLabel": "Maximum number of records",
+    "limitHint": "To export all data, enter 100000.",
+    "limitInvalid": "Enter an integer between 1 and 1000000",
+    "decryptLabel": "Decrypt encrypted data",
+    "decryptYes": "Yes",
+    "decryptNo": "No",
+    "decryptHint": "Only personal encrypted notes of the unlocked wallet can be decrypted. P2P encrypted messages may remain unreadable.",
+    "start": "Start export",
+    "cancelExport": "Cancel export",
+    "fetching": "Fetched {{count}} / {{limit}}, page {{page}}",
+    "generating": "Generating PDF…",
+    "saving": "Saving…",
+    "success": "Export complete",
+    "cancelled": "Export cancelled",
+    "failed": "Export failed: {{message}}",
+    "noData": "No data to export",
+    "largeLimitTitle": "This export may take a while",
+    "largeLimitMsg": "The limit is {{limit}} items. Fetching and generating the PDF may take a long time. Continue?",
+    "printed": "The system print dialog is open. Choose Save as PDF.",
+    "title": "OAM message export",
+    "generatedAt": "Generated at {{time}}",
+    "itemCount": "{{count}} items",
+    "attachment": "Attachment"
   },
   "form": {
     "addSubscription": "Add Subscription",
