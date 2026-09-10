@@ -42,6 +42,7 @@ import {
 } from '../wallet/session';
 import { AppModal } from '../components/AppModal';
 import { getHeaderChrome } from '../theme';
+import { useOutlineFrameStyle } from '../theme/surfaces';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -55,6 +56,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
   const { centered, cardWidth, listContentStyle, columnStyle } = useListColumnLayout();
+  const outlineFrameStyle = useOutlineFrameStyle();
   const { state } = useAppContext();
   const { t } = useTranslation();
   const { apiKey, profile, subscriptions, isLoading: contextLoading, homeTabWeights } = state;
@@ -568,66 +570,70 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <View>
             {isMessagesList && (
-              <View style={styles.filterRow}>
-                <TouchableOpacity
-                  style={styles.filterItem}
-                  onPress={() => setShowFilterSent(prev => !prev)}
-                >
-                  <Checkbox.Android
-                    status={showFilterSent ? 'checked' : 'unchecked'}
+              <View style={[columnStyle, outlineFrameStyle, styles.filterFrame]}>
+                <View style={styles.filterRow}>
+                  <TouchableOpacity
+                    style={styles.filterItem}
                     onPress={() => setShowFilterSent(prev => !prev)}
-                    uncheckedColor={theme.colors.outline}
-                  />
-                  <Text variant="labelMedium">{t('home.tabs.filterSent')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.filterItem}
-                  onPress={() => setShowFilterReceived(prev => !prev)}
-                >
-                  <Checkbox.Android
-                    status={showFilterReceived ? 'checked' : 'unchecked'}
+                  >
+                    <Checkbox.Android
+                      status={showFilterSent ? 'checked' : 'unchecked'}
+                      onPress={() => setShowFilterSent(prev => !prev)}
+                      uncheckedColor={theme.colors.outline}
+                    />
+                    <Text variant="labelMedium">{t('home.tabs.filterSent')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.filterItem}
                     onPress={() => setShowFilterReceived(prev => !prev)}
-                    uncheckedColor={theme.colors.outline}
-                  />
-                  <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
-                </TouchableOpacity>
+                  >
+                    <Checkbox.Android
+                      status={showFilterReceived ? 'checked' : 'unchecked'}
+                      onPress={() => setShowFilterReceived(prev => !prev)}
+                      uncheckedColor={theme.colors.outline}
+                    />
+                    <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
             {isSquareList && (
-              <View style={styles.filterRow}>
-                <TouchableOpacity
-                  style={styles.filterItem}
-                  onPress={() => setShowSquareAll(prev => !prev)}
-                >
-                  <Checkbox.Android
-                    status={showSquareAll ? 'checked' : 'unchecked'}
+              <View style={[columnStyle, outlineFrameStyle, styles.filterFrame]}>
+                <View style={styles.filterRow}>
+                  <TouchableOpacity
+                    style={styles.filterItem}
                     onPress={() => setShowSquareAll(prev => !prev)}
-                    uncheckedColor={theme.colors.outline}
-                  />
-                  <Text variant="labelMedium">{t('home.tabs.filterAll')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.filterItem}
-                  onPress={() => setShowSquareUtf8(prev => !prev)}
-                >
-                  <Checkbox.Android
-                    status={showSquareUtf8 ? 'checked' : 'unchecked'}
+                  >
+                    <Checkbox.Android
+                      status={showSquareAll ? 'checked' : 'unchecked'}
+                      onPress={() => setShowSquareAll(prev => !prev)}
+                      uncheckedColor={theme.colors.outline}
+                    />
+                    <Text variant="labelMedium">{t('home.tabs.filterAll')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.filterItem}
                     onPress={() => setShowSquareUtf8(prev => !prev)}
-                    uncheckedColor={theme.colors.outline}
-                  />
-                  <Text variant="labelMedium">{t('home.tabs.filterUTF8')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.filterItem}
-                  onPress={() => setShowSquareOamp(prev => !prev)}
-                >
-                  <Checkbox.Android
-                    status={showSquareOamp ? 'checked' : 'unchecked'}
+                  >
+                    <Checkbox.Android
+                      status={showSquareUtf8 ? 'checked' : 'unchecked'}
+                      onPress={() => setShowSquareUtf8(prev => !prev)}
+                      uncheckedColor={theme.colors.outline}
+                    />
+                    <Text variant="labelMedium">{t('home.tabs.filterUTF8')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.filterItem}
                     onPress={() => setShowSquareOamp(prev => !prev)}
-                    uncheckedColor={theme.colors.outline}
-                  />
-                  <Text variant="labelMedium">{t('home.tabs.filterOAMP')}</Text>
-                </TouchableOpacity>
+                  >
+                    <Checkbox.Android
+                      status={showSquareOamp ? 'checked' : 'unchecked'}
+                      onPress={() => setShowSquareOamp(prev => !prev)}
+                      uncheckedColor={theme.colors.outline}
+                    />
+                    <Text variant="labelMedium">{t('home.tabs.filterOAMP')}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
             {/* headerRow 已隐藏
@@ -903,13 +909,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  filterFrame: {
+    marginBottom: 12,
+  },
   filterRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     gap: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   filterItem: {
     flexDirection: 'row',

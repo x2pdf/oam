@@ -72,7 +72,7 @@ export default function SubscriptionsScreen() {
   useLayoutEffect(() => {
     const headerChrome = getHeaderChrome(theme);
     navigation.setOptions({
-      headerRight: () => (
+      headerLeft: () => (
         <IconButton
           icon="swap-vertical"
           iconColor={headerChrome.tintColor}
@@ -81,8 +81,16 @@ export default function SubscriptionsScreen() {
           onPress={() => setIoModal('menu')}
         />
       ),
+      headerRight: () => (
+        <IconButton
+          icon={searchVisible ? 'close' : 'magnify'}
+          iconColor={headerChrome.tintColor}
+          size={22}
+          onPress={handleToggleSearch}
+        />
+      ),
     });
-  }, [navigation, t, theme]);
+  }, [navigation, t, theme, searchVisible, handleToggleSearch]);
 
   // 排序：置顶项按 pinWeight 降序 → 同权重按描述 a-z；普通项按描述 a-z
   const sortedSubscriptions = useMemo(() => {
@@ -437,16 +445,6 @@ export default function SubscriptionsScreen() {
         ) : null}
       </AppModal>
       <FAB
-        icon={searchVisible ? 'close' : 'magnify'}
-        style={[
-          styles.fabSearch,
-          { backgroundColor: theme.colors.secondaryContainer },
-          centered && { marginLeft: '25%' }
-        ]}
-        color={theme.colors.onSecondaryContainer}
-        onPress={handleToggleSearch}
-      />
-      <FAB
         icon="plus"
         style={[
           styles.fab,
@@ -519,13 +517,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     margin: 16,
     right: 0,
-    bottom: 0,
-    elevation: 4,
-  },
-  fabSearch: {
-    position: 'absolute',
-    margin: 16,
-    left: 0,
     bottom: 0,
     elevation: 4,
   },
