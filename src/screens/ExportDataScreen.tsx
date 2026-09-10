@@ -4,7 +4,7 @@ import {
   ActivityIndicator,
   Button,
   HelperText,
-  RadioButton,
+  Checkbox,
   Snackbar,
   Text,
   TextInput,
@@ -31,7 +31,6 @@ import { AppModal } from '../components/AppModal';
 import { MAX_ADDRESS_LENGTH } from '../constants';
 import { CONTENT_KIND_I18N_KEY } from '../display';
 import { BLACK_HOLE_ADDRESS } from '../utils/address';
-import { showConfirm } from '../utils/alert';
 import {
   ExportAbortedError,
   fetchExportMessages,
@@ -41,10 +40,52 @@ import { buildExportFilename, generatePdfFromHtml } from '../export/generatePdf'
 import { savePdf } from '../adapter/savePdf';
 import { ContentKind } from '../types';
 
-const MIN_LIMIT = 1;
-const MAX_LIMIT = 1_000_000;
-const DEFAULT_LIMIT = '100';
-const LARGE_LIMIT_WARN = 5000;
+const MIN_START_YMD = '2010-01-01';
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function formatYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function defaultStartYmd(): string {
+  const now = new Date();
+  const y = now.getFullYear() - 1;
+  const m = now.getMonth();
+  const d = now.getDate();
+  const candidate = new Date(y, m, d);
+  if (candidate.getMonth() !== m) {
+    return formatYmd(new Date(y, m + 1, 0));
+  }
+  return formatYmd(candidate);
+}
+
+function defaultEndYmd(): string {
+  return formatYmd(new Date());
+}
+
+function parseYmd(text: string): { y: number; m: number; d: number } | null {
+  const match = DATE_RE.exec(text.trim());
+  if (!match) return null;
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  const d = Number(match[3]);
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) {
+    return null;
+  }
+  return { y, m, d };
+}
+
+function startOfDayUnix(y: number, m: number, d: number): number {
+  return Math.floor(new Date(y, m - 1, d, 0, 0, 0).getTime() / 1000);
+}
+
+function endOfDayUnix(y: number, m: number, d: number): number {
+  return Math.floor(new Date(y, m - 1, d, 23, 59, 59).getTime() / 1000);
+}
 
 type ExportStatus = 'idle' | 'fetching' | 'generating' | 'saving';
 
@@ -57,12 +98,14 @@ export default function ExportDataScreen() {
   const { state } = useAppContext();
 
   const [address, setAddress] = useState(state.profile?.address ?? '');
-  const [limitText, setLimitText] = useState(DEFAULT_LIMIT);
+  const [startDateText, setStartDateText] = useState(defaultStartYmd);
+  const [endDateText, setEndDateText] = useState(defaultEndYmd);
   const [decrypt, setDecrypt] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
-  const [limitError, setLimitError] = useState<string | null>(null);
+  const [startDateError, setStartDateError] = useState<string | null>(null);
+  const [endDateError, setEndDateError] = useState<string | null>(null);
   const [status, setStatus] = useState<ExportStatus>('idle');
-  const [progress, setProgress] = useState({ count: 0, page: 0, limit: 100 });
+  const [progress, setProgress] = useState({ count: 0, page: 0 });
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -101,15 +144,11 @@ export default function ExportDataScreen() {
     setSnackbarVisible(true);
   }, []);
 
-  const parseLimit = useCallback((): number | null => {
-    const num = parseInt(limitText, 10);
-    if (!Number.isFinite(num) || num < MIN_LIMIT || num > MAX_LIMIT) {
-      return null;
-    }
-    return num;
-  }, [limitText]);
-
-  const validateForm = useCallback((): { address: string; limit: number } | null => {
+  const validateForm = useCallback((): {
+    address: string;
+    startTs: number;
+    endTs: number;
+  } | null => {
     const trimmed = address.trim();
     let ok = true;
     if (!trimmed) {
@@ -121,29 +160,53 @@ export default function ExportDataScreen() {
     } else {
       setAddressError(null);
     }
-    const limit = parseLimit();
-    if (limit == null) {
-      setLimitError(t('export.limitInvalid'));
+
+    const startParsed = parseYmd(startDateText);
+    const endParsed = parseYmd(endDateText);
+    if (!startParsed) {
+      setStartDateError(t('export.dateInvalid'));
+      ok = false;
+    } else if (formatYmd(new Date(startParsed.y, startParsed.m - 1, startParsed.d)) < MIN_START_YMD) {
+      setStartDateError(t('export.startDateTooEarly'));
       ok = false;
     } else {
-      setLimitError(null);
+      setStartDateError(null);
     }
-    if (!ok || limit == null) return null;
-    return { address: trimmed, limit };
-  }, [address, parseLimit, t]);
+    if (!endParsed) {
+      setEndDateError(t('export.dateInvalid'));
+      ok = false;
+    } else {
+      setEndDateError(null);
+    }
+    if (startParsed && endParsed) {
+      const startYmd = formatYmd(new Date(startParsed.y, startParsed.m - 1, startParsed.d));
+      const endYmd = formatYmd(new Date(endParsed.y, endParsed.m - 1, endParsed.d));
+      if (startYmd > endYmd) {
+        setStartDateError(t('export.dateOrderInvalid'));
+        ok = false;
+      }
+    }
+    if (!ok || !startParsed || !endParsed) return null;
+    return {
+      address: trimmed,
+      startTs: startOfDayUnix(startParsed.y, startParsed.m, startParsed.d),
+      endTs: endOfDayUnix(endParsed.y, endParsed.m, endParsed.d),
+    };
+  }, [address, endDateText, startDateText, t]);
 
   const runExport = useCallback(
-    async (exportAddress: string, limit: number) => {
+    async (exportAddress: string, startTs: number, endTs: number) => {
       if (runningRef.current) return;
       runningRef.current = true;
       abortedRef.current = false;
       try {
         setStatus('fetching');
-        setProgress({ count: 0, page: 0, limit });
+        setProgress({ count: 0, page: 0 });
 
         const items = await fetchExportMessages({
           address: exportAddress,
-          limit,
+          startTs,
+          endTs,
           decrypt,
           userAddress: state.profile?.address,
           isAborted: () => abortedRef.current,
@@ -221,26 +284,6 @@ export default function ExportDataScreen() {
     [decrypt, showMessage, state.profile?.address, state.subscriptions, t],
   );
 
-  const startAfterUnlock = useCallback(
-    (exportAddress: string, limit: number) => {
-      if (limit >= LARGE_LIMIT_WARN) {
-        showConfirm(
-          t('export.largeLimitTitle'),
-          t('export.largeLimitMsg', { limit }),
-          () => {
-            void runExport(exportAddress, limit);
-          },
-          undefined,
-          t('common.confirm'),
-          t('common.cancel'),
-        );
-        return;
-      }
-      void runExport(exportAddress, limit);
-    },
-    [runExport, t],
-  );
-
   const handleStart = useCallback(async () => {
     const parsed = validateForm();
     if (!parsed) return;
@@ -257,8 +300,8 @@ export default function ExportDataScreen() {
       return;
     }
 
-    startAfterUnlock(parsed.address, parsed.limit);
-  }, [decrypt, showMessage, startAfterUnlock, t, validateForm]);
+    void runExport(parsed.address, parsed.startTs, parsed.endTs);
+  }, [decrypt, runExport, showMessage, t, validateForm]);
 
   const handleUnlockAndExport = useCallback(async () => {
     if (passwordLocked) return;
@@ -273,7 +316,7 @@ export default function ExportDataScreen() {
       setPassword('');
       setPasswordError(null);
       const parsed = validateForm();
-      if (parsed) startAfterUnlock(parsed.address, parsed.limit);
+      if (parsed) void runExport(parsed.address, parsed.startTs, parsed.endTs);
     } catch (error: unknown) {
       const name = error instanceof Error ? error.name : '';
       if (name === PASSWORD_LOCKED_ERROR) {
@@ -293,7 +336,7 @@ export default function ExportDataScreen() {
     } finally {
       setUnlocking(false);
     }
-  }, [password, passwordLocked, showMessage, startAfterUnlock, t, validateForm]);
+  }, [password, passwordLocked, runExport, showMessage, t, validateForm]);
 
   const handleCancel = useCallback(() => {
     abortedRef.current = true;
@@ -303,7 +346,6 @@ export default function ExportDataScreen() {
     if (status === 'fetching') {
       return t('export.fetching', {
         count: progress.count,
-        limit: progress.limit,
         page: progress.page,
       });
     }
@@ -363,54 +405,83 @@ export default function ExportDataScreen() {
             variant="labelLarge"
             style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
           >
-            {t('export.limitLabel')}
+            {t('export.startDateLabel')}
           </Text>
           <TextInput
             mode="outlined"
-            value={limitText}
+            placeholder="YYYY-MM-DD"
+            value={startDateText}
             onChangeText={(text) => {
-              setLimitText(text.replace(/[^0-9]/g, ''));
-              if (limitError) setLimitError(null);
+              setStartDateText(text);
+              if (startDateError) setStartDateError(null);
             }}
-            keyboardType="number-pad"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            spellCheck={false}
             editable={!busy}
-            error={!!limitError}
+            error={!!startDateError}
             style={styles.input}
             outlineColor={theme.colors.outline}
             activeOutlineColor={theme.colors.primary}
           />
-          <HelperText type="error" visible={!!limitError}>
-            {limitError}
+          <HelperText type="error" visible={!!startDateError}>
+            {startDateError}
           </HelperText>
-          <HelperText type="info" visible>
-            {t('export.limitHint')}
+          <HelperText type="info" visible={!startDateError}>
+            {t('export.startDateHint')}
           </HelperText>
 
           <Text
             variant="labelLarge"
             style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
           >
-            {t('export.decryptLabel')}
+            {t('export.endDateLabel')}
           </Text>
-          <RadioButton.Group
-            onValueChange={(value) => {
-              if (!busy) setDecrypt(value === 'yes');
+          <TextInput
+            mode="outlined"
+            placeholder="YYYY-MM-DD"
+            value={endDateText}
+            onChangeText={(text) => {
+              setEndDateText(text);
+              if (endDateError) setEndDateError(null);
             }}
-            value={decrypt ? 'yes' : 'no'}
-          >
-            <RadioButton.Item
-              label={t('export.decryptYes')}
-              value="yes"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            spellCheck={false}
+            editable={!busy}
+            error={!!endDateError}
+            style={styles.input}
+            outlineColor={theme.colors.outline}
+            activeOutlineColor={theme.colors.primary}
+          />
+          <HelperText type="error" visible={!!endDateError}>
+            {endDateError}
+          </HelperText>
+          <HelperText type="info" visible={!endDateError}>
+            {t('export.endDateHint')}
+          </HelperText>
+
+          <View style={styles.checkboxRow}>
+            <Checkbox.Android
+              status={decrypt ? 'checked' : 'unchecked'}
               disabled={busy}
-              style={styles.radioItem}
+              onPress={() => {
+                if (!busy) setDecrypt((v) => !v);
+              }}
+              uncheckedColor={theme.colors.outline}
             />
-            <RadioButton.Item
-              label={t('export.decryptNo')}
-              value="no"
-              disabled={busy}
-              style={styles.radioItem}
-            />
-          </RadioButton.Group>
+            <Text
+              variant="bodyMedium"
+              style={[styles.checkboxLabel, { color: theme.colors.onSurface }]}
+              onPress={() => {
+                if (!busy) setDecrypt((v) => !v);
+              }}
+            >
+              {t('export.decryptLabel')}
+            </Text>
+          </View>
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
             {t('export.decryptHint')}
           </Text>
@@ -423,6 +494,13 @@ export default function ExportDataScreen() {
               </Text>
             </View>
           ) : null}
+
+          <Text
+            variant="bodySmall"
+            style={{ color: theme.colors.onSurfaceVariant, marginTop: 24 }}
+          >
+            {t('export.mobilePdfHint')}
+          </Text>
 
           <View style={styles.buttonGroup}>
             <Button
@@ -534,8 +612,14 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
-  radioItem: {
-    paddingHorizontal: 0,
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingRight: 8,
+  },
+  checkboxLabel: {
+    flex: 1,
   },
   progressRow: {
     flexDirection: 'row',
@@ -544,7 +628,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   buttonGroup: {
-    marginTop: 32,
+    marginTop: 12,
     gap: 12,
   },
   button: {
