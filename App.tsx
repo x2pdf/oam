@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import './src/i18n'; // Initialize i18n
 import { initDatabase } from './src/storage/database';
 import { AppProvider, useAppContext } from './src/context/AppContext';
-import { ThemeProvider } from './src/context/ThemeContext';
+import { ThemeProvider, useThemePreference } from './src/context/ThemeContext';
 import { WalletSessionProvider } from './src/wallet/WalletSessionContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import SplashScreen from './src/components/SplashScreen';
@@ -15,6 +15,7 @@ const SPLASH_MIN_DURATION_MS = 2000;
 
 function AppContent() {
   const { state } = useAppContext();
+  const { isDark } = useThemePreference();
   const [minDurationElapsed, setMinDurationElapsed] = useState(false);
 
   useEffect(() => {
@@ -30,7 +31,7 @@ function AppContent() {
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <AppNavigator />
       <ImageLightboxHost />
     </>
