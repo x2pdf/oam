@@ -29,8 +29,10 @@ export function useListColumnLayout() {
     maxWidth: cardWidth,
     alignSelf: 'center',
   };
+  /** 桌面横屏时顶栏返回/右侧按钮与中间 50% 内容列对齐的左右留白。 */
+  const gutterWidth = centered ? width * 0.25 : 0;
 
-  return { centered, cardWidth, listContentStyle, columnStyle };
+  return { centered, cardWidth, listContentStyle, columnStyle, gutterWidth };
 }
 
 export function ListColumn({

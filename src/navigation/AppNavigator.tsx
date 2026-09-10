@@ -121,6 +121,7 @@ export default function AppNavigator() {
   const theme = useTheme();
   const { t } = useTranslation();
   const headerChrome = getHeaderChrome(theme);
+  const { centered, gutterWidth } = useListColumnLayout();
 
   const navigationTheme = {
     ...(theme.dark ? DarkTheme : DefaultTheme),
@@ -143,6 +144,12 @@ export default function AppNavigator() {
           headerTitleStyle: { fontWeight: '600' },
           headerShadowVisible: !theme.dark,
           headerBackButtonDisplayMode: 'minimal',
+          ...(centered
+            ? {
+                headerLeftContainerStyle: { marginStart: gutterWidth },
+                headerRightContainerStyle: { marginEnd: gutterWidth },
+              }
+            : {}),
         }}
       >
         <Stack.Screen
