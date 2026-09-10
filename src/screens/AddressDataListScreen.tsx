@@ -20,6 +20,7 @@ import { applyDisplayPipeline, markAllRaw } from '../display';
 import { InputDataCard } from '../components/InputDataCard';
 import { AddressWithActions } from '../components/AddressWithActions';
 import { useAppContext } from '../context/AppContext';
+import { useOutlineFrameStyle } from '../theme/surfaces';
 
 type RouteProps = RouteProp<RootStackParamList, 'AddressDataList'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -53,6 +54,7 @@ export default function AddressDataListScreen() {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavProp>();
   const { cardWidth, listContentStyle, columnStyle } = useListColumnLayout();
+  const outlineFrameStyle = useOutlineFrameStyle();
   const { state } = useAppContext();
   const { address, title, peerAddress } = route.params;
 
@@ -253,36 +255,38 @@ export default function AddressDataListScreen() {
         onEndReachedThreshold={0.2}
         ListHeaderComponent={
           <View style={[styles.header, columnStyle]}>
-            {title ? (
-              <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 8 }}>
-                {conversationMode
-                  ? t('nav.conversation')
-                  : title}
-              </Text>
-            ) : conversationMode ? (
-              <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 8 }}>
-                {t('nav.conversation')}
-              </Text>
-            ) : null}
-            <AddressWithActions
-              address={address}
-              label={t('common.address')}
-              showFullAddress
-              onCopied={showCopiedSnackbar}
-              showInfo={false}
-            />
-            {conversationMode && peerAddress ? (
-              <AddressWithActions
-                address={peerAddress}
-                label={t('subscriptions.myAddress')}
-                showFullAddress
-                onCopied={showCopiedSnackbar}
-                showInfo={false}
-              />
-            ) : null}
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              {t('home.totalItems', { count: data.length })}
-            </Text>
+            <View style={outlineFrameStyle}>
+              <View style={styles.headerFrameInner}>
+                {conversationMode ? (
+                  <Text variant="titleMedium" style={styles.headerTitle}>
+                    {t('nav.conversation')}
+                  </Text>
+                ) : title ? (
+                  <Text variant="titleMedium" style={styles.headerTitle}>
+                    {title}
+                  </Text>
+                ) : null}
+                <AddressWithActions
+                  address={address}
+                  label={t('common.address')}
+                  showFullAddress
+                  onCopied={showCopiedSnackbar}
+                  showInfo={false}
+                />
+                {conversationMode && peerAddress ? (
+                  <AddressWithActions
+                    address={peerAddress}
+                    label={t('subscriptions.myAddress')}
+                    showFullAddress
+                    onCopied={showCopiedSnackbar}
+                    showInfo={false}
+                  />
+                ) : null}
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {t('home.totalItems', { count: data.length })}
+                </Text>
+              </View>
+            </View>
           </View>
         }
         ListFooterComponent={
@@ -352,6 +356,16 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 12,
+  },
+  headerFrameInner: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  headerTitle: {
+    fontWeight: '700',
+    marginBottom: 8,
   },
   separator: {
     height: 12,

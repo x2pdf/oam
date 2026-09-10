@@ -10,6 +10,7 @@ import { useAppContext } from '../context/AppContext';
 import { AddressWithActions } from '../components/AddressWithActions';
 import { AppModal } from '../components/AppModal';
 import { getHeaderChrome } from '../theme';
+import { useOutlineFrameStyle } from '../theme/surfaces';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SubscriptionDetail'>;
 
@@ -18,6 +19,7 @@ export default function SubscriptionDetailScreen({ route, navigation }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
+  const outlineFrameStyle = useOutlineFrameStyle();
   const { state, updateSubscription } = useAppContext();
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
@@ -113,21 +115,25 @@ export default function SubscriptionDetailScreen({ route, navigation }: Props) {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle]}>
         <ListColumn>
-        <Text
-          variant="titleMedium"
-          style={[styles.description, { color: theme.colors.onSurface }]}
-        >
-          {subscription.description}
-        </Text>
+        <View style={outlineFrameStyle}>
+          <View style={styles.profileFrameInner}>
+            <Text
+              variant="titleMedium"
+              style={[styles.description, { color: theme.colors.onSurface }]}
+            >
+              {subscription.description}
+            </Text>
 
-        <AddressWithActions
-          address={subscription.address}
-          label={t('common.address')}
-          showFullAddress
-          onCopied={() => setSnackbarVisible(true)}
-          showInfo={false}
-          showFollow={false}
-        />
+            <AddressWithActions
+              address={subscription.address}
+              label={t('common.address')}
+              showFullAddress
+              onCopied={() => setSnackbarVisible(true)}
+              showInfo={false}
+              showFollow={false}
+            />
+          </View>
+        </View>
 
         <View style={styles.buttonGroup}>
           {/* 1. 我和他/她的对话数据 */}
@@ -264,9 +270,15 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  profileFrameInner: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
   description: {
     fontWeight: '700',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   buttonGroup: {
     marginTop: 24,
