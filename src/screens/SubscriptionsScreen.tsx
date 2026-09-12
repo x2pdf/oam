@@ -6,7 +6,6 @@ import { useListColumnLayout } from '../theme/layout';
 import {
   Text,
   Card,
-  FAB,
   Avatar,
   useTheme,
   IconButton,
@@ -76,6 +75,13 @@ export default function SubscriptionsScreen() {
     });
   }, []);
 
+  const handleAdd = useCallback(() => {
+    navigation.navigate('SubscriptionForm', {
+      mode: 'add',
+      source: 'subscriptions',
+    });
+  }, [navigation]);
+
   useLayoutEffect(() => {
     const headerChrome = getHeaderChrome(theme);
     navigation.setOptions({
@@ -89,15 +95,25 @@ export default function SubscriptionsScreen() {
         />
       ),
       headerRight: () => (
-        <IconButton
-          icon={searchVisible ? 'close' : 'magnify'}
-          iconColor={headerChrome.tintColor}
-          size={22}
-          onPress={handleToggleSearch}
-        />
+        <View style={styles.headerRight}>
+          <IconButton
+            icon={searchVisible ? 'close' : 'magnify'}
+            iconColor={headerChrome.tintColor}
+            size={22}
+            accessibilityLabel={t('subscriptions.searchPlaceholder')}
+            onPress={handleToggleSearch}
+          />
+          <IconButton
+            icon="plus"
+            iconColor={headerChrome.tintColor}
+            size={22}
+            accessibilityLabel={t('form.addSubscription')}
+            onPress={handleAdd}
+          />
+        </View>
       ),
     });
-  }, [navigation, t, theme, searchVisible, handleToggleSearch]);
+  }, [navigation, t, theme, searchVisible, handleToggleSearch, handleAdd]);
 
   // 排序：置顶项按 pinWeight 降序 → 同权重按描述 a-z；普通项按描述 a-z
   const sortedSubscriptions = useMemo(() => {
@@ -222,13 +238,6 @@ export default function SubscriptionsScreen() {
       // Context 驱动，无需手动刷新
     }, []),
   );
-
-  const handleAdd = useCallback(() => {
-    navigation.navigate('SubscriptionForm', {
-      mode: 'add',
-      source: 'subscriptions',
-    });
-  }, [navigation]);
 
   const handleViewDetail = useCallback(
     (item: Subscription) => {
@@ -468,16 +477,6 @@ export default function SubscriptionsScreen() {
           </Text>
         </View>
       </AppModal>
-      <FAB
-        icon="plus"
-        style={[
-          styles.fab,
-          { backgroundColor: theme.colors.primary },
-          centered && { marginRight: '25%' }
-        ]}
-        color="#FFFFFF"
-        onPress={handleAdd}
-      />
     </View>
   );
 }
@@ -492,7 +491,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: 12,
-    paddingBottom: 88,
+    paddingBottom: 12,
   },
   emptyList: {
     flexGrow: 1,
@@ -537,12 +536,9 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    elevation: 4,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   searchbar: {
     marginHorizontal: 12,

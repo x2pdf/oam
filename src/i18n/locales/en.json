@@ -105,7 +105,7 @@
   },
   "subscriptions": {
     "noSubscriptions": "No subscriptions yet",
-    "addHint": "Tap + to add a subscription",
+    "addHint": "Tap + in the top right to add a subscription",
     "viewAllData": "All their data",
     "viewConversation": "My conversation with them",
     "sendToThem": "Send to them",

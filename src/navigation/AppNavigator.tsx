@@ -51,7 +51,7 @@ function MainTabNavigator() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const headerChrome = getHeaderChrome(theme);
-  const { centered } = useListColumnLayout();
+  const { centered, gutterWidth } = useListColumnLayout();
 
   return (
     <Tab.Navigator
@@ -67,6 +67,12 @@ function MainTabNavigator() {
           fontSize: Math.round(16 * fontScale),
         },
         headerShadowVisible: !theme.dark,
+        ...(centered
+          ? {
+              headerLeftContainerStyle: { marginStart: gutterWidth },
+              headerRightContainerStyle: { marginEnd: gutterWidth },
+            }
+          : {}),
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
         tabBarStyle: {

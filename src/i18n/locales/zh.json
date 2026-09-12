@@ -105,7 +105,7 @@
   },
   "subscriptions": {
     "noSubscriptions": "暂无关注",
-    "addHint": "点击右下角 + 添加关注地址",
+    "addHint": "点击右上角 + 添加关注地址",
     "viewAllData": "他/她的全部数据",
     "viewConversation": "我和他/她的对话数据",
     "sendToThem": "给他/她发送",
