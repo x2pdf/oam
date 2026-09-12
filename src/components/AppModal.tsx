@@ -169,6 +169,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 4,
+    paddingRight: 8,
   },
   modalButtons: {
     flexDirection: 'row',

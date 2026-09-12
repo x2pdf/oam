@@ -412,6 +412,7 @@ export default function SubscriptionsScreen() {
           multiline
           value={exportJson}
           editable={false}
+          scrollEnabled={false}
           style={styles.jsonInput}
         />
       </AppModal>
@@ -438,6 +439,7 @@ export default function SubscriptionsScreen() {
           }}
           placeholder={t('subscriptions.importPlaceholder')}
           error={!!importError}
+          scrollEnabled={false}
           style={styles.jsonInput}
         />
         {importError ? (
@@ -553,6 +555,7 @@ const styles = StyleSheet.create({
   },
   jsonInput: {
     minHeight: 180,
+    marginRight: 8,
   },
   importRiskBox: {
     borderWidth: 1,
