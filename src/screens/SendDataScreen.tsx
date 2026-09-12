@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
-import { useOutlineFrameStyle } from '../theme/surfaces';
+import { useModalInsetFrameStyle } from '../theme/surfaces';
 import {
   Text,
   Button,
@@ -88,7 +88,7 @@ function sortSubscriptions(items: Subscription[]): Subscription[] {
 
 export default function SendDataScreen() {
   const theme = useTheme();
-  const outlineFrameStyle = useOutlineFrameStyle();
+  const modalInsetFrameStyle = useModalInsetFrameStyle();
   const { fontScale } = useThemePreference();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteProps>();
@@ -1277,25 +1277,25 @@ export default function SendDataScreen() {
           },
         ]}
       >
-        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmRecipient')}</Text>
           <Text style={[styles.confirmValue, styles.addressText, { fontSize: Math.round(14 * fontScale) }]} selectable>
             {wrapLongHex(recipientAddress.trim() || BLACK_HOLE)}
           </Text>
         </View>
 
-        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmMode')}</Text>
           <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{sendModeLabel}</Text>
         </View>
 
-        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmData')}</Text>
           <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{dataSummary}</Text>
         </View>
 
         {ethValueToSend > 0n && (
-          <View style={[outlineFrameStyle, styles.confirmFrame]}>
+          <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
             <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmEthAmount')}</Text>
             <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale), color: theme.colors.primary, fontWeight: 'bold' }]}>
               {ethAmount} ETH
@@ -1303,7 +1303,7 @@ export default function SendDataScreen() {
           </View>
         )}
 
-        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmBalance')}</Text>
           <View style={styles.feeRow}>
             {feeLoading && (
@@ -1318,7 +1318,7 @@ export default function SendDataScreen() {
           )}
         </View>
 
-        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <View style={styles.confirmLabelRow}>
             <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmFee')}</Text>
             {!feeLoading && !feeError && (
@@ -1346,7 +1346,7 @@ export default function SendDataScreen() {
         </View>
 
         {insufficientBalance && (
-          <View style={[outlineFrameStyle, styles.confirmFrame]}>
+          <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
             <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
               {t('send.insufficientBalance')}
             </Text>
@@ -1354,7 +1354,7 @@ export default function SendDataScreen() {
         )}
 
         {feeError && !feeLoading && (
-          <View style={[outlineFrameStyle, styles.confirmFrame]}>
+          <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
             <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
               {t('send.feeEstimateFailedHint')}
             </Text>
@@ -1369,19 +1369,19 @@ export default function SendDataScreen() {
           </View>
         )}
 
-        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
             {t('send.feeDisclaimer')}
           </Text>
         </View>
 
-        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
             {t('send.submitNotMinedDisclaimer')}
           </Text>
         </View>
 
-        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(12 * fontScale), lineHeight: Math.round(17 * fontScale) }]}>
             {t('send.safetyTipMsg')}
           </Text>

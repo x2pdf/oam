@@ -24,6 +24,7 @@ import { RootStackParamList } from '../types';
 import { LANGUAGE_KEY } from '../i18n';
 import { CopyableAddress } from '../components/CopyableAddress';
 import { AppModal } from '../components/AppModal';
+import { useModalListRowStyle } from '../theme/surfaces';
 import { withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, formatUsd } from '../rpc/ethPrice';
 import { dataSourceManager } from '../datasource/DataSourceManager';
@@ -76,6 +77,7 @@ function getPlatformLabel(t: (key: string) => string): string {
 
 export default function ProfileScreen() {
   const theme = useTheme();
+  const modalListRowStyle = useModalListRowStyle();
   const navigation = useNavigation<NavProp>();
   const { state, setApiKey, setDataSourceWeights, setHomeTabWeights } = useAppContext();
   const { themeMode, setThemeMode, fontScale, setFontScale } = useThemePreference();
@@ -830,12 +832,12 @@ export default function ProfileScreen() {
           <RadioButton.Item
             label="简体中文"
             value="zh"
-            style={styles.radioItem}
+            style={[styles.radioItem, modalListRowStyle]}
           />
           <RadioButton.Item
             label="English"
             value="en"
-            style={styles.radioItem}
+            style={[styles.radioItem, modalListRowStyle]}
           />
         </RadioButton.Group>
       </AppModal>
@@ -853,17 +855,17 @@ export default function ProfileScreen() {
           <RadioButton.Item
             label={t('profile.themeAuto')}
             value="auto"
-            style={styles.radioItem}
+            style={[styles.radioItem, modalListRowStyle]}
           />
           <RadioButton.Item
             label={t('profile.themeLight')}
             value="light"
-            style={styles.radioItem}
+            style={[styles.radioItem, modalListRowStyle]}
           />
           <RadioButton.Item
             label={t('profile.themeDark')}
             value="dark"
-            style={styles.radioItem}
+            style={[styles.radioItem, modalListRowStyle]}
           />
         </RadioButton.Group>
       </AppModal>
@@ -883,7 +885,7 @@ export default function ProfileScreen() {
               key={preset.value}
               label={t(preset.labelKey)}
               value={String(preset.value)}
-              style={styles.radioItem}
+              style={[styles.radioItem, modalListRowStyle]}
             />
           ))}
         </RadioButton.Group>
@@ -902,7 +904,7 @@ export default function ProfileScreen() {
           {sources.map((source) => {
             const isDisabled = source.requiresApiKey && !source.apiKey;
             return (
-              <View key={source.name} style={styles.weightItem}>
+              <View key={source.name} style={[modalListRowStyle, styles.weightItem]}>
                 <View style={styles.weightHeader}>
                   <Text variant="titleSmall" style={{ color: isDisabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface }}>
                     {source.name}
@@ -948,7 +950,7 @@ export default function ProfileScreen() {
       >
         <ScrollView style={{ maxHeight: 400 }}>
           {modalHomeTabOrder.map((id) => (
-            <View key={id} style={styles.weightItem}>
+            <View key={id} style={[modalListRowStyle, styles.weightItem]}>
               <View style={styles.weightHeader}>
                 <Text variant="titleSmall" style={{ color: theme.colors.onSurface }}>
                   {t(HOME_TAB_LABEL_KEYS[id])}

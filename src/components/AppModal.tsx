@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
 import { isDesktopOs } from '../theme/layout';
+import { getModalSurfaceColor } from '../theme';
 
 export type AppModalAction = {
   label: string;
@@ -81,6 +82,14 @@ export function AppModal({
   const availableHeight = Math.max(height - keyboardOffset, 240);
   const scrollMaxHeight = availableHeight * 0.5;
 
+  const modalSurfaceStyle = theme.dark
+    ? {
+        backgroundColor: getModalSurfaceColor(theme.colors, true),
+        borderWidth: 1,
+        borderColor: theme.colors.outlineVariant,
+      }
+    : { backgroundColor: getModalSurfaceColor(theme.colors, false) };
+
   const body = children ? (
     scrollable ? (
       <ScrollView
@@ -105,7 +114,7 @@ export function AppModal({
         dismissable={dismissable}
         contentContainerStyle={[
           styles.modalContent,
-          { backgroundColor: theme.colors.surface },
+          modalSurfaceStyle,
           keyboardOffset > 0 && { marginBottom: keyboardOffset },
           centered && {
             width: modalWidth,
