@@ -125,8 +125,10 @@ export class DataRepository {
 
       if (items.length > 0) {
         this.rawData[tabId] = items;
+        // Show raw cache immediately, then refine via display pipeline (non-blocking).
+        this.updateState(tabId, { data: items, loading: false });
         const processed = await this.processItems(items, userAddress);
-        this.updateState(tabId, { data: processed, loading: false });
+        this.updateState(tabId, { data: processed });
       } else {
         this.updateState(tabId, { loading: false });
       }

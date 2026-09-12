@@ -375,9 +375,25 @@ export default function HomeScreen() {
     if (contextLoading || !filtersLoaded || initialLoadDoneRef.current) return;
     initialLoadDoneRef.current = true;
 
-    // Activate the leftmost tab on startup
-    activateTab(leftmostTabId);
-  }, [contextLoading, filtersLoaded, leftmostTabId, activateTab]);
+    (async () => {
+      // Preload cache for all tabs so non-default tabs (e.g. messages) are ready on cold start.
+      await Promise.all(
+        orderedTabIds.map((tabId) =>
+          dataRepository.initializeTab(tabId, profile?.address, subscriptions),
+        ),
+      );
+      setActivatedTabs((prev) => new Set(prev).add(leftmostTabId));
+      triggerRefresh(leftmostTabId);
+    })();
+  }, [
+    contextLoading,
+    filtersLoaded,
+    leftmostTabId,
+    orderedTabIds,
+    profile?.address,
+    subscriptions,
+    triggerRefresh,
+  ]);
 
   useEffect(() => {
     if (contextLoading || activeTabId != null) return;
@@ -529,7 +545,7 @@ export default function HomeScreen() {
       );
     }
 
-    if (!filtersInactive && (state.loading || state.refreshing) && displayData.length === 0) {
+    if (!filtersInactive && state.loading && displayData.length === 0) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
