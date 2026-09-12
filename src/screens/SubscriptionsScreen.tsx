@@ -69,6 +69,13 @@ export default function SubscriptionsScreen() {
     [state.subscriptions, t],
   );
 
+  const handleToggleSearch = useCallback(() => {
+    setSearchVisible((prev) => {
+      if (prev) setSearchQuery('');
+      return !prev;
+    });
+  }, []);
+
   useLayoutEffect(() => {
     const headerChrome = getHeaderChrome(theme);
     navigation.setOptions({
@@ -208,13 +215,6 @@ export default function SubscriptionsScreen() {
     state.subscriptions,
     t,
   ]);
-
-  const handleToggleSearch = useCallback(() => {
-    setSearchVisible((prev) => {
-      if (prev) setSearchQuery('');
-      return !prev;
-    });
-  }, []);
 
   // 每次聚焦时刷新列表（编辑返回后可看到最新数据）
   useFocusEffect(

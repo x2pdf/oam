@@ -1,5 +1,3 @@
-import * as Print from 'expo-print';
-import html2pdf from 'html2pdf.js';
 import type { GeneratePdfResult } from './pdfTypes';
 
 export type { GeneratePdfResult } from './pdfTypes';
@@ -7,13 +5,8 @@ export { buildExportFilename } from './pdfTypes';
 
 const PAGE_WIDTH_PX = 794;
 
-function resolveHtml2Pdf(): typeof html2pdf {
-  const mod = html2pdf as unknown as { default?: typeof html2pdf };
-  const fn = typeof html2pdf === 'function' ? html2pdf : mod.default;
-  if (typeof fn !== 'function') {
-    throw new Error('html2pdf is not available');
-  }
-  return fn;
+function isTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 function loadSrcdoc(iframe: HTMLIFrameElement, html: string): Promise<void> {
@@ -47,7 +40,7 @@ async function waitForImages(doc: Document): Promise<void> {
   );
 }
 
-async function htmlToPdfBytes(html: string, filename: string): Promise<Uint8Array> {
+async function printHtmlInBrowser(html: string): Promise<void> {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('title', 'oam-pdf-export');
   iframe.setAttribute(
@@ -60,9 +53,9 @@ async function htmlToPdfBytes(html: string, filename: string): Promise<Uint8Arra
       'height:1123px',
       'border:0',
       'background:#ffffff',
-      'opacity:1',
+      'opacity:0',
       'pointer-events:none',
-      'z-index:2147483646',
+      'z-index:-1',
     ].join(';'),
   );
   document.body.appendChild(iframe);
@@ -86,47 +79,55 @@ async function htmlToPdfBytes(html: string, filename: string): Promise<Uint8Arra
       requestAnimationFrame(() => resolve());
     });
 
-    const makePdf = resolveHtml2Pdf();
-    const blob: Blob = await makePdf()
-      .set({
-        margin: [20, 0, 20, 0],
-        filename,
-        image: { type: 'jpeg', quality: 0.92 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: PAGE_WIDTH_PX,
-          windowHeight: contentHeight,
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        window.clearTimeout(fallbackTimer);
+        iframe.remove();
+      };
+      const fallbackTimer = window.setTimeout(() => {
+        cleanup();
+        resolve();
+      }, 120000);
+      win.addEventListener(
+        'afterprint',
+        () => {
+          cleanup();
+          resolve();
         },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] },
-      } as never)
-      .from(doc.body)
-      .outputPdf('blob');
-
-    if (!blob || blob.size < 500) {
-      throw new Error('Generated PDF is empty');
-    }
-    return new Uint8Array(await blob.arrayBuffer());
-  } finally {
+        { once: true },
+      );
+      try {
+        win.focus();
+        win.print();
+      } catch (e) {
+        cleanup();
+        reject(e);
+      }
+    });
+  } catch (e) {
     iframe.remove();
+    throw e;
   }
+}
+
+async function generateTauriPdf(html: string): Promise<Uint8Array> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  const bytes = await invoke<number[]>('export_pdf', { html });
+  if (!Array.isArray(bytes) || bytes.length < 500) {
+    throw new Error('Generated PDF is empty');
+  }
+  return Uint8Array.from(bytes);
 }
 
 export async function generatePdfFromHtml(
   html: string,
-  filename: string,
+  _filename: string,
 ): Promise<GeneratePdfResult> {
-  try {
-    const bytes = await htmlToPdfBytes(html, filename);
+  if (isTauri()) {
+    const bytes = await generateTauriPdf(html);
     return { kind: 'bytes', bytes };
-  } catch (e) {
-    console.warn('html2pdf failed, falling back to print dialog', e);
-    await Print.printAsync({ html });
-    return { kind: 'printed' };
   }
+
+  await printHtmlInBrowser(html);
+  return { kind: 'printed' };
 }

@@ -90,6 +90,10 @@ function endOfDayUnix(y: number, m: number, d: number): number {
 
 type ExportStatus = 'idle' | 'fetching' | 'generating' | 'saving';
 
+function isTauriDesktop(): boolean {
+  return Platform.OS === 'web' && typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
 export default function ExportDataScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -496,12 +500,14 @@ export default function ExportDataScreen() {
             </View>
           ) : null}
 
-          <Text
-            variant="bodySmall"
-            style={{ color: theme.colors.onSurfaceVariant, marginTop: 24 }}
-          >
-            {t('export.mobilePdfHint')}
-          </Text>
+          {Platform.OS === 'web' && !isTauriDesktop() ? (
+            <Text
+              variant="bodySmall"
+              style={{ color: theme.colors.onSurfaceVariant, marginTop: 24 }}
+            >
+              {t('export.webPrintHint')}
+            </Text>
+          ) : null}
 
           <View style={styles.buttonGroup}>
             <Button

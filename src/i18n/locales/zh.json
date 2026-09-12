@@ -256,7 +256,7 @@
     "dateOrderInvalid": "开始日期不能晚于结束日期",
     "decryptLabel": "解密加密数据",
     "decryptHint": "仅能解密当前已解锁钱包的个人加密笔记；P2P 加密消息可能仍无法解密。",
-    "mobilePdfHint": "建议优先在 Android 或 iOS 上导出，PDF 排版通常更稳定、更易阅读。",
+    "webPrintHint": "浏览器导出将打开系统打印对话框，请选择「另存为 PDF」。",
     "start": "开始导出",
     "cancelExport": "取消导出",
     "fetching": "正在获取 {{count}} 条，第 {{page}} 页",

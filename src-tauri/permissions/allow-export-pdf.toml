@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-export-pdf"
+description = "Allow native WebView PDF export"
+commands.allow = ["export_pdf"]

@@ -256,7 +256,7 @@
     "dateOrderInvalid": "Start date cannot be after end date",
     "decryptLabel": "Decrypt encrypted data",
     "decryptHint": "Only personal encrypted notes of the unlocked wallet can be decrypted. P2P encrypted messages may remain unreadable.",
-    "mobilePdfHint": "For a more reliable, easier-to-read PDF layout, export on Android or iOS when you can.",
+    "webPrintHint": "Browser export opens the system print dialog. Choose Save as PDF.",
     "start": "Start export",
     "cancelExport": "Cancel export",
     "fetching": "Fetched {{count}} items, page {{page}}",
