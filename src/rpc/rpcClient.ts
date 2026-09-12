@@ -80,6 +80,21 @@ function isRateLimited(err: unknown): boolean {
   );
 }
 
+export function isFeeTooLowError(err: unknown): boolean {
+  const code = errorCode(err);
+  if (code === "REPLACEMENT_UNDERPRICED") return true;
+  const msg = errorText(err).toLowerCase();
+  return (
+    msg.includes("replacement transaction underpriced") ||
+    msg.includes("transaction underpriced") ||
+    msg.includes("max fee per gas less than block base fee") ||
+    msg.includes("fee cap less than block base fee") ||
+    msg.includes("gas price below minimum") ||
+    msg.includes("tip below minimum") ||
+    msg.includes("priority fee too low")
+  );
+}
+
 function isFatalRpcError(err: unknown): boolean {
   // Rate-limit (429) is transient 鈥?let the caller decide whether to retry.
   // Read paths should use { noFatal: true }; broadcast already special-cases it.

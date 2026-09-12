@@ -69,7 +69,7 @@ export function createLinkItem(opts: {
 }): ContentItem {
   return {
     type: "link",
-    href: opts.href,
+    href: opts.href.trim(),
     mime: opts.mime,
     label: opts.label,
     arId: opts.arId,
@@ -129,8 +129,9 @@ export function payloadEncode(items: ContentItem[]): Uint8Array {
       const altAttr = item.alt ? ` alt="${escapeHtml(item.alt)}"` : "";
       html += `<img src="${src}"${altAttr}>`;
     } else if (item.type === "link") {
-      if (!isHttpUrl(item.href)) continue;
-      const href = escapeHtml(item.href);
+      const rawHref = item.href.trim();
+      if (!isHttpUrl(rawHref)) continue;
+      const href = escapeHtml(rawHref);
       const mime = escapeHtml(item.mime);
       const label = escapeHtml(item.label);
       let tag = `<a href="${href}" type="${mime}"`;
@@ -192,7 +193,7 @@ export function payloadDecode(data: Uint8Array | string): ContentItem[] {
       } else if (aTagBody !== undefined) {
         const hrefMatch = aTagBody.match(/href="([^"]+)"/);
         if (!hrefMatch) continue;
-        const href = unescapeHtml(hrefMatch[1]);
+        const href = unescapeHtml(hrefMatch[1]).trim();
         if (!isHttpUrl(href)) continue;
 
         const typeMatch = aTagBody.match(/\btype="([^"]+)"/);

@@ -7,6 +7,12 @@ import { MacImagePickerAdapter, MacImageRendererAdapter } from './mac';
 import { WindowsImagePickerAdapter, WindowsImageRendererAdapter } from './windows';
 
 export { saveImageToAlbum } from './saveImage';
+export {
+  resolveRemoteImageUri,
+  expandCandidateUrls,
+  peekCachedRemoteImageUri,
+  prefetchRemoteImagesFromItems,
+} from './remoteImageLoader';
 
 export function getImagePickerAdapter(): IImagePickerAdapter {
   if (Platform.OS === 'android') {

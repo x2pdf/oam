@@ -50,6 +50,12 @@ export function AddressWithActions({
     return state.subscriptions.some((s) => s.address.toLowerCase() === trimmed);
   }, [address, state.subscriptions]);
 
+  const isSelfAddress = useMemo(() => {
+    const trimmed = address.trim().toLowerCase();
+    const profileAddr = state.profile?.address?.trim().toLowerCase();
+    return !!trimmed && !!profileAddr && trimmed === profileAddr;
+  }, [address, state.profile?.address]);
+
   const handleFollow = useCallback(() => {
     if (!address) return;
     navigation.navigate('SubscriptionForm', {
@@ -96,7 +102,7 @@ export function AddressWithActions({
             accessibilityLabel={t('subscriptions.viewAllData')}
           />
         ) : null}
-        {showFollow && !alreadyFollowed ? (
+        {showFollow && !alreadyFollowed && !isSelfAddress ? (
           <IconButton
             icon="plus"
             size={18}

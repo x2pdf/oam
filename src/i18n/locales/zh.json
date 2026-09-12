@@ -27,6 +27,9 @@
     "back": "返回",
     "done": "完成"
   },
+  "datetime": {
+    "weekdayShort": ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+  },
   "nav": {
     "home": "主页",
     "subscriptions": "关注列表",
@@ -67,6 +70,7 @@
       "filterAll": "全部",
       "filterUTF8": "纯文本",
       "filterOAMP": "OAMP",
+      "filterRAW": "原始数据",
       "filterSubscribed": "关注"
     },
     "noApiKeyWarning": "未设置 Etherscan API Key，部分数据可能无法获取",
@@ -76,6 +80,7 @@
     "followingEmpty": "关注列表中的地址暂无消息",
     "loadingData": "正在获取 {{tab}} 数据...",
     "noAddressError": "没有填写地址信息，无法查询数据。",
+    "noFiltersSelected": "未勾选任何筛选属性",
     "noMoreData": "已经没有更多数据了",
     "totalItems": "共 {{count}} 条",
     "sentTo": "发送至",
@@ -125,6 +130,7 @@
     "copyJson": "复制 JSON",
     "importTitle": "导入数据",
     "importHint": "粘贴导出时的 JSON。已存在的地址会跳过，以当前列表为准。",
+    "importRiskWarning": "风险提示：请确保数据来源可信，并自行核对每条地址与描述的正确性。本应用不会验证 JSON 内容是否真实或准确；你粘贴的数据可能被篡改或伪造。关注列表中的地址一旦有误，可能导致资金发错、信息泄露或财产损失。由此产生的任何后果由你自行承担，本应用不承担责任。",
     "importPlaceholder": "粘贴 JSON…",
     "importConfirm": "导入",
     "importInvalidJson": "JSON 无法解析，请检查内容。",
@@ -155,14 +161,19 @@
     "to": "接收方",
     "content": "内容",
     "showRaw": "显示原始数据",
+    "showPayload": "显示载体数据",
+    "showFormatted": "显示格式化内容",
     "favorite": "收藏",
     "unfavorite": "取消收藏",
     "favorited": "已加入本地收藏",
     "unfavorited": "已取消收藏",
+    "loadingImage": "正在加载图片…",
     "savingImage": "正在保存图片…",
     "imageSaved": "图片已保存",
     "imageSaveFailed": "图片保存失败",
     "longPressSaveHint": "长按图片可保存到本地",
+    "tapToOpen": "点击用其他应用打开",
+    "tapToOpenOrDownload": "点击用其他应用打开或下载",
     "openLinkFailed": "无法打开链接",
     "follow": "关注"
   },
@@ -281,7 +292,8 @@
     "payPasswordMinLength": "支付密码最少6位",
     "payPasswordMaxLength": "支付密码最多16位",
     "payPasswordMismatch": "两次输入的支付密码不一致",
-    "addressDuplicate": "该地址已在关注列表中（{{desc}}），请勿重复添加。"
+    "addressDuplicate": "该地址已在关注列表中（{{desc}}），请勿重复添加。",
+    "addressSelf": "不能添加当前用户自己的地址。"
   },
   "wallet": {
     "selectAddMethod": "选择添加方式",
@@ -487,6 +499,9 @@
     "sendFailed": "发送失败: {{error}}",
     "sendFailedDraftSaved": "发送失败: {{error}}。内容已自动保存为草稿，可稍后在「我的」中继续。",
     "sendFailedRetry": "发送失败: {{error}}（还可重试 {{remaining}} 次）",
+    "feeTooLowTitle": "手续费过低",
+    "feeTooLowMsg": "节点拒绝了本次交易，当前手续费设置过低。请提高手续费后重试。",
+    "feeTooLowMsgDraftSaved": "节点拒绝了本次交易，当前手续费设置过低。内容已自动保存为草稿。请提高手续费后重试。",
     "networkFaultTitle": "网络异常",
     "networkFaultMsg": "所有 RPC 节点均不可用，本次发送失败。请检查网络连接后稍后再试。",
     "networkFaultMsgDraftSaved": "所有 RPC 节点均不可用，本次发送失败。内容已自动保存为草稿，可稍后在「我的」中继续。请检查网络连接后稍后再试。",

@@ -27,6 +27,9 @@
     "back": "Back",
     "done": "Done"
   },
+  "datetime": {
+    "weekdayShort": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  },
   "nav": {
     "home": "Home",
     "subscriptions": "Subscriptions",
@@ -67,6 +70,7 @@
       "filterAll": "All",
       "filterUTF8": "Plain Text",
       "filterOAMP": "OAMP",
+      "filterRAW": "RAW",
       "filterSubscribed": "Subscribed"
     },
     "noApiKeyWarning": "Etherscan API Key not set, some data may be unavailable",
@@ -76,6 +80,7 @@
     "followingEmpty": "No messages from followed addresses yet",
     "loadingData": "Fetching {{tab}} data...",
     "noAddressError": "No address information provided, cannot query data.",
+    "noFiltersSelected": "No filters selected",
     "noMoreData": "No more data",
     "totalItems": "Total {{count}} items",
     "sentTo": "Sent to",
@@ -125,6 +130,7 @@
     "copyJson": "Copy JSON",
     "importTitle": "Import data",
     "importHint": "Paste exported JSON. Existing addresses are skipped; current list entries win.",
+    "importRiskWarning": "Risk notice: Only import from a trusted source and verify every address and description yourself. This app does not validate that the JSON is truthful or accurate; pasted data may have been tampered with or fabricated. A wrong address in your follow list can lead to sending funds to the wrong place, data leaks, or financial loss. You accept full responsibility for any consequences; the app assumes none.",
     "importPlaceholder": "Paste JSON…",
     "importConfirm": "Import",
     "importInvalidJson": "Could not parse JSON. Please check the content.",
@@ -155,14 +161,19 @@
     "to": "To",
     "content": "Content",
     "showRaw": "Show Raw Data",
+    "showPayload": "Show Payload Data",
+    "showFormatted": "Show Formatted Content",
     "favorite": "Favorite",
     "unfavorite": "Remove Favorite",
     "favorited": "Saved to local favorites",
     "unfavorited": "Removed from favorites",
+    "loadingImage": "Loading image…",
     "savingImage": "Saving image…",
     "imageSaved": "Image saved",
     "imageSaveFailed": "Failed to save image",
     "longPressSaveHint": "Long-press an image to save it",
+    "tapToOpen": "Tap to open in another app",
+    "tapToOpenOrDownload": "Tap to open or download in another app",
     "openLinkFailed": "Could not open the link",
     "follow": "Follow"
   },
@@ -281,7 +292,8 @@
     "payPasswordMinLength": "Payment password must be at least 6 digits",
     "payPasswordMaxLength": "Payment password cannot exceed 16 digits",
     "payPasswordMismatch": "Payment passwords do not match",
-    "addressDuplicate": "This address is already in your subscription list ({{desc}}). Please do not add it again."
+    "addressDuplicate": "This address is already in your subscription list ({{desc}}). Please do not add it again.",
+    "addressSelf": "You cannot add your own address to the subscription list."
   },
   "wallet": {
     "selectAddMethod": "Select Add Method",
@@ -487,6 +499,9 @@
     "sendFailed": "Send failed: {{error}}",
     "sendFailedDraftSaved": "Send failed: {{error}}. Content was saved as a draft; continue later from Profile.",
     "sendFailedRetry": "Send failed: {{error}} ({{remaining}} retries left)",
+    "feeTooLowTitle": "Fee too low",
+    "feeTooLowMsg": "The node rejected this transaction because the fee is set too low. Please increase the fee and try again.",
+    "feeTooLowMsgDraftSaved": "The node rejected this transaction because the fee is set too low. Content was saved as a draft. Please increase the fee and try again.",
     "networkFaultTitle": "Network error",
     "networkFaultMsg": "All RPC nodes are unavailable. This send failed. Check your connection and try again later.",
     "networkFaultMsgDraftSaved": "All RPC nodes are unavailable. This send failed. Content was saved as a draft; continue later from Profile. Check your connection and try again later.",

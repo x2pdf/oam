@@ -9,6 +9,7 @@ import { CONTENT_KIND_I18N_KEY } from '../display';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
 import { truncateListText } from '../utils/text';
+import { getDisplayTime } from '../utils/datetime';
 import { wasRecentImagePress } from '../adapter/wrapImagePress';
 
 interface InputDataCardProps {
@@ -42,6 +43,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
         : sub
           ? sub.description
           : null;
+    const displayTime = getDisplayTime(item, t);
 
     const renderBody = () => {
       if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
@@ -115,7 +117,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
             variant="labelSmall"
             style={[styles.timeText, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) }]}
           >
-            {item.lastActive}
+            {displayTime}
           </Text>
         </Card.Content>
       </Card>

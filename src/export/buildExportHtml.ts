@@ -158,7 +158,7 @@ export async function buildExportHtml(
 <meta name="color-scheme" content="light" />
 <title>${escapeHtml(ctx.title)}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 20mm; }
   html, body {
     margin: 0;
     padding: 0;
@@ -169,8 +169,8 @@ export async function buildExportHtml(
     font-size: 14px;
     line-height: 1.45;
   }
-  .wrap { padding: 8px 4px 24px; }
-  .header { margin: 0 4px 16px; }
+  .wrap { padding: 0 20mm 24px; }
+  .header { margin: 0 0 16px; }
   .header h1 { font-size: 18px; margin: 0 0 6px; }
   .meta { color: #666; font-size: 12px; word-break: break-all; }
   .card {

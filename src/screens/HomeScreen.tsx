@@ -106,6 +106,7 @@ export default function HomeScreen() {
   const [showSquareAll, setShowSquareAll] = useState(false);
   const [showSquareUtf8, setShowSquareUtf8] = useState(true);
   const [showSquareOamp, setShowSquareOamp] = useState(true);
+  const [showSquareRaw, setShowSquareRaw] = useState(true);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   const [activeTabId, setActiveTabId] = useState<HomeTabId | null>(null);
@@ -160,19 +161,22 @@ export default function HomeScreen() {
     return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
   }, [repoState.messages.data, profile?.address, showFilterSent, showFilterReceived]);
 
-  // 广场 OAMP 筛选：仅接收地址为黑洞地址的交易
+  // 广场 OAMP 筛选：仅包含 OAMP 类型的内容
   const oampFilteredData = useMemo(() => {
-    const squareData = repoState.square.data;
-    if (showSquareAll) return squareData;
-    return squareData.filter(item => isBlackHoleAddress(item.to || ''));
-  }, [repoState.square.data, showSquareAll]);
+    return repoState.square.data.filter(item =>
+      item.contentKind === 'OAMP' || item.contentKind === 'OAMP_ENCRYPTED'
+    );
+  }, [repoState.square.data]);
 
   // 广场 UTF-8 筛选：contentKind 为 UTF-8 的交易
   const utf8FilteredData = useMemo(() => {
-    const squareData = repoState.square.data;
-    if (showSquareAll) return squareData;
-    return squareData.filter(item => item.contentKind === 'UTF-8');
-  }, [repoState.square.data, showSquareAll]);
+    return repoState.square.data.filter(item => item.contentKind === 'UTF-8');
+  }, [repoState.square.data]);
+
+  // 广场 RAW 筛选：contentKind 为 RAW 的交易
+  const rawFilteredData = useMemo(() => {
+    return repoState.square.data.filter(item => item.contentKind === 'RAW');
+  }, [repoState.square.data]);
 
   // 关注页：窗口内 from/to 任一落在关注列表、且 input 非空的交易
   const displayedFollowingData = useMemo(() => {
@@ -190,10 +194,35 @@ export default function HomeScreen() {
     const map = new Map<string, InputDataItem>();
     if (showSquareUtf8) utf8FilteredData.forEach(i => map.set(i.id, i));
     if (showSquareOamp) oampFilteredData.forEach(i => map.set(i.id, i));
+    if (showSquareRaw) rawFilteredData.forEach(i => map.set(i.id, i));
     return Array.from(map.values()).sort((a, b) =>
       b.timestamp - a.timestamp
     );
-  }, [repoState.square.data, showSquareAll, showSquareUtf8, showSquareOamp, utf8FilteredData, oampFilteredData]);
+  }, [repoState.square.data, showSquareAll, showSquareUtf8, showSquareOamp, showSquareRaw, utf8FilteredData, oampFilteredData, rawFilteredData]);
+
+  const messagesFiltersActive = showFilterSent || showFilterReceived;
+  const squareFiltersActive =
+    showSquareAll || showSquareUtf8 || showSquareOamp || showSquareRaw;
+  const prevMessagesFiltersActiveRef = useRef(messagesFiltersActive);
+  const prevSquareFiltersActiveRef = useRef(squareFiltersActive);
+
+  const triggerRefresh = useCallback((tabId: HomeTabId) => {
+    if (tabId === 'messages' && !messagesFiltersActive) return;
+    if (tabId === 'square' && !squareFiltersActive) return;
+
+    dataRepository.refresh(tabId, profile?.address, subscriptions).catch(err => {
+      console.warn(`Refresh failed for ${tabId}:`, err);
+    });
+  }, [profile?.address, subscriptions, messagesFiltersActive, squareFiltersActive]);
+
+  const triggerLoadMore = useCallback((tabId: HomeTabId) => {
+    if (tabId === 'messages' && !messagesFiltersActive) return;
+    if (tabId === 'square' && !squareFiltersActive) return;
+
+    dataRepository.loadMore(tabId, profile?.address, subscriptions).catch(err => {
+      console.warn(`LoadMore failed for ${tabId}:`, err);
+    });
+  }, [profile?.address, subscriptions, messagesFiltersActive, squareFiltersActive]);
 
   // ── 筛选状态持久化 ──
   useEffect(() => {
@@ -206,6 +235,7 @@ export default function HomeScreen() {
           if (typeof s.showSquareAll === 'boolean') setShowSquareAll(s.showSquareAll);
           if (typeof s.showSquareUtf8 === 'boolean') setShowSquareUtf8(s.showSquareUtf8);
           if (typeof s.showSquareOamp === 'boolean') setShowSquareOamp(s.showSquareOamp);
+          if (typeof s.showSquareRaw === 'boolean') setShowSquareRaw(s.showSquareRaw);
         } catch { /* ignore */ }
       }
       setFiltersLoaded(true);
@@ -216,21 +246,32 @@ export default function HomeScreen() {
     if (!filtersLoaded) return;
     AsyncStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
       showFilterSent, showFilterReceived,
-      showSquareAll, showSquareUtf8, showSquareOamp,
+      showSquareAll, showSquareUtf8, showSquareOamp, showSquareRaw,
     })).catch(() => {});
-  }, [showFilterSent, showFilterReceived, showSquareAll, showSquareUtf8, showSquareOamp, filtersLoaded]);
 
-  const triggerRefresh = useCallback((tabId: HomeTabId) => {
-    dataRepository.refresh(tabId, profile?.address, subscriptions).catch(err => {
-      console.warn(`Refresh failed for ${tabId}:`, err);
-    });
-  }, [profile?.address, subscriptions]);
+    const messagesNow = showFilterSent || showFilterReceived;
+    const squareNow = showSquareAll || showSquareUtf8 || showSquareOamp || showSquareRaw;
+    const messagesWas = prevMessagesFiltersActiveRef.current;
+    const squareWas = prevSquareFiltersActiveRef.current;
+    prevMessagesFiltersActiveRef.current = messagesNow;
+    prevSquareFiltersActiveRef.current = squareNow;
 
-  const triggerLoadMore = useCallback((tabId: HomeTabId) => {
-    dataRepository.loadMore(tabId, profile?.address, subscriptions).catch(err => {
-      console.warn(`LoadMore failed for ${tabId}:`, err);
-    });
-  }, [profile?.address, subscriptions]);
+    if (!messagesWas && messagesNow) {
+      triggerRefresh('messages');
+    }
+    if (!squareWas && squareNow) {
+      triggerRefresh('square');
+    }
+  }, [
+    showFilterSent,
+    showFilterReceived,
+    showSquareAll,
+    showSquareUtf8,
+    showSquareOamp,
+    showSquareRaw,
+    filtersLoaded,
+    triggerRefresh,
+  ]);
 
   useEffect(() => {
     isWriteWalletRef.current = isWriteWallet;
@@ -447,6 +488,9 @@ export default function HomeScreen() {
     const isMessagesList = tabId === 'messages';
     const isSelfList = tabId === 'self';
     const state = repoState[tabId];
+    const filtersInactive =
+      (isMessagesList && !messagesFiltersActive) || (isSquareList && !squareFiltersActive);
+    const displayData = filtersInactive ? [] : data;
 
     if (!isSquareList && !isFollowingList && !profile?.address) {
       return (
@@ -485,7 +529,7 @@ export default function HomeScreen() {
       );
     }
 
-    if ((state.loading || state.refreshing) && data.length === 0) {
+    if (!filtersInactive && (state.loading || state.refreshing) && displayData.length === 0) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -498,7 +542,7 @@ export default function HomeScreen() {
       <FlatList
         ref={(ref) => { flatListRefs.current[tabId] = ref; }}
         style={scrollFill}
-        data={data}
+        data={displayData}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={[styles.listContent, listContentStyle]}
@@ -520,7 +564,7 @@ export default function HomeScreen() {
         }}
         onEndReachedThreshold={0.2}
         ListFooterComponent={
-          data.length > 0 || state.hasMore ? (
+          !filtersInactive && (displayData.length > 0 || state.hasMore) ? (
             <View style={styles.footerContainer}>
               {state.loadingMore ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
@@ -528,7 +572,7 @@ export default function HomeScreen() {
                 <Button mode="text" onPress={() => triggerLoadMore(tabId)}>
                   {t('home.loadMore')}
                 </Button>
-              ) : !state.hasMore && data.length > 0 ? (
+              ) : !state.hasMore && displayData.length > 0 ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('home.noMoreData')}
                 </Text>
@@ -537,35 +581,37 @@ export default function HomeScreen() {
           ) : null
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            {state.loadingMore ? (
-              <>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text variant="bodyMedium" style={{ marginTop: 12 }}>
-                  {t('home.loadingData', { tab: tabLabels[tabId] })}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text variant="bodyMedium">
-                  {isFollowingList && subscriptions.length === 0
-                    ? t('subscriptions.noSubscriptions')
-                    : isFollowingList
-                      ? t('home.followingEmpty')
-                      : t('home.noMessages')}
-                </Text>
-                {state.hasMore ? (
-                  <Button
-                    mode="text"
-                    onPress={() => triggerLoadMore(tabId)}
-                    style={{ marginTop: 8 }}
-                  >
-                    {t('home.loadMore')}
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </View>
+          filtersInactive ? null : (
+            <View style={styles.emptyContainer}>
+              {state.loadingMore ? (
+                <>
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <Text variant="bodyMedium" style={{ marginTop: 12 }}>
+                    {t('home.loadingData', { tab: tabLabels[tabId] })}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text variant="bodyMedium">
+                    {isFollowingList && subscriptions.length === 0
+                      ? t('subscriptions.noSubscriptions')
+                      : isFollowingList
+                        ? t('home.followingEmpty')
+                        : t('home.noMessages')}
+                  </Text>
+                  {state.hasMore ? (
+                    <Button
+                      mode="text"
+                      onPress={() => triggerLoadMore(tabId)}
+                      style={{ marginTop: 8 }}
+                    >
+                      {t('home.loadMore')}
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </View>
+          )
         }
         ListHeaderComponent={
           <View>
@@ -595,6 +641,14 @@ export default function HomeScreen() {
                     <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
                   </TouchableOpacity>
                 </View>
+                {!messagesFiltersActive && (
+                  <Text
+                    variant="bodyMedium"
+                    style={[styles.noFiltersHint, { color: theme.colors.onSurfaceVariant }]}
+                  >
+                    {t('home.noFiltersSelected')}
+                  </Text>
+                )}
               </View>
             )}
             {isSquareList && (
@@ -633,7 +687,26 @@ export default function HomeScreen() {
                     />
                     <Text variant="labelMedium">{t('home.tabs.filterOAMP')}</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.filterItem}
+                    onPress={() => setShowSquareRaw(prev => !prev)}
+                  >
+                    <Checkbox.Android
+                      status={showSquareRaw ? 'checked' : 'unchecked'}
+                      onPress={() => setShowSquareRaw(prev => !prev)}
+                      uncheckedColor={theme.colors.outline}
+                    />
+                    <Text variant="labelMedium">{t('home.tabs.filterRAW')}</Text>
+                  </TouchableOpacity>
                 </View>
+                {!squareFiltersActive && (
+                  <Text
+                    variant="bodyMedium"
+                    style={[styles.noFiltersHint, { color: theme.colors.onSurfaceVariant }]}
+                  >
+                    {t('home.noFiltersSelected')}
+                  </Text>
+                )}
               </View>
             )}
             {/* headerRow 已隐藏
@@ -660,12 +733,23 @@ export default function HomeScreen() {
                       {t('home.sentTo')}: {t('send.recipientBlackHole')} {subscriptions.length > 0 ? `+ ${subscriptions.length} ${t('nav.subscriptions')}` : ''}
                     </CopyableAddress>
                   ) : (
-                    <Text
-                      variant="labelSmall"
-                      style={{ color: theme.colors.onSurfaceVariant }}
-                    >
-                      {showSquareOamp && t('home.tabs.filterOAMP')}
-                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {showSquareOamp && (
+                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                          {t('home.tabs.filterOAMP')}
+                        </Text>
+                      )}
+                      {showSquareUtf8 && (
+                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                          {t('home.tabs.filterUTF8')}
+                        </Text>
+                      )}
+                      {showSquareRaw && (
+                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                          {t('home.tabs.filterRAW')}
+                        </Text>
+                      )}
+                    </View>
                   )
                 )}
               </View>
@@ -911,6 +995,12 @@ const styles = StyleSheet.create({
   },
   filterFrame: {
     marginBottom: 12,
+  },
+  noFiltersHint: {
+    textAlign: 'center',
+    paddingTop: 8,
+    paddingBottom: 4,
+    paddingHorizontal: 12,
   },
   filterRow: {
     flexDirection: 'row',

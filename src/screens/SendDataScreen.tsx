@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
+import { useOutlineFrameStyle } from '../theme/surfaces';
 import {
   Text,
   Button,
@@ -36,7 +37,7 @@ import {
   publicKeyMatchesAddress,
 } from '../oamp/recoverPublicKey';
 import { AppModal } from '../components/AppModal';
-import { AllRpcFailedError, withRpcFallback } from '../rpc/rpcClient';
+import { AllRpcFailedError, isFeeTooLowError, withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, ethToUsdDisplay } from '../rpc/ethPrice';
 import { showAlert } from '../utils/alert';
 import * as Clipboard from 'expo-clipboard';
@@ -87,6 +88,7 @@ function sortSubscriptions(items: Subscription[]): Subscription[] {
 
 export default function SendDataScreen() {
   const theme = useTheme();
+  const outlineFrameStyle = useOutlineFrameStyle();
   const { fontScale } = useThemePreference();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteProps>();
@@ -116,6 +118,7 @@ export default function SendDataScreen() {
   const [encryptEnabled, setEncryptEnabled] = useState(initialDraft?.encryptEnabled ?? false);
   const [currentDraftId, setCurrentDraftId] = useState(routeDraftId);
   const appliedDraftRef = useRef(!!initialDraft);
+  const allowLeaveRef = useRef(false);
   const [recipientPublicKey, setRecipientPublicKey] = useState<string | null>(null);
   const [pubkeyLookupVisible, setPubkeyLookupVisible] = useState(false);
   const [noPubkeyDialogVisible, setNoPubkeyDialogVisible] = useState(false);
@@ -197,11 +200,29 @@ export default function SendDataScreen() {
     return lines.join('\n');
   }, [text, images.length, attachments.length, t]);
 
+  const hasDraftContent = useMemo(
+    () => text.length > 0 || images.length > 0 || attachments.length > 0,
+    [text, images, attachments],
+  );
+
   // Dialog states
   const [confirmSendVisible, setConfirmSendVisible] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (allowLeaveRef.current || !hasDraftContent) return;
+      if (draftSaving) {
+        e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      setCancelConfirmVisible(true);
+    });
+    return unsubscribe;
+  }, [navigation, hasDraftContent, draftSaving]);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const passwordLockRemainingMs = usePasswordLockRemaining(passwordVisible);
@@ -593,11 +614,7 @@ export default function SendDataScreen() {
   };
 
   const handleCancel = () => {
-    if (text.length > 0 || images.length > 0 || attachments.length > 0) {
-      setCancelConfirmVisible(true);
-    } else {
-      navigation.goBack();
-    }
+    navigation.goBack();
   };
 
   const confirmCancel = () => {
@@ -606,6 +623,7 @@ export default function SendDataScreen() {
     setImages([]);
     setAttachments([]);
     setEthAmount('');
+    allowLeaveRef.current = true;
     navigation.goBack();
   };
 
@@ -630,6 +648,7 @@ export default function SendDataScreen() {
     try {
       await persistDraft();
       setCancelConfirmVisible(false);
+      allowLeaveRef.current = true;
       navigation.goBack();
     } catch (error) {
       console.error('Save draft error:', error);
@@ -698,7 +717,7 @@ export default function SendDataScreen() {
 
   const startPasswordInput = () => {
     if (!canConfirmSend) return;
-    closeConfirmDialog();
+    setConfirmSendVisible(false);
     setPasswordError(null);
     setPasswordAction('send');
     setPasswordVisible(true);
@@ -806,7 +825,37 @@ export default function SendDataScreen() {
         return;
       }
 
-      setPassword('');
+      if (isFeeTooLowError(error)) {
+        showAlert(
+          t('send.feeTooLowTitle'),
+          draftSaved ? t('send.feeTooLowMsgDraftSaved') : t('send.feeTooLowMsg'),
+          [
+            {
+              text: t('common.ok'),
+              onPress: () => {
+                setPasswordVisible(false);
+                setPassword('');
+                setConfirmSendVisible(true);
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      showAlert(
+        t('common.error'),
+        draftSaved ? t('send.sendFailedDraftSaved', { error: message }) : t('send.sendFailed', { error: message }),
+        [
+          {
+            text: t('common.ok'),
+            onPress: () => {
+              setPasswordVisible(false);
+              setPassword('');
+            },
+          },
+        ],
+      );
     }
   };
 
@@ -859,9 +908,28 @@ export default function SendDataScreen() {
         return;
       }
 
-      setSnackbarMessage(t('send.sendFailed', { error: error.message }));
-      setSnackbarVisible(true);
-      setPassword('');
+      if (isFeeTooLowError(error)) {
+        showAlert(t('send.feeTooLowTitle'), t('send.feeTooLowMsg'), [
+          {
+            text: t('common.ok'),
+            onPress: () => {
+              setPasswordVisible(false);
+              setPassword('');
+            },
+          },
+        ]);
+        return;
+      }
+
+      showAlert(t('common.error'), t('send.sendFailed', { error: error.message }), [
+        {
+          text: t('common.ok'),
+          onPress: () => {
+            setPasswordVisible(false);
+            setPassword('');
+          },
+        },
+      ]);
     }
   };
 
@@ -951,23 +1019,32 @@ export default function SendDataScreen() {
         </HelperText>
 
         {attachments.map((att, index) => (
-          <Card
+          <View
             key={`att-${index}`}
-            mode="elevated"
-            style={[styles.imageListItem, { backgroundColor: theme.colors.surface }]}
+            style={[
+              styles.attachmentItem,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.outline + (theme.dark ? '50' : '40'),
+              },
+            ]}
           >
-            <View style={styles.imageCardContent}>
-              <View style={styles.imageInfo}>
+            <View style={styles.attachmentContent}>
+              <View style={styles.attachmentInfo}>
                 <Text variant="bodySmall" numberOfLines={1}>
                   {att.label} · {t(`send.attachmentType.${att.fileType}`)}
                 </Text>
-                <Text variant="bodySmall" numberOfLines={2} style={{ marginTop: 2 }}>
+                <Text
+                  variant="bodySmall"
+                  numberOfLines={2}
+                  style={[styles.attachmentHref, { color: theme.colors.onSurfaceVariant }]}
+                >
                   {wrapLongHex(att.href)}
                 </Text>
               </View>
               <IconButton icon="close" size={20} onPress={() => removeAttachment(index)} />
             </View>
-          </Card>
+          </View>
         ))}
 
         <Button
@@ -1200,25 +1277,25 @@ export default function SendDataScreen() {
           },
         ]}
       >
-        <View style={styles.confirmRow}>
+        <View style={[outlineFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmRecipient')}</Text>
           <Text style={[styles.confirmValue, styles.addressText, { fontSize: Math.round(14 * fontScale) }]} selectable>
             {wrapLongHex(recipientAddress.trim() || BLACK_HOLE)}
           </Text>
         </View>
 
-        <View style={styles.confirmRow}>
+        <View style={[outlineFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmMode')}</Text>
           <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{sendModeLabel}</Text>
         </View>
 
-        <View style={styles.confirmRow}>
+        <View style={[outlineFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmData')}</Text>
           <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{dataSummary}</Text>
         </View>
 
         {ethValueToSend > 0n && (
-          <View style={styles.confirmRow}>
+          <View style={[outlineFrameStyle, styles.confirmFrame]}>
             <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmEthAmount')}</Text>
             <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale), color: theme.colors.primary, fontWeight: 'bold' }]}>
               {ethAmount} ETH
@@ -1226,7 +1303,7 @@ export default function SendDataScreen() {
           </View>
         )}
 
-        <View style={styles.confirmRow}>
+        <View style={[outlineFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmBalance')}</Text>
           <View style={styles.feeRow}>
             {feeLoading && (
@@ -1241,7 +1318,7 @@ export default function SendDataScreen() {
           )}
         </View>
 
-        <View style={styles.confirmRow}>
+        <View style={[outlineFrameStyle, styles.confirmFrame]}>
           <View style={styles.confirmLabelRow}>
             <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmFee')}</Text>
             {!feeLoading && !feeError && (
@@ -1269,13 +1346,15 @@ export default function SendDataScreen() {
         </View>
 
         {insufficientBalance && (
-          <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
-            {t('send.insufficientBalance')}
-          </Text>
+          <View style={[outlineFrameStyle, styles.confirmFrame]}>
+            <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
+              {t('send.insufficientBalance')}
+            </Text>
+          </View>
         )}
 
         {feeError && !feeLoading && (
-          <>
+          <View style={[outlineFrameStyle, styles.confirmFrame]}>
             <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
               {t('send.feeEstimateFailedHint')}
             </Text>
@@ -1287,20 +1366,26 @@ export default function SendDataScreen() {
             >
               {t('send.feeRetry')}
             </Button>
-          </>
+          </View>
         )}
 
-        <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
-          {t('send.feeDisclaimer')}
-        </Text>
+        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+          <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
+            {t('send.feeDisclaimer')}
+          </Text>
+        </View>
 
-        <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
-          {t('send.submitNotMinedDisclaimer')}
-        </Text>
+        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+          <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
+            {t('send.submitNotMinedDisclaimer')}
+          </Text>
+        </View>
 
-        <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(12 * fontScale), lineHeight: Math.round(17 * fontScale) }]}>
-          {t('send.safetyTipMsg')}
-        </Text>
+        <View style={[outlineFrameStyle, styles.confirmFrame]}>
+          <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(12 * fontScale), lineHeight: Math.round(17 * fontScale) }]}>
+            {t('send.safetyTipMsg')}
+          </Text>
+        </View>
       </AppModal>
 
       <AppModal
@@ -1700,6 +1785,29 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
   },
+  attachmentItem: {
+    marginBottom: 8,
+    borderWidth: 1,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  attachmentContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingLeft: 12,
+    paddingRight: 4,
+  },
+  attachmentInfo: {
+    flex: 1,
+    marginRight: 4,
+  },
+  attachmentHref: {
+    marginTop: 2,
+    fontFamily: 'monospace',
+    fontSize: 12,
+    lineHeight: 16,
+  },
   shortcutRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1755,8 +1863,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 8,
   },
-  confirmRow: {
-    marginBottom: 12,
+  confirmFrame: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   confirmLabel: {
     fontSize: 13,
@@ -1800,22 +1910,18 @@ const styles = StyleSheet.create({
   confirmWarning: {
     fontSize: 13,
     lineHeight: 18,
-    marginBottom: 8,
   },
   feeRetryButton: {
     alignSelf: 'flex-start',
-    marginBottom: 8,
+    marginTop: 8,
   },
   feeDisclaimer: {
     fontSize: 13,
     lineHeight: 18,
-    marginTop: 8,
-    marginBottom: 12,
   },
   safetyTip: {
     fontSize: 12,
     lineHeight: 17,
-    marginBottom: 4,
   },
   payloadHintText: {
     paddingHorizontal: 0,

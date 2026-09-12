@@ -12,8 +12,11 @@ import { RichContentRenderer } from '../components/RichContentRenderer';
 import { CONTENT_KIND_I18N_KEY } from '../display';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
+import { getOampPayloadUtf8, isOAMP } from '../utils/oampHelper';
+import { getDisplayTime } from '../utils/datetime';
 
 type RouteProps = RouteProp<RootStackParamList, 'InputDataDetail'>;
+type ContentViewMode = 'default' | 'payload' | 'hex';
 
 export default function InputDataDetailScreen() {
   const theme = useTheme();
@@ -25,13 +28,26 @@ export default function InputDataDetailScreen() {
   const { addFavorite, removeFavorite, isFavorite } = useAppContext();
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [showRaw, setShowRaw] = useState(false);
+  const [viewMode, setViewMode] = useState<ContentViewMode>('default');
 
   const kind = item.contentKind ?? 'RAW';
   const rawHex = item.rawInput || item.description || '';
+  const isOampProtocol = isOAMP(rawHex);
+  const oampPayloadText = useMemo(
+    () => (isOampProtocol ? getOampPayloadUtf8(item) : null),
+    [isOampProtocol, item],
+  );
+  const canShowOampPayload = isOampProtocol && !!oampPayloadText;
   const favorited = isFavorite(item.id);
+  const displayTime = useMemo(() => getDisplayTime(item, t), [item, t]);
 
   const copyableContent = useMemo(() => {
+    if (viewMode === 'hex') {
+      return rawHex;
+    }
+    if (viewMode === 'payload' && oampPayloadText) {
+      return oampPayloadText;
+    }
     if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
       return item.oampItems
         .filter((entry) => entry.type === 'text')
@@ -43,7 +59,7 @@ export default function InputDataDetailScreen() {
       return item.textContent;
     }
     return rawHex;
-  }, [kind, item.oampItems, item.textContent, rawHex]);
+  }, [viewMode, oampPayloadText, kind, item.oampItems, item.textContent, rawHex]);
 
   const showSnackbar = useCallback((message: string) => {
     setSnackbarMessage(message);
@@ -67,10 +83,10 @@ export default function InputDataDetailScreen() {
   }, [item.id, showCopiedSnackbar]);
 
   const handleCopyTime = useCallback(async () => {
-    if (!item.lastActive) return;
-    await Clipboard.setStringAsync(item.lastActive);
+    if (!displayTime) return;
+    await Clipboard.setStringAsync(displayTime);
     showCopiedSnackbar();
-  }, [item.lastActive, showCopiedSnackbar]);
+  }, [displayTime, showCopiedSnackbar]);
 
   const handleToggleFavorite = useCallback(async () => {
     if (favorited) {
@@ -82,11 +98,39 @@ export default function InputDataDetailScreen() {
     }
   }, [favorited, item, addFavorite, removeFavorite, showSnackbar, t]);
 
+  const handleToggleContentView = useCallback(() => {
+    if (canShowOampPayload) {
+      setViewMode((prev) => {
+        if (prev === 'default') return 'payload';
+        if (prev === 'payload') return 'hex';
+        return 'default';
+      });
+      return;
+    }
+    setViewMode((prev) => (prev === 'default' ? 'hex' : 'default'));
+  }, [canShowOampPayload]);
+
+  const infoAccessibilityLabel = useMemo(() => {
+    if (viewMode === 'default') {
+      return canShowOampPayload ? t('detail.showPayload') : t('detail.showRaw');
+    }
+    if (viewMode === 'payload') return t('detail.showRaw');
+    return t('detail.showFormatted');
+  }, [canShowOampPayload, t, viewMode]);
+
   const renderBody = () => {
-    if (showRaw) {
+    if (viewMode === 'hex') {
       return (
         <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} selectable>
           {rawHex}
+        </Text>
+      );
+    }
+
+    if (viewMode === 'payload' && oampPayloadText) {
+      return (
+        <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} selectable>
+          {oampPayloadText}
         </Text>
       );
     }
@@ -147,10 +191,10 @@ export default function InputDataDetailScreen() {
                 <IconButton
                   icon="information-outline"
                   size={18}
-                  onPress={() => setShowRaw(!showRaw)}
-                  iconColor={showRaw ? theme.colors.tertiary : theme.colors.primary}
+                  onPress={handleToggleContentView}
+                  iconColor={viewMode !== 'default' ? theme.colors.tertiary : theme.colors.primary}
                   style={styles.copyBtn}
-                  accessibilityLabel={t('detail.showRaw')}
+                  accessibilityLabel={infoAccessibilityLabel}
                 />
               </View>
             </View>
@@ -216,7 +260,7 @@ export default function InputDataDetailScreen() {
                 {t('detail.time')}
               </Text>
               <View style={styles.valueRow}>
-                <Text variant="bodyMedium">{item.lastActive}</Text>
+                <Text variant="bodyMedium">{displayTime}</Text>
                 <IconButton
                   icon="content-copy"
                   size={18}

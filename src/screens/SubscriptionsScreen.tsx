@@ -169,12 +169,13 @@ export default function SubscriptionsScreen() {
     const existing = new Set(
       state.subscriptions.map((s) => s.address.trim().toLowerCase()),
     );
+    const selfAddress = state.profile?.address?.trim().toLowerCase();
     const toAdd: Subscription[] = [];
     let skipped = 0;
     const baseId = Date.now();
     parsed.items.forEach((item, index) => {
       const key = item.address.toLowerCase();
-      if (existing.has(key)) {
+      if ((selfAddress && key === selfAddress) || existing.has(key)) {
         skipped += 1;
         return;
       }
@@ -203,6 +204,7 @@ export default function SubscriptionsScreen() {
     closeIoModal,
     importText,
     showSnackbar,
+    state.profile?.address,
     state.subscriptions,
     t,
   ]);
@@ -443,6 +445,26 @@ export default function SubscriptionsScreen() {
             {importError}
           </Text>
         ) : null}
+        <View
+          style={[
+            styles.importRiskBox,
+            {
+              backgroundColor: theme.colors.errorContainer,
+              borderColor: theme.colors.error,
+            },
+          ]}
+        >
+          <Text
+            variant="bodySmall"
+            style={{
+              color: theme.colors.error,
+              fontSize: Math.round(13 * fontScale),
+              lineHeight: Math.round(18 * fontScale),
+            }}
+          >
+            {t('subscriptions.importRiskWarning')}
+          </Text>
+        </View>
       </AppModal>
       <FAB
         icon="plus"
@@ -531,5 +553,11 @@ const styles = StyleSheet.create({
   },
   jsonInput: {
     minHeight: 180,
+  },
+  importRiskBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
   },
 });

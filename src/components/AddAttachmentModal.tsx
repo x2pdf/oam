@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, HelperText, RadioButton, Text, TextInput, useTheme } from 'react-native-paper';
+import { Button, HelperText, Text, TextInput, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { AppModal } from './AppModal';
 import { SendDraftAttachment } from '../types';
@@ -19,17 +19,46 @@ type Props = {
   onConfirm: (attachment: SendDraftAttachment) => void;
 };
 
-const SOURCE_OPTIONS: { value: AttachmentSource; labelKey: string }[] = [
-  { value: 'arweave-id', labelKey: 'send.attachmentSourceArweaveId' },
-  { value: 'arweave-uri', labelKey: 'send.attachmentSourceArweaveUri' },
-  { value: 'uri', labelKey: 'send.attachmentSourceUri' },
+const SOURCE_OPTIONS: { value: AttachmentSource; labelKey: string; icon: string }[] = [
+  { value: 'arweave-id', labelKey: 'send.attachmentSourceArweaveId', icon: 'identifier' },
+  { value: 'arweave-uri', labelKey: 'send.attachmentSourceArweaveUri', icon: 'link' },
+  { value: 'uri', labelKey: 'send.attachmentSourceUri', icon: 'web' },
 ];
+
+type SelectionChipButtonProps = {
+  selected: boolean;
+  onPress: () => void;
+  label: string;
+  icon?: string;
+};
+
+function SelectionChipButton({ selected, onPress, label, icon }: SelectionChipButtonProps) {
+  const theme = useTheme();
+
+  return (
+    <Button
+      mode="outlined"
+      compact
+      icon={icon}
+      onPress={onPress}
+      buttonColor={selected ? theme.colors.primary : undefined}
+      textColor={selected ? theme.colors.onPrimary : theme.colors.onSurface}
+      style={[
+        styles.typeButton,
+        { borderColor: selected ? theme.colors.primary : theme.colors.outline },
+      ]}
+      labelStyle={styles.typeLabel}
+    >
+      {label}
+    </Button>
+  );
+}
 
 export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [source, setSource] = useState<AttachmentSource>('arweave-id');
-  const [fileType, setFileType] = useState<AttachmentFileType>('jpeg');
+  const [fileType, setFileType] = useState<AttachmentFileType>('other');
   const [input, setInput] = useState('');
   const [label, setLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +66,7 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
   useEffect(() => {
     if (!visible) return;
     setSource('arweave-id');
-    setFileType('jpeg');
+    setFileType('other');
     setInput('');
     setLabel('');
     setError(null);
@@ -55,7 +84,10 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
     source === 'arweave-id' ? t('send.attachmentIdPlaceholder') : t('send.attachmentUriPlaceholder');
 
   const handleConfirm = () => {
-    const resolved = resolveAttachmentHref(source, input);
+    const trimmedInput = input.trim();
+    if (trimmedInput !== input) setInput(trimmedInput);
+
+    const resolved = resolveAttachmentHref(source, trimmedInput);
     if (!resolved.ok) {
       if (resolved.error === 'empty') {
         setError(
@@ -74,7 +106,7 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
     onConfirm({
       source,
       fileType,
-      input: input.trim(),
+      input: trimmedInput,
       href: resolved.href,
       mime,
       label: trimmedLabel || t(defaultLabelI18nKey(fileType)),
@@ -96,42 +128,33 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
       <Text variant="labelLarge" style={[styles.fieldLabel, { color: theme.colors.onSurface }]}>
         {t('send.attachmentSource')}
       </Text>
-      <RadioButton.Group
-        onValueChange={(value) => {
-          setSource(value as AttachmentSource);
-          setError(null);
-        }}
-        value={source}
-      >
-        {SOURCE_OPTIONS.map((option) => (
-          <RadioButton.Item
-            key={option.value}
-            label={t(option.labelKey)}
-            value={option.value}
-            style={styles.radioItem}
+      <View style={styles.chipWrap}>
+        {SOURCE_OPTIONS.map((opt) => (
+          <SelectionChipButton
+            key={opt.value}
+            selected={source === opt.value}
+            icon={opt.icon}
+            onPress={() => {
+              setSource(opt.value);
+              setError(null);
+            }}
+            label={t(opt.labelKey)}
           />
         ))}
-      </RadioButton.Group>
+      </View>
 
       <Text variant="labelLarge" style={[styles.fieldLabel, styles.section, { color: theme.colors.onSurface }]}>
         {t('send.attachmentFileType')}
       </Text>
       <View style={styles.chipWrap}>
-        {ATTACHMENT_FILE_TYPES.map((type) => {
-          const selected = fileType === type;
-          return (
-            <Button
-              key={type}
-              mode={selected ? 'contained' : 'outlined'}
-              compact
-              onPress={() => setFileType(type)}
-              style={styles.typeButton}
-              labelStyle={styles.typeLabel}
-            >
-              {t(`send.attachmentType.${type}`)}
-            </Button>
-          );
-        })}
+        {ATTACHMENT_FILE_TYPES.map((type) => (
+          <SelectionChipButton
+            key={type}
+            selected={fileType === type}
+            onPress={() => setFileType(type)}
+            label={t(`send.attachmentType.${type}`)}
+          />
+        ))}
       </View>
 
       <TextInput
@@ -143,6 +166,7 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
           setInput(value);
           setError(null);
         }}
+        onBlur={() => setInput((value) => value.trim())}
         multiline
         numberOfLines={3}
         autoCapitalize="none"
@@ -175,10 +199,6 @@ const styles = StyleSheet.create({
   section: {
     marginTop: 8,
   },
-  radioItem: {
-    paddingLeft: 0,
-    paddingVertical: 0,
-  },
   chipWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -186,7 +206,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   typeButton: {
-    borderRadius: 8,
+    borderRadius: 6,
   },
   typeLabel: {
     fontSize: 12,

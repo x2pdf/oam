@@ -36,6 +36,7 @@ const IMAGE_MIMES = new Set([
   'image/jpeg',
   'image/png',
   'image/gif',
+  'image/webp',
   'image/heic',
   'image/avif',
   'image/jxl',

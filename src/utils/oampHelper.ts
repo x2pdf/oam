@@ -1,6 +1,8 @@
+import { hexlify, toUtf8String } from 'ethers';
 import { deserializeMessage } from '../oamp/protocol';
-import { payloadDecode, ContentItem } from '../mypayload';
+import { payloadDecode, payloadEncode, ContentItem } from '../mypayload';
 import { CryptoScheme } from '../oamp/types';
+import { InputDataItem } from '../types';
 
 /**
  * Checks if the hex string is an OAMP message.
@@ -37,5 +39,33 @@ export function parseOAMPContent(hex: string | undefined, sender: string, recipi
   } catch (e) {
     console.warn('Failed to parse OAMP content:', e);
     return null;
+  }
+}
+
+/**
+ * Extract OAMP payload for the detail-page carrier view (UTF-8 when possible).
+ * Encrypted-but-decrypted items use re-encoded profile HTML from oampItems.
+ */
+export function getOampPayloadUtf8(item: InputDataItem): string | null {
+  const hex = item.rawInput || item.description;
+  if (!isOAMP(hex)) return null;
+
+  const sender = item.from || item.address || '';
+  const recipient = item.to || '';
+  const chainId = item.chainId != null ? BigInt(item.chainId) : undefined;
+  const msg = deserializeMessage(hex!, sender, recipient, chainId, item.txNonce);
+  if (!msg) return null;
+
+  if (msg.crypto === CryptoScheme.AES_256_GCM) {
+    if (Array.isArray(item.oampItems) && item.oampItems.length > 0) {
+      return toUtf8String(payloadEncode(item.oampItems));
+    }
+    return hexlify(msg.payload);
+  }
+
+  try {
+    return toUtf8String(msg.payload);
+  } catch {
+    return hexlify(msg.payload);
   }
 }

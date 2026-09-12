@@ -1,3 +1,4 @@
+import { prefetchRemoteImagesFromItems } from '../adapter/remoteImageLoader';
 import { ContentKind, InputDataItem } from '../types';
 import { parseHexToBytes } from './hex';
 import { tryOampFilter } from './oampFilter';
@@ -20,6 +21,7 @@ async function classifyItem(item: InputDataItem, ctx: PipelineContext): Promise<
     const oamp = await tryOampFilter(item, ctx);
 
     if (oamp.kind === 'OAMP') {
+      prefetchRemoteImagesFromItems(oamp.items);
       return {
         ...item,
         contentKind: 'OAMP',

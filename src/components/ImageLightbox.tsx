@@ -10,13 +10,18 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { getImageRendererAdapter } from '../adapter';
+import { ActivityIndicator, Snackbar, Text, useTheme } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
+import { getImageRendererAdapter, peekCachedRemoteImageUri, saveImageToAlbum } from '../adapter';
+import { useCachedRemoteImage } from '../hooks/useCachedRemoteImage';
+import { isHttpUrl } from '../utils/attachment';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 6;
 const TAP_MOVE_THRESHOLD = 12;
+const LONG_PRESS_MS = 400;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -39,7 +44,8 @@ type Props = {
 let openLightbox: ((uri: string) => void) | null = null;
 
 export function openImageLightbox(uri: string) {
-  openLightbox?.(uri);
+  const cached = isHttpUrl(uri) ? peekCachedRemoteImageUri(uri) : null;
+  openLightbox?.(cached ?? uri);
 }
 
 export function ImageLightboxHost() {
@@ -58,7 +64,10 @@ export function ImageLightboxHost() {
 }
 
 export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
+  const { t } = useTranslation();
+  const theme = useTheme();
   const { width, height } = useWindowDimensions();
+  const { displayUri, loading, failed } = useCachedRemoteImage(uri);
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -69,9 +78,50 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
   const usedMultiTouch = useRef(false);
   const moved = useRef(false);
   const lastTapTime = useRef(0);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+  const savingRef = useRef(false);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const saveTargetUri = displayUri ?? uri;
+  const canSave = Boolean(
+    saveTargetUri &&
+      (saveTargetUri.startsWith('data:') ||
+        saveTargetUri.startsWith('file:') ||
+        saveTargetUri.startsWith('blob:') ||
+        isHttpUrl(saveTargetUri)),
+  );
+
+  const handleSaveImage = useCallback(async () => {
+    if (!saveTargetUri || !canSave || savingRef.current) {
+      return;
+    }
+    savingRef.current = true;
+    setSnackbarMessage(t('detail.savingImage'));
+    setSnackbarVisible(true);
+    try {
+      await saveImageToAlbum(uri ?? saveTargetUri);
+      setSnackbarMessage(t('detail.imageSaved'));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setSnackbarMessage(`${t('detail.imageSaveFailed')}: ${message}`);
+    } finally {
+      savingRef.current = false;
+    }
+  }, [saveTargetUri, uri, canSave, t]);
 
   const resetTransform = useCallback(() => {
+    clearLongPress();
+    longPressTriggered.current = false;
     currentScale.current = 1;
     currentTranslate.current = { x: 0, y: 0 };
     scale.setValue(1);
@@ -82,18 +132,19 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     usedMultiTouch.current = false;
     moved.current = false;
     setImageSize(null);
-  }, [scale, translateX, translateY]);
+  }, [clearLongPress, scale, translateX, translateY]);
 
   useEffect(() => {
     resetTransform();
-    if (uri) {
+    if (displayUri) {
       Image.getSize(
-        uri,
+        displayUri,
         (w, h) => setImageSize({ width: w, height: h }),
         () => setImageSize(null),
       );
     }
-  }, [uri, resetTransform]);
+    return () => clearLongPress();
+  }, [displayUri, resetTransform, clearLongPress]);
 
   useEffect(() => {
     if (!uri) {
@@ -165,15 +216,23 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
         onPanResponderGrant: (evt) => {
           usedMultiTouch.current = evt.nativeEvent.touches.length >= 2;
           moved.current = false;
+          longPressTriggered.current = false;
+          clearLongPress();
           pinchStartDistance.current = 0;
           pinchStartScale.current = currentScale.current;
           if (evt.nativeEvent.touches.length >= 2) {
             pinchStartDistance.current = pinchDistance(evt.nativeEvent.touches);
+          } else if (canSave) {
+            longPressTimer.current = setTimeout(() => {
+              longPressTriggered.current = true;
+              handleSaveImage();
+            }, LONG_PRESS_MS);
           }
         },
         onPanResponderMove: (evt, gesture) => {
           const touches = evt.nativeEvent.touches;
           if (touches.length >= 2) {
+            clearLongPress();
             usedMultiTouch.current = true;
             moved.current = true;
             if (pinchStartDistance.current <= 0) {
@@ -189,10 +248,12 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             return;
           }
 
+          if (Math.abs(gesture.dx) > TAP_MOVE_THRESHOLD || Math.abs(gesture.dy) > TAP_MOVE_THRESHOLD) {
+            clearLongPress();
+            moved.current = true;
+          }
+
           if (currentScale.current > MIN_SCALE) {
-            if (Math.abs(gesture.dx) > TAP_MOVE_THRESHOLD || Math.abs(gesture.dy) > TAP_MOVE_THRESHOLD) {
-              moved.current = true;
-            }
             const next = clampTranslate(
               currentTranslate.current.x + gesture.dx,
               currentTranslate.current.y + gesture.dy,
@@ -201,13 +262,12 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             translateX.setValue(next.x);
             translateY.setValue(next.y);
           } else {
-            if (Math.abs(gesture.dx) > TAP_MOVE_THRESHOLD || Math.abs(gesture.dy) > TAP_MOVE_THRESHOLD) {
-              moved.current = true;
-            }
             translateY.setValue(gesture.dy);
           }
         },
         onPanResponderRelease: (evt, gesture) => {
+          clearLongPress();
+
           if (currentScale.current > MIN_SCALE) {
             const next = clampTranslate(
               currentTranslate.current.x + gesture.dx,
@@ -230,6 +290,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           }
 
           const isTap =
+            !longPressTriggered.current &&
             !usedMultiTouch.current &&
             !moved.current &&
             Math.abs(gesture.dx) < TAP_MOVE_THRESHOLD &&
@@ -238,6 +299,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           pinchStartDistance.current = 0;
           usedMultiTouch.current = false;
           moved.current = false;
+          longPressTriggered.current = false;
 
           if (isTap) {
             const { locationX, locationY } = evt.nativeEvent;
@@ -272,6 +334,8 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           }
         },
         onPanResponderTerminate: () => {
+          clearLongPress();
+          longPressTriggered.current = false;
           pinchStartDistance.current = 0;
           usedMultiTouch.current = false;
           moved.current = false;
@@ -280,7 +344,18 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           }
         },
       }),
-    [applyScale, clampTranslate, onClose, translateX, translateY, width, height, imageSize, getImageLayout, scale],
+    [
+      applyScale,
+      canSave,
+      clampTranslate,
+      clearLongPress,
+      getImageLayout,
+      handleSaveImage,
+      onClose,
+      scale,
+      translateX,
+      translateY,
+    ],
   );
 
   const handleWheel = useCallback(
@@ -329,9 +404,31 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             },
           ]}
         >
-          <PlatformImage uri={uri} style={{ width, height }} resizeMode="contain" />
+          {displayUri ? (
+            <PlatformImage uri={displayUri} style={{ width, height }} resizeMode="contain" />
+          ) : null}
         </Animated.View>
+        {(loading || failed) && (
+          <View style={styles.loadingOverlay} pointerEvents="none">
+            {loading ? (
+              <>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text variant="bodyMedium" style={styles.loadingText}>
+                  {t('detail.loadingImage')}
+                </Text>
+              </>
+            ) : null}
+          </View>
+        )}
       </Animated.View>
+      <Snackbar
+        visible={snackbarVisible}
+        onDismiss={() => setSnackbarVisible(false)}
+        duration={2000}
+        style={styles.snackbar}
+      >
+        {snackbarMessage}
+      </Snackbar>
     </Modal>
   );
 };
@@ -344,5 +441,17 @@ const styles = StyleSheet.create({
   imageWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  snackbar: {
+    marginBottom: 24,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    marginTop: 12,
   },
 });

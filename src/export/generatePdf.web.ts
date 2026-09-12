@@ -89,7 +89,7 @@ async function htmlToPdfBytes(html: string, filename: string): Promise<Uint8Arra
     const makePdf = resolveHtml2Pdf();
     const blob: Blob = await makePdf()
       .set({
-        margin: 10,
+        margin: [20, 0, 20, 0],
         filename,
         image: { type: 'jpeg', quality: 0.92 },
         html2canvas: {

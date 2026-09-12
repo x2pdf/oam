@@ -55,6 +55,12 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
       newErrors.address = t('form.addressRequired');
     } else if (address.length > MAX_ADDRESS_LENGTH) {
       newErrors.address = t('form.addressMaxLength', { max: MAX_ADDRESS_LENGTH });
+    } else if (
+      source === 'subscriptions' &&
+      state.profile?.address &&
+      address.trim().toLowerCase() === state.profile.address.trim().toLowerCase()
+    ) {
+      newErrors.address = t('form.addressSelf');
     }
 
     if (!description.trim()) {
@@ -65,7 +71,7 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [address, description, t]);
+  }, [address, description, source, state.profile?.address, t]);
 
   /* ---------- 地址查重 ---------- */
   const checkDuplicate = useCallback((): Subscription | null => {

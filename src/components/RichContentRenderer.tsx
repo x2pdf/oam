@@ -1,13 +1,14 @@
 import React, { useCallback, useState } from 'react';
 import { Linking, View, StyleSheet } from 'react-native';
-import { Text, Portal, Snackbar, useTheme } from 'react-native-paper';
+import { Text, Portal, Snackbar, Icon, useTheme } from 'react-native-paper';
 import { ContentItem } from '../mypayload';
 import { getImageRendererAdapter, saveImageToAlbum } from '../adapter';
 import { useTranslation } from 'react-i18next';
 import { truncateListText } from '../utils/text';
+import { CachedRemoteImage } from './CachedRemoteImage';
 import { openImageLightbox } from './ImageLightbox';
 import { wrapImagePress } from '../adapter/wrapImagePress';
-import { isImageMime } from '../utils/attachment';
+import { isHttpUrl, isImageMime } from '../utils/attachment';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
@@ -24,14 +25,14 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  const handleSaveImage = useCallback(async (dataUri: string) => {
+  const handleSaveImage = useCallback(async (imageUri: string) => {
     if (saving) return;
-    if (!dataUri.startsWith('data:')) return;
+    if (!imageUri.startsWith('data:') && !isHttpUrl(imageUri)) return;
     setSaving(true);
     setSnackbarMessage(t('detail.savingImage'));
     setSnackbarVisible(true);
     try {
-      await saveImageToAlbum(dataUri);
+      await saveImageToAlbum(imageUri);
       setSnackbarMessage(t('detail.imageSaved'));
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
@@ -67,11 +68,24 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
           );
         }
         if (item.type === 'image') {
+          const imageStyle = [styles.image, { backgroundColor: theme.dark ? '#262626' : '#F5F5F5' }];
+          if (isHttpUrl(item.data)) {
+            return (
+              <CachedRemoteImage
+                key={index}
+                uri={item.data}
+                style={imageStyle}
+                resizeMode="contain"
+                onPressWithUri={(resolvedUri) => openImageLightbox(resolvedUri)}
+                onLongPress={() => handleSaveImage(item.data)}
+              />
+            );
+          }
           return (
             <PlatformImage
               key={index}
               uri={item.data}
-              style={[styles.image, { backgroundColor: theme.dark ? '#262626' : '#F5F5F5' }]}
+              style={imageStyle}
               resizeMode="contain"
               onPress={() => openImageLightbox(item.data)}
               onLongPress={() => handleSaveImage(item.data)}
@@ -85,7 +99,9 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
               href={item.href}
               mime={item.mime}
               label={item.label}
+              download={item.download}
               onOpen={() => handleOpenUrl(item.href)}
+              onSaveImage={() => handleSaveImage(item.href)}
             />
           );
         }
@@ -105,28 +121,45 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
   );
 };
 
+function mimeToIcon(mime: string): string {
+  const m = mime.toLowerCase();
+  if (m.startsWith('video/')) return 'play-circle-outline';
+  if (m === 'application/pdf') return 'file-pdf-box';
+  if (m === 'application/zip') return 'folder-zip-outline';
+  return 'file-outline';
+}
+
 function LinkAttachment({
   href,
   mime,
   label,
+  download,
   onOpen,
+  onSaveImage,
 }: {
   href: string;
   mime: string;
   label: string;
+  download?: boolean;
   onOpen: () => void;
+  onSaveImage: () => void;
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [imageFailed, setImageFailed] = useState(false);
   const showImage = isImageMime(mime) && !imageFailed;
+  const displayLabel = label || href;
+  const tapHint = download ? t('detail.tapToOpenOrDownload') : t('detail.tapToOpen');
 
   if (showImage) {
     return (
-      <PlatformImage
+      <CachedRemoteImage
         uri={href}
+        mimeType={mime}
         style={[styles.image, { backgroundColor: theme.dark ? '#262626' : '#F5F5F5' }]}
         resizeMode="contain"
-        onPress={() => openImageLightbox(href)}
+        onPressWithUri={(resolvedUri) => openImageLightbox(resolvedUri)}
+        onLongPress={onSaveImage}
         onError={() => setImageFailed(true)}
       />
     );
@@ -138,13 +171,34 @@ function LinkAttachment({
         styles.linkCard,
         { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant },
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={displayLabel}
+      accessibilityHint={tapHint}
     >
-      <Text variant="bodyMedium" style={{ color: theme.colors.onSurface }} numberOfLines={2}>
-        {label || href}
-      </Text>
-      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }} numberOfLines={1}>
-        {mime}
-      </Text>
+      <View style={styles.linkCardRow}>
+        <Icon
+          source={mimeToIcon(mime)}
+          size={28}
+          color={theme.colors.primary}
+        />
+        <View style={styles.linkCardContent}>
+          <Text variant="bodyMedium" style={{ color: theme.colors.onSurface }} numberOfLines={2}>
+            {displayLabel}
+          </Text>
+          <Text
+            variant="bodySmall"
+            style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}
+            numberOfLines={2}
+          >
+            {tapHint}
+          </Text>
+        </View>
+        <Icon
+          source="open-in-new"
+          size={20}
+          color={theme.colors.onSurfaceVariant}
+        />
+      </View>
     </View>,
     { onPress: onOpen },
   );
@@ -171,5 +225,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     padding: 12,
     marginVertical: 8,
+  },
+  linkCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  linkCardContent: {
+    flex: 1,
+    minWidth: 0,
   },
 });
