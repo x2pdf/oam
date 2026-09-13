@@ -52,28 +52,55 @@ export function AppModal({
   // content height → Modal recenters → KAV recalculates → visible jitter loop.
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
+  const resetKeyboardOffset = () => {
+    Keyboard.dismiss();
+    setKeyboardHeight(0);
+  };
+
+  const handleActionPress = (action: AppModalAction) => {
+    resetKeyboardOffset();
+    void action.onPress();
+  };
+
+  const anyActionLoading = actions?.some((action) => action.loading) ?? false;
+
   useEffect(() => {
     if (!visible) {
       setKeyboardHeight(0);
       return;
     }
 
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showEvents =
+      Platform.OS === 'ios' ? (['keyboardWillShow'] as const) : (['keyboardDidShow'] as const);
+    const hideEvents =
+      Platform.OS === 'ios'
+        ? (['keyboardWillHide', 'keyboardDidHide'] as const)
+        : (['keyboardDidHide'] as const);
 
-    const onShow = Keyboard.addListener(showEvent, (e) => {
-      const next = Math.round(e.endCoordinates.height);
-      setKeyboardHeight((prev) => (prev === next ? prev : next));
-    });
-    const onHide = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
+    const subscriptions = [
+      ...showEvents.map((event) =>
+        Keyboard.addListener(event, (e) => {
+          const next = Math.round(e.endCoordinates.height);
+          setKeyboardHeight((prev) => (prev === next ? prev : next));
+        }),
+      ),
+      ...hideEvents.map((event) =>
+        Keyboard.addListener(event, () => {
+          setKeyboardHeight(0);
+        }),
+      ),
+    ];
 
     return () => {
-      onShow.remove();
-      onHide.remove();
+      subscriptions.forEach((subscription) => subscription.remove());
     };
   }, [visible]);
+
+  useEffect(() => {
+    if (anyActionLoading) {
+      resetKeyboardOffset();
+    }
+  }, [anyActionLoading]);
 
   // iOS does not resize the window for the keyboard; shift the modal up once.
   // Android uses adjustResize, so the window height already shrinks — do not
@@ -135,7 +162,7 @@ export function AppModal({
                 <Button
                   key={`${action.label}-${index}`}
                   mode={action.mode ?? (index === lastIndex ? 'contained' : 'text')}
-                  onPress={action.onPress}
+                  onPress={() => handleActionPress(action)}
                   loading={action.loading}
                   disabled={action.disabled}
                   textColor={action.textColor}
