@@ -575,12 +575,12 @@ export default function HomeScreen() {
           ) : undefined
         }
         onEndReached={() => {
-          if (!state.hasMore || state.loadingMore) return;
+          if (!state.hasMore || state.loadingMore || state.refreshing || state.loading) return;
           triggerLoadMore(tabId);
         }}
         onEndReachedThreshold={0.2}
         ListFooterComponent={
-          !filtersInactive && (displayData.length > 0 || state.hasMore) ? (
+          !filtersInactive && displayData.length > 0 ? (
             <View style={styles.footerContainer}>
               {state.loadingMore ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />

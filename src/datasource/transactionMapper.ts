@@ -16,22 +16,23 @@ export function filterTransactionsByMode(
   cleanAddress: string,
   mode: FetchMode,
 ): ChainTransaction[] {
+  const clean = cleanAddress.trim().toLowerCase();
   return txs.filter((tx) => {
     if (!tx.hasInput) return false;
 
     if (mode === 'self') {
-      return tx.fromLower === cleanAddress && tx.toLower === cleanAddress;
+      return tx.fromLower === clean && tx.toLower === clean;
     }
     if (mode === 'square') {
-      return tx.toLower === cleanAddress;
+      return tx.toLower === clean;
     }
     if (mode === 'sent') {
-      return tx.fromLower === cleanAddress;
+      return tx.fromLower === clean;
     }
     if (mode === 'all') {
-      return tx.fromLower === cleanAddress || tx.toLower === cleanAddress;
+      return tx.fromLower === clean || tx.toLower === clean;
     }
-    return tx.toLower === cleanAddress;
+    return tx.toLower === clean;
   });
 }
 
@@ -77,7 +78,8 @@ export function mapTransactionsToMessages(
 
 export function mapToOutgoingTx(tx: ChainTransaction, cleanAddress: string): OutgoingTx | null {
   if (!tx.hash) return null;
-  if (tx.fromLower && tx.fromLower !== cleanAddress) return null;
+  const clean = cleanAddress.trim().toLowerCase();
+  if (tx.fromLower && tx.fromLower !== clean) return null;
   return { hash: tx.hash };
 }
 
