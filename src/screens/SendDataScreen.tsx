@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { useModalInsetFrameStyle } from '../theme/surfaces';
@@ -20,6 +20,8 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { getHeaderChrome } from '../theme';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR, PASSWORD_LOCKED_ERROR } from '../wallet/session';
 import { usePasswordLockRemaining } from '../wallet/WalletSessionContext';
 import { isAddress, parseEther, formatEther, parseUnits, formatUnits, Wallet } from 'ethers';
@@ -210,6 +212,33 @@ export default function SendDataScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
+
+  const requestLeave = useCallback(() => {
+    if (allowLeaveRef.current || !hasDraftContent) {
+      navigation.goBack();
+      return;
+    }
+    if (draftSaving) return;
+    setCancelConfirmVisible(true);
+  }, [hasDraftContent, draftSaving, navigation]);
+
+  useLayoutEffect(() => {
+    const headerChrome = getHeaderChrome(theme);
+    navigation.setOptions({
+      gestureEnabled: !hasDraftContent,
+      headerLeft: () => (
+        <Pressable
+          onPress={requestLeave}
+          style={styles.headerBackBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+        >
+          <Ionicons name="chevron-back" size={28} color={headerChrome.tintColor} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, theme, hasDraftContent, requestLeave, t]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
@@ -614,7 +643,7 @@ export default function SendDataScreen() {
   };
 
   const handleCancel = () => {
-    navigation.goBack();
+    requestLeave();
   };
 
   const confirmCancel = () => {
@@ -1951,5 +1980,9 @@ const styles = StyleSheet.create({
   hexHint: {
     paddingHorizontal: 0,
     marginTop: 8,
+  },
+  headerBackBtn: {
+    marginLeft: Platform.OS === 'ios' ? 0 : 4,
+    padding: 4,
   },
 });
