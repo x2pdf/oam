@@ -49,3 +49,11 @@ export function mapTransactionToListItem(
     contentItems,
   };
 }
+
+export function isDisplayableListItem(item: ArweaveListItem): boolean {
+  return item.contentItems.length > 0;
+}
+
+export function filterDisplayableListItems(items: ArweaveListItem[]): ArweaveListItem[] {
+  return items.filter(isDisplayableListItem);
+}

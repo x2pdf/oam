@@ -3,7 +3,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { fetchOwnerTransactions } from '../api/graphql';
 import { arweaveListCacheService } from '../cache/cacheService';
 import { ARWEAVE_GRAPHQL_PAGE_SIZE } from '../constants';
-import { mapTransactionToListItem } from '../mapToListItem';
+import {
+  filterDisplayableListItems,
+  mapTransactionToListItem,
+} from '../mapToListItem';
 import { ArweaveListItem } from '../types';
 
 export interface ArweaveTransactionsState {
@@ -53,9 +56,52 @@ async function readCachePage(owner: string, offset: number): Promise<{
   items: ArweaveListItem[];
   hasMore: boolean;
 }> {
-  const items = await arweaveListCacheService.getItems(owner, ARWEAVE_GRAPHQL_PAGE_SIZE, offset);
-  const hasMore = await arweaveListCacheService.hasMore(owner, offset + items.length);
+  const rawItems = await arweaveListCacheService.getItems(owner, ARWEAVE_GRAPHQL_PAGE_SIZE, offset);
+  const items = filterDisplayableListItems(rawItems);
+  const hasMore = await arweaveListCacheService.hasMore(owner, offset + rawItems.length);
   return { items, hasMore };
+}
+
+interface FetchDisplayablePageResult {
+  mapped: ArweaveListItem[];
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+async function fetchDisplayablePage(
+  owner: string,
+  after: string | null,
+  mode: 'initial' | 'refresh' | 'more',
+): Promise<FetchDisplayablePageResult> {
+  let currentAfter = after;
+  let allMapped: ArweaveListItem[] = [];
+  let hasNextPage = false;
+  let endCursor: string | null = null;
+
+  for (let attempt = 0; attempt < MAX_EMPTY_FETCH_ATTEMPTS; attempt++) {
+    const result =
+      mode !== 'more' && attempt === 0
+        ? await fetchWithRetry(owner, currentAfter, MAX_EMPTY_FETCH_ATTEMPTS)
+        : await fetchOwnerTransactions(owner, { after: currentAfter });
+
+    const mapped = filterDisplayableListItems(
+      result.items.map((tx) => mapTransactionToListItem(tx, owner)),
+    );
+    allMapped = mergeUniqueItems(allMapped, mapped);
+    hasNextPage = result.hasNextPage;
+    endCursor = result.endCursor;
+
+    if (allMapped.length > 0 || !hasNextPage) {
+      break;
+    }
+
+    if (!endCursor) {
+      break;
+    }
+    currentAfter = endCursor;
+  }
+
+  return { mapped: allMapped, hasNextPage, endCursor };
 }
 
 export function useArweaveTransactions(address: string | undefined) {
@@ -128,12 +174,8 @@ export function useArweaveTransactions(address: string | undefined) {
 
       try {
         const after = mode === 'more' ? cursorRef.current : null;
-        const result =
-          mode === 'more'
-            ? await fetchOwnerTransactions(owner, { after })
-            : await fetchWithRetry(owner, after, MAX_EMPTY_FETCH_ATTEMPTS);
-        const mapped = result.items.map((tx) => mapTransactionToListItem(tx, owner));
-        await applyNetworkResult(owner, mode, mapped, result.hasNextPage, result.endCursor);
+        const { mapped, hasNextPage, endCursor } = await fetchDisplayablePage(owner, after, mode);
+        await applyNetworkResult(owner, mode, mapped, hasNextPage, endCursor);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
         const usedCache = await applyCacheFallback(owner, mode);

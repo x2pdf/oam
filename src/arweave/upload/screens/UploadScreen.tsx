@@ -536,7 +536,11 @@ const styles = StyleSheet.create({
   buttonGroup: { marginTop: 32, gap: 12 },
   button: { borderRadius: 8 },
   buttonContent: { paddingVertical: 6 },
-  confirmFrame: { marginBottom: 12 },
+  confirmFrame: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
   confirmLabel: { fontWeight: '600', marginBottom: 4 },
   confirmValue: {},
   confirmWarning: { lineHeight: 18 },
