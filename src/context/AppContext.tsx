@@ -85,6 +85,7 @@ function isSendDraft(value: unknown): value is SendDraft {
 interface AppState {
   subscriptions: Subscription[];
   profile: Subscription | null;
+  arProfile: Subscription | null;
   apiKey: string;
   favorites: FavoriteItem[];
   drafts: SendDraft[];
@@ -96,6 +97,7 @@ interface AppState {
 const initialState: AppState = {
   subscriptions: [],
   profile: null,
+  arProfile: null,
   apiKey: '',
   favorites: [],
   drafts: [],
@@ -115,6 +117,7 @@ type Action =
   | { type: 'UPDATE_SUBSCRIPTION'; payload: Subscription }
   | { type: 'DELETE_SUBSCRIPTION'; payload: string }
   | { type: 'SET_PROFILE'; payload: Subscription | null }
+  | { type: 'SET_AR_PROFILE'; payload: Subscription | null }
   | { type: 'SET_API_KEY'; payload: string }
   | { type: 'SET_FAVORITES'; payload: FavoriteItem[] }
   | { type: 'ADD_FAVORITE'; payload: FavoriteItem }
@@ -155,6 +158,8 @@ function appReducer(state: AppState, action: Action): AppState {
       };
     case 'SET_PROFILE':
       return { ...state, profile: action.payload };
+    case 'SET_AR_PROFILE':
+      return { ...state, arProfile: action.payload };
     case 'SET_API_KEY':
       return { ...state, apiKey: action.payload };
     case 'SET_FAVORITES':
@@ -214,6 +219,9 @@ interface AppContextType {
   saveProfile: (item: Subscription) => Promise<void>;
   updateProfile: (item: Subscription) => Promise<void>;
   deleteProfile: () => Promise<void>;
+  saveArProfile: (item: Subscription) => Promise<void>;
+  updateArProfile: (item: Subscription) => Promise<void>;
+  deleteArProfile: () => Promise<void>;
   setApiKey: (key: string) => Promise<void>;
   addFavorite: (item: InputDataItem) => Promise<void>;
   removeFavorite: (id: string) => Promise<void>;
@@ -247,6 +255,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
         const results = await AsyncStorage.multiGet([
           STORAGE_KEYS.SUBSCRIPTIONS,
           STORAGE_KEYS.PROFILE,
+          STORAGE_KEYS.AR_PROFILE,
           STORAGE_KEYS.API_KEY,
           STORAGE_KEYS.FAVORITES,
           STORAGE_KEYS.DRAFTS,
@@ -255,11 +264,12 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
         ]);
         const subsValue = results[0]?.[1];
         const profileValue = results[1]?.[1];
-        const apiKeyValue = results[2]?.[1];
-        const favoritesValue = results[3]?.[1];
-        const draftsValue = results[4]?.[1];
-        const weightsValue = results[5]?.[1];
-        const homeTabWeightsValue = results[6]?.[1];
+        const arProfileValue = results[2]?.[1];
+        const apiKeyValue = results[3]?.[1];
+        const favoritesValue = results[4]?.[1];
+        const draftsValue = results[5]?.[1];
+        const weightsValue = results[6]?.[1];
+        const homeTabWeightsValue = results[7]?.[1];
         if (subsValue) {
           const subs: Subscription[] = JSON.parse(subsValue);
           dispatch({
@@ -271,6 +281,12 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
           dispatch({
             type: 'SET_PROFILE',
             payload: normalizeSubscription(JSON.parse(profileValue)),
+          });
+        }
+        if (arProfileValue) {
+          dispatch({
+            type: 'SET_AR_PROFILE',
+            payload: normalizeSubscription(JSON.parse(arProfileValue)),
           });
         }
         if (apiKeyValue !== null) {
@@ -360,6 +376,19 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     dispatch({ type: 'SET_PROFILE', payload: null });
   }, []);
 
+  /* ---------- AR Profile CRUD ---------- */
+  const saveArProfile = useCallback(async (item: Subscription) => {
+    dispatch({ type: 'SET_AR_PROFILE', payload: item });
+  }, []);
+
+  const updateArProfile = useCallback(async (item: Subscription) => {
+    dispatch({ type: 'SET_AR_PROFILE', payload: item });
+  }, []);
+
+  const deleteArProfile = useCallback(async () => {
+    dispatch({ type: 'SET_AR_PROFILE', payload: null });
+  }, []);
+
   /* ---------- API Key ---------- */
   const setApiKey = useCallback(async (key: string) => {
     dispatch({ type: 'SET_API_KEY', payload: key });
@@ -429,6 +458,19 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     }
   }, [state.profile, state.isLoading]);
 
+  /* ---------- 同步 AR Profile 到 AsyncStorage ---------- */
+  useEffect(() => {
+    if (state.isLoading) return;
+    if (state.arProfile) {
+      AsyncStorage.setItem(
+        STORAGE_KEYS.AR_PROFILE,
+        JSON.stringify(state.arProfile),
+      ).catch(console.warn);
+    } else {
+      AsyncStorage.removeItem(STORAGE_KEYS.AR_PROFILE).catch(console.warn);
+    }
+  }, [state.arProfile, state.isLoading]);
+
   /* ---------- 同步 API Key 到 AsyncStorage ---------- */
   useEffect(() => {
     if (!state.isLoading && state.apiKey !== undefined) {
@@ -489,6 +531,9 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       saveProfile,
       updateProfile,
       deleteProfile,
+      saveArProfile,
+      updateArProfile,
+      deleteArProfile,
       setApiKey,
       addFavorite,
       removeFavorite,
@@ -507,6 +552,9 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       saveProfile,
       updateProfile,
       deleteProfile,
+      saveArProfile,
+      updateArProfile,
+      deleteArProfile,
       setApiKey,
       addFavorite,
       removeFavorite,

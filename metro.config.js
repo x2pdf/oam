@@ -30,6 +30,14 @@ config.resolver = {
     ) {
       return { type: 'empty' };
     }
+    // arweave 的 react-native 入口依赖 Node crypto；原生端改用 web 构建
+    if (platform !== 'web' && moduleName === 'arweave') {
+      return context.resolveRequest(
+        context,
+        path.resolve(__dirname, 'node_modules/arweave/web/index.js'),
+        platform,
+      );
+    }
     if (defaultResolveRequest) {
       return defaultResolveRequest(context, moduleName, platform);
     }

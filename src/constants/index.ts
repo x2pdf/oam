@@ -19,6 +19,7 @@ export const STORAGE_KEYS = {
   FONT_SCALE: '@oam_font_scale',
   DATA_SOURCE_WEIGHTS: '@oam_data_source_weights',
   HOME_TAB_WEIGHTS: '@oam_home_tab_weights',
+  AR_PROFILE: '@oam_ar_profile',
 } as const;
 
 /** 旧版 OnchainData 存储键，仅用于一次性迁移 */

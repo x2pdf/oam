@@ -743,6 +743,37 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
+        {/* 10.5 Arweave 轻量版 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={() => navigation.navigate('ArweaveProfile')}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="cloud-outline"
+                style={{ backgroundColor: theme.colors.secondaryContainer }}
+                color={theme.colors.secondary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.arweaveLite')}
+                </Text>
+                <Text variant="titleMedium">
+                  {t('profile.arweaveLiteHint')}
+                </Text>
+              </View>
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('ArweaveProfile')} />
+            </View>
+          </Card.Content>
+        </Card>
+
         {/* 11. 应用信息 */}
         <View style={styles.sectionSpacer} />
         <Card

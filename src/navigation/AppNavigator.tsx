@@ -35,6 +35,15 @@ import AppInfoScreen from '../screens/AppInfoScreen';
 import FollowListSelectionScreen from '../screens/FollowListSelectionScreen';
 import CacheManagementScreen from '../screens/CacheManagementScreen';
 import ExportDataScreen from '../screens/ExportDataScreen';
+import ArweaveProfileScreen from '../arweave/screens/ArweaveProfileScreen';
+import ArweaveAddInfoSelectScreen from '../arweave/screens/wallet/AddInfoSelectScreen';
+import ArweaveCreateDisclaimerScreen from '../arweave/screens/wallet/CreateDisclaimerScreen';
+import ArweaveImportDisclaimerScreen from '../arweave/screens/wallet/ImportDisclaimerScreen';
+import ArweaveJwkBackupScreen from '../arweave/screens/wallet/JwkBackupScreen';
+import ArweaveJwkInputScreen from '../arweave/screens/wallet/JwkInputScreen';
+import ArweaveJwkVerifyScreen from '../arweave/screens/wallet/JwkVerifyScreen';
+import ArweaveUploadScreen from '../arweave/upload/screens/UploadScreen';
+import ArweaveDataDetailScreen from '../arweave/list/screens/ArweaveDataDetailScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { getHeaderChrome } from '../theme';
 
@@ -330,6 +339,51 @@ export default function AppNavigator() {
           options={{
             title: t('send.recipientFollowingTitle'),
           }}
+        />
+        <Stack.Screen
+          name="ArweaveProfile"
+          component={ArweaveProfileScreen}
+          options={{ title: t('nav.arweaveProfile') }}
+        />
+        <Stack.Screen
+          name="ArweaveAddInfoSelect"
+          component={ArweaveAddInfoSelectScreen}
+          options={{ title: t('nav.arweaveAddInfoSelect') }}
+        />
+        <Stack.Screen
+          name="ArweaveCreateDisclaimer"
+          component={ArweaveCreateDisclaimerScreen}
+          options={{ title: t('nav.arweaveCreateDisclaimer') }}
+        />
+        <Stack.Screen
+          name="ArweaveImportDisclaimer"
+          component={ArweaveImportDisclaimerScreen}
+          options={{ title: t('nav.arweaveImportDisclaimer') }}
+        />
+        <Stack.Screen
+          name="ArweaveJwkBackup"
+          component={ArweaveJwkBackupScreen}
+          options={{ title: t('nav.arweaveJwkBackup') }}
+        />
+        <Stack.Screen
+          name="ArweaveJwkInput"
+          component={ArweaveJwkInputScreen}
+          options={{ title: t('nav.arweaveJwkInput') }}
+        />
+        <Stack.Screen
+          name="ArweaveJwkVerify"
+          component={ArweaveJwkVerifyScreen}
+          options={{ title: t('nav.arweaveJwkVerify') }}
+        />
+        <Stack.Screen
+          name="ArweaveUpload"
+          component={ArweaveUploadScreen}
+          options={{ title: t('nav.arweaveUpload') }}
+        />
+        <Stack.Screen
+          name="ArweaveDataDetail"
+          component={ArweaveDataDetailScreen}
+          options={{ title: t('nav.arweaveDataDetail') }}
         />
       </Stack.Navigator>
     </NavigationContainer>

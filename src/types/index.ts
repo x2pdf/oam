@@ -2,12 +2,13 @@
  * Application-wide type definitions
  */
 
+import type { ArweaveListItem } from '../arweave/list/types';
 import { ContentItem } from '../mypayload';
 import { DEFAULT_CHAIN } from '../constants';
 import { AttachmentFileType, AttachmentSource } from '../utils/attachment';
 
 /** 链标识 slug，便于后续扩展多链 */
-export type ChainSlug = 'ethereum';
+export type ChainSlug = 'ethereum' | 'arweave';
 
 /** 订阅/地址记录 */
 export interface Subscription {
@@ -125,6 +126,15 @@ export type RootStackParamList = {
   CacheManagement: undefined;
   FollowListSelection: undefined;
   ExportData: undefined;
+  ArweaveProfile: undefined;
+  ArweaveAddInfoSelect: undefined;
+  ArweaveCreateDisclaimer: undefined;
+  ArweaveImportDisclaimer: undefined;
+  ArweaveJwkBackup: undefined;
+  ArweaveJwkInput: undefined;
+  ArweaveJwkVerify: { jwk: string; address: string };
+  ArweaveUpload: undefined;
+  ArweaveDataDetail: { item: ArweaveListItem };
 };
 
 export type MainTabParamList = {

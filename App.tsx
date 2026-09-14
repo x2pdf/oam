@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import './src/i18n'; // Initialize i18n
+import { initArweaveCacheDatabase } from './src/arweave/list/cache/database';
 import { initDatabase } from './src/storage/database';
 import { AppProvider, useAppContext } from './src/context/AppContext';
 import { ThemeProvider, useThemePreference } from './src/context/ThemeContext';
@@ -46,7 +47,7 @@ function AppContent() {
  */
 export default function App() {
   useEffect(() => {
-    initDatabase().catch((e) => {
+    Promise.all([initDatabase(), initArweaveCacheDatabase()]).catch((e) => {
       console.warn('Failed to initialize cache database:', e);
     });
   }, []);
