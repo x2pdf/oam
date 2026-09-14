@@ -193,6 +193,11 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
         style={styles.uriInput}
         contentStyle={styles.uriContent}
       />
+      {source === 'arweave-id' && (
+        <HelperText type="info" visible style={{ paddingHorizontal: 0 }}>
+          {t('send.attachmentIdHint')}
+        </HelperText>
+      )}
       <HelperText type="error" visible={!!(error || uriError)}>
         {error || uriError || ' '}
       </HelperText>
