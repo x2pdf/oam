@@ -19,6 +19,28 @@ type Props = {
   onConfirm: (attachment: SendDraftAttachment) => void;
 };
 
+/** Shared props so URI/ID field keyboard does not leak into the display-name field. */
+const URI_INPUT_PROPS = {
+  multiline: true,
+  numberOfLines: 3,
+  autoCapitalize: 'none' as const,
+  autoCorrect: false,
+  autoComplete: 'off' as const,
+  spellCheck: false,
+  importantForAutofill: 'no' as const,
+  textContentType: 'none' as const,
+};
+
+const LABEL_INPUT_PROPS = {
+  keyboardType: 'default' as const,
+  autoCapitalize: 'sentences' as const,
+  autoCorrect: false,
+  autoComplete: 'off' as const,
+  spellCheck: false,
+  importantForAutofill: 'no' as const,
+  textContentType: 'none' as const,
+};
+
 const SOURCE_OPTIONS: { value: AttachmentSource; labelKey: string; icon: string }[] = [
   { value: 'arweave-id', labelKey: 'send.attachmentSourceArweaveId', icon: 'identifier' },
   { value: 'arweave-uri', labelKey: 'send.attachmentSourceArweaveUri', icon: 'link' },
@@ -166,13 +188,8 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
           setInput(value);
           setError(null);
         }}
-        onBlur={() => setInput((value) => value.trim())}
-        multiline
-        numberOfLines={3}
-        autoCapitalize="none"
-        autoCorrect={false}
-        autoComplete="off"
-        spellCheck={false}
+        {...URI_INPUT_PROPS}
+        keyboardType={source === 'arweave-id' ? 'default' : 'url'}
         style={styles.uriInput}
         contentStyle={styles.uriContent}
       />
@@ -186,6 +203,7 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
         placeholder={t('send.attachmentLabelPlaceholder')}
         value={label}
         onChangeText={setLabel}
+        {...LABEL_INPUT_PROPS}
       />
     </AppModal>
   );

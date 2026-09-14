@@ -523,6 +523,40 @@ export default function SendDataScreen() {
     estimateFee(feeEstimatePubKey, selected);
   };
 
+  const warnIfFeeSettingInconsistent = async (maxFee: bigint, maxPriority: bigint) => {
+    try {
+      const baseFee = await withRpcFallback(async (provider) => {
+        const block = await provider.getBlock('latest');
+        return block?.baseFeePerGas ?? null;
+      }, { noFatal: true });
+      if (baseFee == null) return;
+
+      const maxFeeGwei = formatUnits(maxFee, 'gwei');
+      const baseFeeGwei = formatUnits(baseFee, 'gwei');
+      if (maxFee < baseFee) {
+        showAlert(
+          t('common.tip'),
+          t('send.feeHintMaxFeeBelowBase', { maxFee: maxFeeGwei, baseFee: baseFeeGwei }),
+        );
+        return;
+      }
+
+      const tipHeadroom = maxFee - baseFee;
+      if (maxPriority > tipHeadroom) {
+        showAlert(
+          t('common.tip'),
+          t('send.feeHintTipCapped', {
+            priority: formatUnits(maxPriority, 'gwei'),
+            baseFee: baseFeeGwei,
+            effectiveTip: formatUnits(tipHeadroom, 'gwei'),
+          }),
+        );
+      }
+    } catch {
+      // Hint only; ignore RPC failures.
+    }
+  };
+
   const handleApplyCustomFee = () => {
     try {
       const maxFee = parseUnits(customMaxFee, 'gwei');
@@ -535,6 +569,7 @@ export default function SendDataScreen() {
       setFeeOption(selected);
       setFeeAdjustmentVisible(false);
       estimateFee(feeEstimatePubKey, selected);
+      void warnIfFeeSettingInconsistent(maxFee, maxPriority);
     } catch (err) {
       showAlert(t('common.error'), t('send.invalidFeeInput'));
     }

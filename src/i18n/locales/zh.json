@@ -525,7 +525,9 @@
     "feeLevelCustom": "自定义",
     "maxFeePerGas": "最高费用 (Gwei)",
     "maxPriorityFeePerGas": "最高优先费用 (Gwei)",
-    "gasPrice": "Gas 价格 (Gwei)"
+    "gasPrice": "Gas 价格 (Gwei)",
+    "feeHintMaxFeeBelowBase": "当前最高费用为 {{maxFee}} Gwei，低于此刻区块基础费 {{baseFee}} Gwei。按规则这笔交易很可能被节点拒绝加入交易池。这只是提示，你可以改高最高费用，也可以仍按此设置继续发送。",
+    "feeHintTipCapped": "有效小费 = min(优先费, 最高费用 − 基础费)。你设置的优先费为 {{priority}} Gwei，按当前基础费 {{baseFee}} Gwei 计算，实际有效小费最多只有 {{effectiveTip}} Gwei。交易仍可提交，只是小费可能达不到你填的数值。"
   },
   "appInfo": {
     "disclaimerTitle": "免责声明",

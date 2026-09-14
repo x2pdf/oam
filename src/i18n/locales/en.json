@@ -525,7 +525,9 @@
     "feeLevelCustom": "Custom",
     "maxFeePerGas": "Max Fee (Gwei)",
     "maxPriorityFeePerGas": "Max Priority Fee (Gwei)",
-    "gasPrice": "Gas Price (Gwei)"
+    "gasPrice": "Gas Price (Gwei)",
+    "feeHintMaxFeeBelowBase": "Max fee is {{maxFee}} Gwei, below the current base fee of {{baseFee}} Gwei. Nodes will likely reject this transaction from the mempool. This is only a hint — you can raise the max fee, or keep these values and send anyway.",
+    "feeHintTipCapped": "Effective tip = min(priority fee, max fee − base fee). You set a priority fee of {{priority}} Gwei, but with the current base fee of {{baseFee}} Gwei the effective tip can be at most {{effectiveTip}} Gwei. You can still send; the tip may just be lower than the number you entered."
   },
   "appInfo": {
     "disclaimerTitle": "Disclaimer",
