@@ -36,6 +36,7 @@ import FollowListSelectionScreen from '../screens/FollowListSelectionScreen';
 import CacheManagementScreen from '../screens/CacheManagementScreen';
 import ExportDataScreen from '../screens/ExportDataScreen';
 import ArweaveProfileScreen from '../arweave/screens/ArweaveProfileScreen';
+import ArweaveWalletDetailScreen from '../arweave/screens/ArweaveWalletDetailScreen';
 import ArweaveAddInfoSelectScreen from '../arweave/screens/wallet/AddInfoSelectScreen';
 import ArweaveCreateDisclaimerScreen from '../arweave/screens/wallet/CreateDisclaimerScreen';
 import ArweaveImportDisclaimerScreen from '../arweave/screens/wallet/ImportDisclaimerScreen';
@@ -344,6 +345,11 @@ export default function AppNavigator() {
           name="ArweaveProfile"
           component={ArweaveProfileScreen}
           options={{ title: t('nav.arweaveProfile') }}
+        />
+        <Stack.Screen
+          name="ArweaveWalletDetail"
+          component={ArweaveWalletDetailScreen}
+          options={{ title: t('nav.arweaveWalletDetail') }}
         />
         <Stack.Screen
           name="ArweaveAddInfoSelect"

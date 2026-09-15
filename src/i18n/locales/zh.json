@@ -66,7 +66,8 @@
     "arweaveJwkVerify": "验证地址",
     "arweaveWalletSetup": "钱包设定",
     "arweaveUpload": "上传文件",
-    "arweaveDataDetail": "AR 数据详情"
+    "arweaveDataDetail": "AR 数据详情",
+    "arweaveWalletDetail": "AR 钱包详情"
   },
   "home": {
     "tabs": {
@@ -614,6 +615,34 @@
     "ethWalletCreateButton": "去创建 ETH 钱包",
     "ethPasswordGateHint": "请输入 ETH 钱包的支付密码以继续。",
     "generateFailed": "钱包生成失败，请重试。",
+    "walletDetail": {
+      "balanceLabel": "AR 余额",
+      "balanceLoading": "正在加载余额…",
+      "balanceFailed": "无法获取余额",
+      "balanceValue": "{{balance}} AR",
+      "libTitle": "arweave-js 库信息",
+      "libName": "库名",
+      "libNameValue": "arweave（arweave-js）",
+      "libVersion": "版本",
+      "libGateway": "网关",
+      "libGatewayValue": "arweave.net:443 (HTTPS)",
+      "libBuild": "构建",
+      "libBuildValue": "arweave/web（React Native WebCrypto）",
+      "libUsage": "用途",
+      "libUsageValue": "钱包生成与地址推导、余额查询、交易签名与上传",
+      "tipsTitle": "使用建议",
+      "tipsFileSize": "10MB 以内的文件上传体验较好；超过 10MB 可能因网络波动或超时失败，文件越大失败概率越高。",
+      "tipsForeground": "上传期间请保持网络稳定，并保持 App 在前台运行，避免切换或锁屏导致中断。",
+      "tipsSmallBalance": "建议使用小额 AR 账户，仅用于支付存储手续费，以控制意外风险。",
+      "tipsPublic": "上传内容将永久公开存储在 Arweave 网络上，请确认内容合规并自行承担法律责任。",
+      "tipsVerify": "提交交易后请用 Transaction ID 在区块浏览器自行核对上链状态，应用不保证交易一定会被网络接受并永久存储。",
+      "disclaimerTitle": "免责声明",
+      "disclaimerRiskHint": "本应用为 Arweave 轻量版钱包，仅供便捷上传与小额支付使用。",
+      "disclaimer1": "本钱包不推荐用来存放大量资产。如需持有大额资产，请使用更专业的硬件钱包或冷钱包方案。",
+      "disclaimer2": "JWK 是控制 AR 钱包资产的最高权限凭证，仅经支付密码加密后存储在设备本地，本应用不支持再次导出或查看 JWK。",
+      "disclaimer3": "开发者不对因使用本应用（包括但不限于软件漏洞、操作失误、网络故障、交易未确认、黑客攻击等）导致的任何资产损失负责。",
+      "disclaimer4": "当前加密方案仅为技术实现。未来技术进步可能导致现有加密被破解，开发者不承担因算法局限性或技术进步导致的任何责任。"
+    },
     "upload": {
       "fabLabel": "上传",
       "noWallet": "请先添加 AR 钱包",

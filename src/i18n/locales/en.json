@@ -66,7 +66,8 @@
     "arweaveJwkVerify": "Verify Address",
     "arweaveWalletSetup": "Wallet Setup",
     "arweaveUpload": "Upload File",
-    "arweaveDataDetail": "AR Data Detail"
+    "arweaveDataDetail": "AR Data Detail",
+    "arweaveWalletDetail": "AR Wallet Detail"
   },
   "home": {
     "tabs": {
@@ -614,6 +615,34 @@
     "ethWalletCreateButton": "Create ETH Wallet",
     "ethPasswordGateHint": "Enter your ETH wallet payment password to continue.",
     "generateFailed": "Wallet generation failed. Please try again.",
+    "walletDetail": {
+      "balanceLabel": "AR Balance",
+      "balanceLoading": "Loading balance…",
+      "balanceFailed": "Unable to fetch balance",
+      "balanceValue": "{{balance}} AR",
+      "libTitle": "arweave-js Library",
+      "libName": "Package",
+      "libNameValue": "arweave (arweave-js)",
+      "libVersion": "Version",
+      "libGateway": "Gateway",
+      "libGatewayValue": "arweave.net:443 (HTTPS)",
+      "libBuild": "Build",
+      "libBuildValue": "arweave/web (React Native WebCrypto)",
+      "libUsage": "Usage",
+      "libUsageValue": "Wallet generation & address derivation, balance queries, transaction signing & upload",
+      "tipsTitle": "Usage Tips",
+      "tipsFileSize": "Files under 10 MB upload most reliably. Files over 10 MB may fail due to network fluctuations or timeouts; larger files have a higher failure rate.",
+      "tipsForeground": "Keep a stable network connection and keep the app in the foreground during upload. Avoid switching apps or locking the screen.",
+      "tipsSmallBalance": "Use a small-balance AR account for storage fees only, to limit unexpected risk.",
+      "tipsPublic": "Uploaded content is permanently and publicly stored on Arweave. Ensure your content is compliant and you accept legal responsibility.",
+      "tipsVerify": "After submitting a transaction, verify on-chain status yourself using the Transaction ID in a block explorer. The app does not guarantee acceptance or permanent storage.",
+      "disclaimerTitle": "Disclaimer",
+      "disclaimerRiskHint": "This app is a lightweight Arweave wallet for convenient uploads and small payments.",
+      "disclaimer1": "This wallet is not recommended for holding large amounts. For significant assets, use a professional hardware or cold wallet.",
+      "disclaimer2": "JWK is the highest-privilege credential for your AR wallet. It is encrypted with your payment password and stored locally only; this app cannot export or display JWK again.",
+      "disclaimer3": "The developer is not liable for any asset loss from using this app (including but not limited to software bugs, user error, network failures, unconfirmed transactions, or hacking).",
+      "disclaimer4": "The current encryption is a technical implementation only. Future advances may break existing encryption. The developer bears no liability for algorithm limitations or technological progress."
+    },
     "upload": {
       "fabLabel": "Upload",
       "noWallet": "Please add an AR wallet first",

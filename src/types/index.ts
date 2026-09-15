@@ -127,6 +127,7 @@ export type RootStackParamList = {
   FollowListSelection: undefined;
   ExportData: undefined;
   ArweaveProfile: undefined;
+  ArweaveWalletDetail: undefined;
   ArweaveAddInfoSelect: undefined;
   ArweaveCreateDisclaimer: undefined;
   ArweaveImportDisclaimer: undefined;

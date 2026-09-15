@@ -56,6 +56,10 @@ export default function ArweaveProfileScreen() {
     navigation.navigate('ArweaveAddInfoSelect');
   }, [navigation]);
 
+  const handleWalletDetail = useCallback(() => {
+    navigation.navigate('ArweaveWalletDetail');
+  }, [navigation]);
+
   const showCopiedSnackbar = useCallback(() => {
     setSnackbarMessage(t('common.copied'));
     setSnackbarVisible(true);
@@ -104,6 +108,7 @@ export default function ArweaveProfileScreen() {
             <Card
               style={[styles.card, { backgroundColor: theme.colors.surface }]}
               mode="elevated"
+              onPress={handleWalletDetail}
             >
               <Card.Content style={styles.cardContent}>
                 <View style={styles.row}>
@@ -150,6 +155,11 @@ export default function ArweaveProfileScreen() {
                       />
                     </View>
                   </View>
+                  <IconButton
+                    icon="chevron-right"
+                    onPress={handleWalletDetail}
+                    iconColor={theme.colors.onSurfaceVariant}
+                  />
                 </View>
               </Card.Content>
             </Card>
@@ -208,6 +218,7 @@ export default function ArweaveProfileScreen() {
       showCopiedSnackbar,
       handleCopyAddress,
       handleAdd,
+      handleWalletDetail,
     ],
   );
 
