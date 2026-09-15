@@ -47,9 +47,15 @@ function AppContent() {
  */
 export default function App() {
   useEffect(() => {
-    Promise.all([initDatabase(), initArweaveCacheDatabase()]).catch((e) => {
-      console.warn('Failed to initialize cache database:', e);
-    });
+    // Web OPFS has a small handle pool; open cache DBs sequentially.
+    void (async () => {
+      try {
+        await initDatabase();
+        await initArweaveCacheDatabase();
+      } catch (e) {
+        console.warn('Failed to initialize cache database:', e);
+      }
+    })();
   }, []);
 
   return (

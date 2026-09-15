@@ -22,12 +22,17 @@ export default function JwkVerifyScreen() {
   const insets = useSafeAreaInsets();
   const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
-  const { saveArProfile } = useAppContext();
+  const { state, saveArProfile } = useAppContext();
+  const isReplacement = !!state.arProfile;
   const { jwk, address } = route.params;
   const [finishing, setFinishing] = useState(false);
 
   const handleConfirm = async () => {
     if (finishing) return;
+    if (isReplacement) {
+      navigation.navigate('ArweavePasswordSetup', { jwk, address });
+      return;
+    }
     setFinishing(true);
     try {
       await finalizeArWallet(jwk, address, saveArProfile);

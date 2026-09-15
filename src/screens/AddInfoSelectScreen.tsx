@@ -10,9 +10,12 @@ import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { AppModal } from '../components/AppModal';
+import { EthPasswordGateModal } from '../arweave/components/EthPasswordGateModal';
+import { setVerifiedOldPassword } from '../wallet/paymentPasswordContext';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type PendingAction = 'create' | 'recover' | 'privateKey' | 'readOnly' | null;
+type WalletReplaceAction = 'create' | 'recover' | 'privateKey';
 
 function shortenAddress(address: string): string {
   if (!address || address.length <= 12) return address;
@@ -31,6 +34,8 @@ export default function AddInfoSelectScreen() {
 
   const [visible, setVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [passwordGateVisible, setPasswordGateVisible] = useState(false);
+  const [pendingAfterPassword, setPendingAfterPassword] = useState<WalletReplaceAction | null>(null);
 
   const askReplaceThen = (action: PendingAction, fallback: () => void) => {
     if (profile) {
@@ -58,17 +63,48 @@ export default function AddInfoSelectScreen() {
     });
   };
 
+  const proceedToWalletAction = (action: WalletReplaceAction) => {
+    if (action === 'create') {
+      navigation.navigate('WalletDisclaimer');
+    } else if (action === 'recover') {
+      navigation.navigate('RecoverDisclaimer');
+    } else {
+      navigation.navigate('PrivateKeyDisclaimer');
+    }
+  };
+
   const confirmReplacement = () => {
     setVisible(false);
-    if (pendingAction === 'create') {
-      navigation.navigate('WalletDisclaimer');
-    } else if (pendingAction === 'recover') {
-      navigation.navigate('RecoverDisclaimer');
-    } else if (pendingAction === 'privateKey') {
-      navigation.navigate('PrivateKeyDisclaimer');
-    } else if (pendingAction === 'readOnly') {
+    if (pendingAction === 'readOnly') {
       navigation.navigate('AddAddressForm', { mode: 'add', source: 'profile' });
+      return;
     }
+    if (
+      pendingAction === 'create'
+      || pendingAction === 'recover'
+      || pendingAction === 'privateKey'
+    ) {
+      if (isWriteWallet) {
+        setPendingAfterPassword(pendingAction);
+        setPasswordGateVisible(true);
+      } else {
+        proceedToWalletAction(pendingAction);
+      }
+    }
+  };
+
+  const handlePasswordVerified = (password: string) => {
+    setVerifiedOldPassword(password);
+    setPasswordGateVisible(false);
+    if (pendingAfterPassword) {
+      proceedToWalletAction(pendingAfterPassword);
+      setPendingAfterPassword(null);
+    }
+  };
+
+  const handlePasswordDismiss = () => {
+    setPasswordGateVisible(false);
+    setPendingAfterPassword(null);
   };
 
   const dialogCopy = useMemo(() => {
@@ -202,6 +238,12 @@ export default function AddInfoSelectScreen() {
       >
         <Text variant="bodyMedium">{dialogCopy.message}</Text>
       </AppModal>
+
+      <EthPasswordGateModal
+        visible={passwordGateVisible}
+        onDismiss={handlePasswordDismiss}
+        onVerified={handlePasswordVerified}
+      />
     </View>
   );
 }

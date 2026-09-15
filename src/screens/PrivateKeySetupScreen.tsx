@@ -8,7 +8,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EthereumWalletManager, encryptWallet, saveEncryptedKeystore } from '../wallet/walletManager';
+import { EthereumWalletManager } from '../wallet/walletManager';
+import { finalizeEthWalletSetup, isPeerReencryptError } from '../wallet/finalizeEthWallet';
+import { getVerifiedOldPassword } from '../wallet/paymentPasswordContext';
 import { useAppContext } from '../context/AppContext';
 import { DEFAULT_CHAIN } from '../constants';
 import { showAlert } from '../utils/alert';
@@ -56,10 +58,9 @@ export default function PrivateKeySetupScreen() {
     setLoading(true);
     try {
       const walletInfo = EthereumWalletManager.importFromPrivateKey(privateKey);
-      const keystoreJson = await encryptWallet(walletInfo, password);
-      await saveEncryptedKeystore(keystoreJson);
+      const oldPassword = getVerifiedOldPassword();
+      await finalizeEthWalletSetup(walletInfo, password, oldPassword);
 
-      // 4. Update Profile in Context
       await saveProfile({
         id: Date.now().toString(),
         address: walletInfo.address,
@@ -79,7 +80,11 @@ export default function PrivateKeySetupScreen() {
       ]);
     } catch (error) {
       console.error(error);
-      showAlert(t('common.failed'), t('wallet.setupFailed'));
+      if (isPeerReencryptError(error)) {
+        showAlert(t('common.failed'), t('wallet.peerReencryptFailed'));
+      } else {
+        showAlert(t('common.failed'), t('wallet.setupFailed'));
+      }
     } finally {
       setLoading(false);
     }

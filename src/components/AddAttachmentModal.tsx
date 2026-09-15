@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, TextInput as RNTextInput, View } from 'react-native';
 import { Button, HelperText, Text, TextInput, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { AppModal } from './AppModal';
@@ -19,27 +19,112 @@ type Props = {
   onConfirm: (attachment: SendDraftAttachment) => void;
 };
 
-/** Shared props so URI/ID field keyboard does not leak into the display-name field. */
+/**
+ * Always use the default keyboard for URI/ID fields.
+ * - iOS: `url` is ASCII-only and can stick on the next field in the same modal.
+ * - Android: `url` maps to TYPE_TEXT_VARIATION_URI; OEM keyboards may still
+ *   prefer Latin layout, and sibling re-renders can interrupt CJK IME on Fabric.
+ */
 const URI_INPUT_PROPS = {
   multiline: true,
   numberOfLines: 3,
+  keyboardType: 'default' as const,
   autoCapitalize: 'none' as const,
   autoCorrect: false,
   autoComplete: 'off' as const,
   spellCheck: false,
   importantForAutofill: 'no' as const,
-  textContentType: 'none' as const,
 };
 
 const LABEL_INPUT_PROPS = {
   keyboardType: 'default' as const,
-  autoCapitalize: 'sentences' as const,
+  autoCapitalize: 'none' as const,
   autoCorrect: false,
   autoComplete: 'off' as const,
   spellCheck: false,
   importantForAutofill: 'no' as const,
-  textContentType: 'none' as const,
 };
+
+type AttachmentUriInputProps = {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (value: string) => void;
+};
+
+/** Isolated so label keystrokes do not re-render this multiline field (Fabric CJK IME on iOS/Android). */
+const AttachmentUriInput = React.memo(function AttachmentUriInput({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+}: AttachmentUriInputProps) {
+  return (
+    <TextInput
+      mode="outlined"
+      label={label}
+      placeholder={placeholder}
+      value={value}
+      onChangeText={onChangeText}
+      {...URI_INPUT_PROPS}
+      style={styles.uriInput}
+      contentStyle={styles.uriContent}
+    />
+  );
+});
+
+type AttachmentLabelInputProps = {
+  label: string;
+  placeholder: string;
+  resetKey: number;
+  onChangeText: (value: string) => void;
+};
+
+/**
+ * Paper's outlined TextInput is controlled and re-runs label animations on every
+ * `value` change, which cancels CJK composition. Keep a native uncontrolled
+ * field and only sync Paper after blur (IME already committed).
+ */
+const AttachmentLabelInput = React.memo(function AttachmentLabelInput({
+  label,
+  placeholder,
+  resetKey,
+  onChangeText,
+}: AttachmentLabelInputProps) {
+  const draftRef = useRef('');
+
+  useEffect(() => {
+    draftRef.current = '';
+  }, [resetKey]);
+
+  return (
+    <TextInput
+      key={resetKey}
+      mode="outlined"
+      label={label}
+      placeholder={placeholder}
+      defaultValue=""
+      {...LABEL_INPUT_PROPS}
+      render={(props) => {
+        const { value: _paperValue, onChangeText: paperOnChangeText, onBlur, ...rest } = props;
+        return (
+          <RNTextInput
+            {...rest}
+            {...LABEL_INPUT_PROPS}
+            onChangeText={(text) => {
+              draftRef.current = text;
+              onChangeText(text);
+            }}
+            onBlur={(e) => {
+              paperOnChangeText?.(draftRef.current);
+              onBlur?.(e);
+            }}
+          />
+        );
+      }}
+    />
+  );
+});
 
 const SOURCE_OPTIONS: { value: AttachmentSource; labelKey: string; icon: string }[] = [
   { value: 'arweave-id', labelKey: 'send.attachmentSourceArweaveId', icon: 'identifier' },
@@ -82,16 +167,18 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
   const [source, setSource] = useState<AttachmentSource>('arweave-id');
   const [fileType, setFileType] = useState<AttachmentFileType>('other');
   const [input, setInput] = useState('');
-  const [label, setLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [labelResetKey, setLabelResetKey] = useState(0);
+  const labelRef = useRef('');
 
   useEffect(() => {
     if (!visible) return;
     setSource('arweave-id');
     setFileType('other');
     setInput('');
-    setLabel('');
+    labelRef.current = '';
     setError(null);
+    setLabelResetKey((key) => key + 1);
   }, [visible]);
 
   const uriError = useMemo(() => {
@@ -104,6 +191,21 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
 
   const placeholder =
     source === 'arweave-id' ? t('send.attachmentIdPlaceholder') : t('send.attachmentUriPlaceholder');
+
+  const uriFieldLabel =
+    source === 'arweave-id' ? t('send.attachmentIdLabel') : t('send.attachmentUriLabel');
+
+  const handleUriChange = useCallback((value: string) => {
+    setInput(value);
+    setError(null);
+  }, []);
+
+  const handleLabelChange = useCallback((value: string) => {
+    labelRef.current = value;
+  }, []);
+
+  const attachmentLabelText = t('send.attachmentLabel');
+  const attachmentLabelPlaceholder = t('send.attachmentLabelPlaceholder');
 
   const handleConfirm = () => {
     const trimmedInput = input.trim();
@@ -124,7 +226,7 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
     }
 
     const mime = FILE_TYPE_TO_MIME[fileType];
-    const trimmedLabel = label.trim();
+    const trimmedLabel = labelRef.current.trim();
     onConfirm({
       source,
       fileType,
@@ -179,19 +281,11 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
         ))}
       </View>
 
-      <TextInput
-        mode="outlined"
-        label={source === 'arweave-id' ? t('send.attachmentIdLabel') : t('send.attachmentUriLabel')}
+      <AttachmentUriInput
+        label={uriFieldLabel}
         placeholder={placeholder}
         value={input}
-        onChangeText={(value) => {
-          setInput(value);
-          setError(null);
-        }}
-        {...URI_INPUT_PROPS}
-        keyboardType={source === 'arweave-id' ? 'default' : 'url'}
-        style={styles.uriInput}
-        contentStyle={styles.uriContent}
+        onChangeText={handleUriChange}
       />
       {source === 'arweave-id' && (
         <HelperText type="info" visible style={{ paddingHorizontal: 0 }}>
@@ -202,13 +296,11 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
         {error || uriError || ' '}
       </HelperText>
 
-      <TextInput
-        mode="outlined"
-        label={t('send.attachmentLabel')}
-        placeholder={t('send.attachmentLabelPlaceholder')}
-        value={label}
-        onChangeText={setLabel}
-        {...LABEL_INPUT_PROPS}
+      <AttachmentLabelInput
+        resetKey={labelResetKey}
+        label={attachmentLabelText}
+        placeholder={attachmentLabelPlaceholder}
+        onChangeText={handleLabelChange}
       />
     </AppModal>
   );

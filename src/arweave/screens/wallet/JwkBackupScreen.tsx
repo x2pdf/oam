@@ -27,7 +27,8 @@ export default function JwkBackupScreen() {
   const insets = useSafeAreaInsets();
   const { listContentStyle } = useListColumnLayout();
   const { t } = useTranslation();
-  const { saveArProfile } = useAppContext();
+  const { state, saveArProfile } = useAppContext();
+  const isReplacement = !!state.arProfile;
 
   const [jwkJson, setJwkJson] = useState('');
   const [address, setAddress] = useState('');
@@ -85,6 +86,10 @@ export default function JwkBackupScreen() {
 
   const handleContinue = async () => {
     if (finishing) return;
+    if (isReplacement) {
+      navigation.navigate('ArweavePasswordSetup', { jwk: jwkJson, address });
+      return;
+    }
     setFinishing(true);
     try {
       await finalizeArWallet(jwkJson, address, saveArProfile);

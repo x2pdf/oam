@@ -134,6 +134,7 @@ export type RootStackParamList = {
   ArweaveJwkBackup: undefined;
   ArweaveJwkInput: undefined;
   ArweaveJwkVerify: { jwk: string; address: string };
+  ArweavePasswordSetup: { jwk: string; address: string };
   ArweaveUpload: undefined;
   ArweaveDataDetail: { item: ArweaveListItem };
 };

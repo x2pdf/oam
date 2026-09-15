@@ -8,7 +8,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { deriveWalletFromMnemonic, encryptWallet, saveEncryptedKeystore } from '../wallet/walletManager';
+import { deriveWalletFromMnemonic } from '../wallet/walletManager';
+import { finalizeEthWalletSetup, isPeerReencryptError } from '../wallet/finalizeEthWallet';
+import { getVerifiedOldPassword } from '../wallet/paymentPasswordContext';
 import { useAppContext } from '../context/AppContext';
 import { DEFAULT_CHAIN } from '../constants';
 import { showAlert } from '../utils/alert';
@@ -56,10 +58,9 @@ export default function WalletSetupScreen() {
     setLoading(true);
     try {
       const wallet = deriveWalletFromMnemonic(mnemonic);
-      const keystoreJson = await encryptWallet(wallet, password);
-      await saveEncryptedKeystore(keystoreJson);
+      const oldPassword = getVerifiedOldPassword();
+      await finalizeEthWalletSetup(wallet, password, oldPassword);
 
-      // 3. Update App Context (Profile info)
       await saveProfile({
         id: Date.now().toString(),
         address: wallet.address,
@@ -79,7 +80,11 @@ export default function WalletSetupScreen() {
       ]);
     } catch (error) {
       console.error(error);
-      showAlert(t('common.failed'), t('wallet.setupFailed'));
+      if (isPeerReencryptError(error)) {
+        showAlert(t('common.failed'), t('wallet.peerReencryptFailed'));
+      } else {
+        showAlert(t('common.failed'), t('wallet.setupFailed'));
+      }
     } finally {
       setLoading(false);
     }

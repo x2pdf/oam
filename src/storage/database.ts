@@ -1,4 +1,8 @@
 import * as SQLite from 'expo-sqlite';
+import {
+  isDbCorruptionError,
+  openDatabaseWithWebFallback,
+} from './sqliteOpen';
 
 const DB_NAME = 'oam_cache.db';
 
@@ -15,17 +19,10 @@ function enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
   return task;
 }
 
-function isDbCorruptionError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes('NullPointerException');
-}
-
 async function openAndInit(forceNew: boolean): Promise<SQLite.SQLiteDatabase> {
-  const database = await SQLite.openDatabaseAsync(DB_NAME, {
+  return openDatabaseWithWebFallback(DB_NAME, initSchema, {
     useNewConnection: forceNew,
   });
-  await initSchema(database);
-  return database;
 }
 
 /**

@@ -47,10 +47,11 @@ config.resolver = {
 
 config.server = {
   ...config.server,
-  enhanceMiddleware: (middleware) => {
+  enhanceMiddleware: (middleware, _metroServer) => {
     return (req, res, next) => {
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+      // credentialless is recommended by expo-sqlite; require-corp breaks cross-origin assets.
+      res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
       return middleware(req, res, next);
     };
   },

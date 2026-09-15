@@ -131,6 +131,8 @@ or
 
 npx expo run:android
 
+cd android && ./gradlew assembleRelease
+
 # 运行 Web 端（浏览器访问 http://localhost:19006）
 npm run web
 

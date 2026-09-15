@@ -43,6 +43,7 @@ import ArweaveImportDisclaimerScreen from '../arweave/screens/wallet/ImportDiscl
 import ArweaveJwkBackupScreen from '../arweave/screens/wallet/JwkBackupScreen';
 import ArweaveJwkInputScreen from '../arweave/screens/wallet/JwkInputScreen';
 import ArweaveJwkVerifyScreen from '../arweave/screens/wallet/JwkVerifyScreen';
+import ArweavePasswordSetupScreen from '../arweave/screens/wallet/ArweavePasswordSetupScreen';
 import ArweaveUploadScreen from '../arweave/upload/screens/UploadScreen';
 import ArweaveDataDetailScreen from '../arweave/list/screens/ArweaveDataDetailScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
@@ -380,6 +381,11 @@ export default function AppNavigator() {
           name="ArweaveJwkVerify"
           component={ArweaveJwkVerifyScreen}
           options={{ title: t('nav.arweaveJwkVerify') }}
+        />
+        <Stack.Screen
+          name="ArweavePasswordSetup"
+          component={ArweavePasswordSetupScreen}
+          options={{ title: t('nav.arweavePasswordSetup') }}
         />
         <Stack.Screen
           name="ArweaveUpload"

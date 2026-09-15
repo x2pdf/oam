@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { scrollFill } from '../../../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../../../theme/layout';
@@ -12,7 +12,7 @@ import { useAppContext } from '../../../context/AppContext';
 import { AppModal } from '../../../components/AppModal';
 import { EthPasswordGateModal } from '../../components/EthPasswordGateModal';
 import { checkEthKeystoreExists, checkEthWalletGate } from '../../wallet/ethWalletGate';
-import { setVerifiedEthPassword, clearVerifiedEthPassword } from '../../wallet/verifiedEthPassword';
+import { setVerifiedOldPassword } from '../../wallet/verifiedEthPassword';
 import { copyAddress } from '../../../components/CopyableAddress';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -50,12 +50,6 @@ export default function AddInfoSelectScreen() {
     await copyAddress(arProfile.address);
     showCopiedSnackbar();
   }, [arProfile?.address, showCopiedSnackbar]);
-
-  useEffect(() => {
-    return () => {
-      clearVerifiedEthPassword();
-    };
-  }, []);
 
   const proceedToAction = (action: PendingAction) => {
     if (action === 'create') {
@@ -113,7 +107,7 @@ export default function AddInfoSelectScreen() {
   };
 
   const handlePasswordVerified = (password: string) => {
-    setVerifiedEthPassword(password);
+    setVerifiedOldPassword(password);
     setPasswordGateVisible(false);
     if (pendingAfterPassword) {
       proceedToAction(pendingAfterPassword);
