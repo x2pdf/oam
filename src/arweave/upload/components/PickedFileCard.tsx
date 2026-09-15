@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Card, Icon, IconButton, Text, useTheme } from 'react-native-paper';
+import { Icon, IconButton, Text, useTheme } from 'react-native-paper';
 import { getImageRendererAdapter } from '../../../adapter';
 import { formatUploadFileSize } from '../format';
 import { isUploadImageMime } from '../constants';
@@ -23,9 +23,18 @@ function buildImagePreviewUri(file: PickedUploadFile): string {
 export function PickedFileCard({ file, onRemove }: Props) {
   const theme = useTheme();
   const showImage = isUploadImageMime(file.mimeType);
+  const borderColor = theme.colors.outline + (theme.dark ? '50' : '40');
 
   return (
-    <Card mode="elevated" style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor,
+        },
+      ]}
+    >
       <View style={styles.content}>
         {showImage ? (
           <PlatformImage
@@ -35,44 +44,47 @@ export function PickedFileCard({ file, onRemove }: Props) {
             resizeMode="contain"
           />
         ) : (
-          <View style={[styles.filePreview, { backgroundColor: theme.colors.surfaceVariant }]}>
-            <Icon source="file-document-outline" size={28} color={theme.colors.onSurfaceVariant} />
-            <Text
-              variant="bodySmall"
-              numberOfLines={3}
-              style={[styles.fileName, { color: theme.colors.onSurface }]}
-            >
-              {file.fileName}
-            </Text>
+          <View style={[styles.filePreview, { borderColor }]}>
+            <Icon source="file-document-outline" size={22} color={theme.colors.onSurfaceVariant} />
           </View>
         )}
         <View style={styles.info}>
-          {showImage ? (
-            <Text variant="bodyMedium" numberOfLines={2}>{file.fileName}</Text>
-          ) : null}
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+          <Text variant="bodySmall" numberOfLines={2}>
+            {file.fileName}
+          </Text>
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
             {formatUploadFileSize(file.sizeBytes)}
           </Text>
         </View>
         <IconButton icon="close" size={20} onPress={onRemove} />
       </View>
-    </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { marginTop: 12, marginBottom: 8 },
-  content: { flexDirection: 'row', alignItems: 'center', padding: 8 },
-  thumbnail: { width: 72, height: 72, borderRadius: 6 },
-  filePreview: {
-    width: 120,
-    minHeight: 72,
+  container: {
+    marginTop: 12,
+    marginBottom: 8,
+    borderWidth: 1,
     borderRadius: 6,
+    overflow: 'hidden',
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingLeft: 12,
+    paddingRight: 4,
+  },
+  thumbnail: { width: 48, height: 48, borderRadius: 4 },
+  filePreview: {
+    width: 48,
+    height: 48,
+    borderRadius: 4,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
   },
-  fileName: { marginTop: 4, textAlign: 'center' },
-  info: { flex: 1, marginLeft: 12 },
+  info: { flex: 1, marginLeft: 12, marginRight: 4 },
 });
