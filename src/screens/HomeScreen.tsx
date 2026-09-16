@@ -151,6 +151,9 @@ export default function HomeScreen() {
 
   const initialLoadDoneRef = useRef(false);
   const prevFollowingKeyRef = useRef<string | null>(null);
+  const loadMoreCooldownRef = useRef<Partial<Record<HomeTabId, number>>>({});
+  const selfDataLenBeforeLoadRef = useRef(0);
+  const selfSkipAutoLoadRef = useRef(false);
 
   // 消息标签页合并显示已发送 + 收到（按 id 去重）
   const messagesData = useMemo(() => {
@@ -275,6 +278,11 @@ export default function HomeScreen() {
     if (tabId === 'messages' && !messagesFiltersActive) return;
     if (tabId === 'square' && !squareFiltersActive) return;
 
+    loadMoreCooldownRef.current[tabId] = Date.now();
+    if (tabId === 'self') {
+      selfDataLenBeforeLoadRef.current = dataRepository.getState('self').data.length;
+    }
+
     dataRepository.loadMore(tabId, profile?.address, subscriptions).catch(err => {
       console.warn(`LoadMore failed for ${tabId}:`, err);
     });
@@ -334,6 +342,19 @@ export default function HomeScreen() {
   }, [isWriteWallet]);
 
   useEffect(() => {
+    const selfState = repoState.self;
+    if (selfState.loadingMore || selfDataLenBeforeLoadRef.current === 0) return;
+
+    const grew = selfState.data.length > selfDataLenBeforeLoadRef.current;
+    if (!grew && selfState.data.length < 5) {
+      selfSkipAutoLoadRef.current = true;
+    } else if (grew) {
+      selfSkipAutoLoadRef.current = false;
+    }
+    selfDataLenBeforeLoadRef.current = 0;
+  }, [repoState.self.loadingMore, repoState.self.data.length]);
+
+  useEffect(() => {
     const wasUnlocked = prevUnlockedRef.current;
     prevUnlockedRef.current = unlocked;
 
@@ -354,8 +375,14 @@ export default function HomeScreen() {
 
     if (!wasUnlocked && unlocked) {
       dataRepository.reprocessAll(profile?.address);
+      if (activeTabIdRef.current === 'self' && profile?.address) {
+        selfSkipAutoLoadRef.current = false;
+        dataRepository.loadMore('self', profile.address, subscriptions).catch(err => {
+          console.warn('LoadMore failed for self after unlock:', err);
+        });
+      }
     }
-  }, [unlocked, profile?.address]);
+  }, [unlocked, profile?.address, subscriptions]);
 
   const activateTab = useCallback(async (tabId: HomeTabId) => {
     if (activatedTabs.has(tabId)) return;
@@ -634,11 +661,12 @@ export default function HomeScreen() {
         onEndReached={() => {
           if (isMessageSearchActive) return;
           if (!state.hasMore || state.loadingMore || state.refreshing || state.loading) return;
-          // #region agent log
-          if (tabId === 'self') {
-            fetch('http://127.0.0.1:7624/ingest/7f60fc00-0b3b-4ad4-9431-f73512e8d5cf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37bf2b'},body:JSON.stringify({sessionId:'37bf2b',location:'HomeScreen.tsx:onEndReached:self',message:'self tab onEndReached fired',data:{displayDataLen:displayData.length,hasMore:state.hasMore,loadingMore:state.loadingMore,refreshing:state.refreshing,loading:state.loading},timestamp:Date.now(),hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
-          }
-          // #endregion
+
+          const lastTrigger = loadMoreCooldownRef.current[tabId] ?? 0;
+          if (Date.now() - lastTrigger < 500) return;
+
+          if (tabId === 'self' && displayData.length < 5 && selfSkipAutoLoadRef.current) return;
+
           triggerLoadMore(tabId);
         }}
         onEndReachedThreshold={0.2}
