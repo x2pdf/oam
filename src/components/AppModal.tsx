@@ -11,6 +11,13 @@ import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
 import { isDesktopOs } from '../theme/layout';
 import { getModalSurfaceColor } from '../theme';
 
+const KEYBOARD_BOTTOM_PADDING = 16;
+
+function readKeyboardHeight(): number {
+  const metrics = Keyboard.metrics();
+  return metrics?.height ? Math.round(metrics.height) : 0;
+}
+
 export type AppModalAction = {
   label: string;
   onPress: () => void | Promise<void>;
@@ -50,6 +57,7 @@ export function AppModal({
 
   // Avoid KeyboardAvoidingView inside a vertically-centered Modal: padding changes
   // content height → Modal recenters → KAV recalculates → visible jitter loop.
+  // On iOS, anchor above the keyboard via wrapper flex-end + paddingBottom instead.
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const resetKeyboardOffset = () => {
@@ -69,6 +77,18 @@ export function AppModal({
       setKeyboardHeight(0);
       return;
     }
+
+    const syncKeyboardHeight = () => {
+      const next = readKeyboardHeight();
+      if (next > 0) {
+        setKeyboardHeight((prev) => (prev === next ? prev : next));
+      }
+    };
+
+    // autoFocus can fire keyboardWillShow before listeners attach; read metrics directly.
+    syncKeyboardHeight();
+    const frameId = requestAnimationFrame(syncKeyboardHeight);
+    const fallbackTimer = setTimeout(syncKeyboardHeight, 100);
 
     const showEvents =
       Platform.OS === 'ios' ? (['keyboardWillShow'] as const) : (['keyboardDidShow'] as const);
@@ -92,6 +112,8 @@ export function AppModal({
     ];
 
     return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(fallbackTimer);
       subscriptions.forEach((subscription) => subscription.remove());
     };
   }, [visible]);
@@ -102,10 +124,14 @@ export function AppModal({
     }
   }, [anyActionLoading]);
 
-  // iOS does not resize the window for the keyboard; shift the modal up once.
+  // iOS does not resize the window for the keyboard; anchor the modal above it.
   // Android uses adjustResize, so the window height already shrinks — do not
   // apply an extra offset or the layout will fight and jitter.
   const keyboardOffset = Platform.OS === 'ios' ? keyboardHeight : 0;
+  const iosKeyboardStyle =
+    keyboardOffset > 0
+      ? [styles.keyboardVisibleWrapper, { paddingBottom: keyboardOffset + KEYBOARD_BOTTOM_PADDING }]
+      : undefined;
   const availableHeight = Math.max(height - keyboardOffset, 240);
   const scrollMaxHeight = availableHeight * 0.5;
 
@@ -139,10 +165,10 @@ export function AppModal({
         visible={visible}
         onDismiss={onDismiss}
         dismissable={dismissable}
+        style={iosKeyboardStyle}
         contentContainerStyle={[
           styles.modalContent,
           modalSurfaceStyle,
-          keyboardOffset > 0 && { marginBottom: keyboardOffset },
           centered && {
             width: modalWidth,
             maxWidth: modalWidth,
@@ -180,6 +206,9 @@ export function AppModal({
 }
 
 const styles = StyleSheet.create({
+  keyboardVisibleWrapper: {
+    justifyContent: 'flex-end',
+  },
   modalContent: {
     margin: 20,
     padding: 20,
