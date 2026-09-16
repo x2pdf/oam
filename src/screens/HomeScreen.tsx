@@ -12,7 +12,7 @@ import {
 import { scrollFill } from '../theme/scroll';
 import { useListColumnLayout } from '../theme/layout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput, Checkbox, Searchbar } from 'react-native-paper';
+import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput, Checkbox, Searchbar, IconButton } from 'react-native-paper';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import TabPager, { TabPagerRef } from '../components/TabPager';
@@ -104,9 +104,17 @@ export default function HomeScreen() {
   // ── 筛选状态 ──
   const [showFilterSent, setShowFilterSent] = useState(true);
   const [showFilterReceived, setShowFilterReceived] = useState(true);
+  const [messageSearchVisible, setMessageSearchVisible] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [messageSearchResults, setMessageSearchResults] = useState<InputDataItem[]>([]);
   const [messageSearchLoading, setMessageSearchLoading] = useState(false);
+
+  const handleToggleMessageSearch = useCallback(() => {
+    setMessageSearchVisible((prev) => {
+      if (prev) setMessageSearchQuery('');
+      return !prev;
+    });
+  }, []);
   const [showSquareAll, setShowSquareAll] = useState(false);
   const [showSquareUtf8, setShowSquareUtf8] = useState(true);
   const [showSquareOamp, setShowSquareOamp] = useState(true);
@@ -174,7 +182,7 @@ export default function HomeScreen() {
     return messagesData;
   }, [messageSearchQuery, messageSearchResults, messagesData]);
 
-  const messageSearchActive = messageSearchQuery.trim().length > 0;
+  const messageSearchActive = messageSearchVisible && messageSearchQuery.trim().length > 0;
 
   // 广场 OAMP 筛选：仅包含 OAMP 类型的内容
   const oampFilteredData = useMemo(() => {
@@ -738,6 +746,7 @@ export default function HomeScreen() {
             {isMessagesList && (
               <View style={[columnStyle, outlineFrameStyle, styles.filterFrame]}>
                 <View style={[styles.filterRow, styles.messagesFilterRow]}>
+                  <View style={styles.messageSearchSide} />
                   <View style={styles.filterCheckboxes}>
                     <TouchableOpacity
                       style={styles.filterItem}
@@ -762,15 +771,34 @@ export default function HomeScreen() {
                       <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
                     </TouchableOpacity>
                   </View>
+                  <View style={styles.messageSearchSide}>
+                    <IconButton
+                      icon={messageSearchVisible ? 'close' : 'magnify'}
+                      iconColor={theme.colors.onSurface}
+                      size={22}
+                      style={styles.messageSearchButton}
+                      accessibilityLabel={t('home.messagesSearchPlaceholder')}
+                      onPress={handleToggleMessageSearch}
+                    />
+                  </View>
+                </View>
+                {messageSearchVisible && (
                   <Searchbar
                     placeholder={t('home.messagesSearchPlaceholder')}
                     onChangeText={setMessageSearchQuery}
                     value={messageSearchQuery}
-                    style={[styles.messageSearch, { backgroundColor: theme.colors.elevation.level2 }]}
-                    inputStyle={{ fontSize: Math.round(14 * fontScale), minHeight: 0 }}
+                    style={[
+                      styles.messageSearchBar,
+                      { backgroundColor: theme.colors.elevation.level2 },
+                    ]}
+                    inputStyle={[
+                      styles.messageSearchBarInput,
+                      { fontSize: Math.round(14 * fontScale) },
+                    ]}
                     loading={messageSearchLoading}
+                    autoFocus
                   />
-                </View>
+                )}
                 {!messagesFiltersActive && (
                   <Text
                     variant="bodyMedium"
@@ -1143,20 +1171,33 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   messagesFilterRow: {
-    justifyContent: 'flex-start',
-    flexWrap: 'wrap',
+    alignSelf: 'stretch',
+    width: '100%',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
   },
   filterCheckboxes: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 0,
+    justifyContent: 'center',
     gap: 10,
   },
-  messageSearch: {
-    flex: 1,
-    minWidth: 120,
-    height: 40,
+  messageSearchSide: {
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageSearchButton: {
+    margin: 0,
+  },
+  messageSearchBar: {
+    marginHorizontal: 4,
+    marginBottom: 4,
     elevation: 0,
+  },
+  messageSearchBarInput: {
+    fontSize: 14,
   },
   filterItem: {
     flexDirection: 'row',
