@@ -12,7 +12,7 @@ import {
 import { scrollFill } from '../theme/scroll';
 import { useListColumnLayout } from '../theme/layout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput, Checkbox } from 'react-native-paper';
+import { Text, useTheme, Button, Snackbar, FAB, TextInput as PaperTextInput, Checkbox, Searchbar } from 'react-native-paper';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import TabPager, { TabPagerRef } from '../components/TabPager';
@@ -28,6 +28,7 @@ import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
 import { cacheService } from '../datasource/cacheService';
 import { dataRepository } from '../datasource/DataRepository';
+import { searchLocalMessages } from '../datasource/messageSearch';
 import {
   isDesktopLockPolicy,
   usePasswordLockRemaining,
@@ -103,6 +104,9 @@ export default function HomeScreen() {
   // ── 筛选状态 ──
   const [showFilterSent, setShowFilterSent] = useState(true);
   const [showFilterReceived, setShowFilterReceived] = useState(true);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [messageSearchResults, setMessageSearchResults] = useState<InputDataItem[]>([]);
+  const [messageSearchLoading, setMessageSearchLoading] = useState(false);
   const [showSquareAll, setShowSquareAll] = useState(false);
   const [showSquareUtf8, setShowSquareUtf8] = useState(true);
   const [showSquareOamp, setShowSquareOamp] = useState(true);
@@ -161,6 +165,14 @@ export default function HomeScreen() {
     return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
   }, [repoState.messages.data, profile?.address, showFilterSent, showFilterReceived]);
 
+  const displayedMessagesData = useMemo(() => {
+    const q = messageSearchQuery.trim();
+    if (q) return messageSearchResults;
+    return messagesData;
+  }, [messageSearchQuery, messageSearchResults, messagesData]);
+
+  const messageSearchActive = messageSearchQuery.trim().length > 0;
+
   // 广场 OAMP 筛选：仅包含 OAMP 类型的内容
   const oampFilteredData = useMemo(() => {
     return repoState.square.data.filter(item =>
@@ -203,6 +215,50 @@ export default function HomeScreen() {
   const messagesFiltersActive = showFilterSent || showFilterReceived;
   const squareFiltersActive =
     showSquareAll || showSquareUtf8 || showSquareOamp || showSquareRaw;
+
+  useEffect(() => {
+    const q = messageSearchQuery.trim();
+    if (!q || !profile?.address || !messagesFiltersActive) {
+      setMessageSearchResults([]);
+      setMessageSearchLoading(false);
+      return;
+    }
+
+    setMessageSearchLoading(true);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchLocalMessages({
+        userAddress: profile.address,
+        query: q,
+        showSent: showFilterSent,
+        showReceived: showFilterReceived,
+      })
+        .then((results) => {
+          if (!cancelled) {
+            setMessageSearchResults(results);
+            setMessageSearchLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.warn('Message search failed:', err);
+          if (!cancelled) {
+            setMessageSearchResults([]);
+            setMessageSearchLoading(false);
+          }
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    messageSearchQuery,
+    profile?.address,
+    showFilterSent,
+    showFilterReceived,
+    messagesFiltersActive,
+  ]);
   const prevMessagesFiltersActiveRef = useRef(messagesFiltersActive);
   const prevSquareFiltersActiveRef = useRef(squareFiltersActive);
 
@@ -506,6 +562,7 @@ export default function HomeScreen() {
     const state = repoState[tabId];
     const filtersInactive =
       (isMessagesList && !messagesFiltersActive) || (isSquareList && !squareFiltersActive);
+    const isMessageSearchActive = isMessagesList && messageSearchActive;
     const displayData = filtersInactive ? [] : data;
 
     if (!isSquareList && !isFollowingList && !profile?.address) {
@@ -545,7 +602,7 @@ export default function HomeScreen() {
       );
     }
 
-    if (!filtersInactive && state.loading && displayData.length === 0) {
+    if (!filtersInactive && state.loading && displayData.length === 0 && !isMessageSearchActive) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -575,12 +632,18 @@ export default function HomeScreen() {
           ) : undefined
         }
         onEndReached={() => {
+          if (isMessageSearchActive) return;
           if (!state.hasMore || state.loadingMore || state.refreshing || state.loading) return;
+          // #region agent log
+          if (tabId === 'self') {
+            fetch('http://127.0.0.1:7624/ingest/7f60fc00-0b3b-4ad4-9431-f73512e8d5cf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37bf2b'},body:JSON.stringify({sessionId:'37bf2b',location:'HomeScreen.tsx:onEndReached:self',message:'self tab onEndReached fired',data:{displayDataLen:displayData.length,hasMore:state.hasMore,loadingMore:state.loadingMore,refreshing:state.refreshing,loading:state.loading},timestamp:Date.now(),hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
+          }
+          // #endregion
           triggerLoadMore(tabId);
         }}
         onEndReachedThreshold={0.2}
         ListFooterComponent={
-          !filtersInactive && displayData.length > 0 ? (
+          !filtersInactive && displayData.length > 0 && !isMessageSearchActive ? (
             <View style={styles.footerContainer}>
               {state.loadingMore ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
@@ -606,6 +669,19 @@ export default function HomeScreen() {
                     {t('home.loadingData', { tab: tabLabels[tabId] })}
                   </Text>
                 </>
+              ) : isMessageSearchActive ? (
+                messageSearchLoading ? (
+                  <>
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                    <Text variant="bodyMedium" style={{ marginTop: 12 }}>
+                      {t('home.messagesSearching')}
+                    </Text>
+                  </>
+                ) : (
+                  <Text variant="bodyMedium">
+                    {t('home.messagesSearchNoResult')}
+                  </Text>
+                )
               ) : (
                 <>
                   <Text variant="bodyMedium">
@@ -633,29 +709,39 @@ export default function HomeScreen() {
           <View>
             {isMessagesList && (
               <View style={[columnStyle, outlineFrameStyle, styles.filterFrame]}>
-                <View style={styles.filterRow}>
-                  <TouchableOpacity
-                    style={styles.filterItem}
-                    onPress={() => setShowFilterSent(prev => !prev)}
-                  >
-                    <Checkbox.Android
-                      status={showFilterSent ? 'checked' : 'unchecked'}
+                <View style={[styles.filterRow, styles.messagesFilterRow]}>
+                  <View style={styles.filterCheckboxes}>
+                    <TouchableOpacity
+                      style={styles.filterItem}
                       onPress={() => setShowFilterSent(prev => !prev)}
-                      uncheckedColor={theme.colors.outline}
-                    />
-                    <Text variant="labelMedium">{t('home.tabs.filterSent')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.filterItem}
-                    onPress={() => setShowFilterReceived(prev => !prev)}
-                  >
-                    <Checkbox.Android
-                      status={showFilterReceived ? 'checked' : 'unchecked'}
+                    >
+                      <Checkbox.Android
+                        status={showFilterSent ? 'checked' : 'unchecked'}
+                        onPress={() => setShowFilterSent(prev => !prev)}
+                        uncheckedColor={theme.colors.outline}
+                      />
+                      <Text variant="labelMedium">{t('home.tabs.filterSent')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.filterItem}
                       onPress={() => setShowFilterReceived(prev => !prev)}
-                      uncheckedColor={theme.colors.outline}
-                    />
-                    <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
-                  </TouchableOpacity>
+                    >
+                      <Checkbox.Android
+                        status={showFilterReceived ? 'checked' : 'unchecked'}
+                        onPress={() => setShowFilterReceived(prev => !prev)}
+                        uncheckedColor={theme.colors.outline}
+                      />
+                      <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Searchbar
+                    placeholder={t('home.messagesSearchPlaceholder')}
+                    onChangeText={setMessageSearchQuery}
+                    value={messageSearchQuery}
+                    style={[styles.messageSearch, { backgroundColor: theme.colors.elevation.level2 }]}
+                    inputStyle={{ fontSize: Math.round(14 * fontScale), minHeight: 0 }}
+                    loading={messageSearchLoading}
+                  />
                 </View>
                 {!messagesFiltersActive && (
                   <Text
@@ -848,7 +934,7 @@ export default function HomeScreen() {
           <View key={tabId} style={scrollFill}>
             {tabId === 'square' && renderList(displayedSquareData, 'square')}
             {tabId === 'following' && renderList(displayedFollowingData, 'following')}
-            {tabId === 'messages' && renderList(messagesData, 'messages')}
+            {tabId === 'messages' && renderList(displayedMessagesData, 'messages')}
             {tabId === 'self' && renderList(repoState.self.data, 'self')}
           </View>
         ))}
@@ -1027,6 +1113,22 @@ const styles = StyleSheet.create({
     gap: 10,
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  messagesFilterRow: {
+    justifyContent: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  filterCheckboxes: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 10,
+  },
+  messageSearch: {
+    flex: 1,
+    minWidth: 120,
+    height: 40,
+    elevation: 0,
   },
   filterItem: {
     flexDirection: 'row',

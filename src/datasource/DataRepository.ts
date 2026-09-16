@@ -13,6 +13,7 @@ import {
   FOLLOWING_ADDRESS_FETCH_RATE_LIMIT,
   BLACK_HOLE_PAGE_SIZE,
   BLACK_HOLE_EMPTY_CONTINUE_PAGES,
+  FILTERED_EMPTY_CONTINUE_PAGES,
 } from '../constants';
 import {
   mapTransactionsToMessages,
@@ -49,6 +50,13 @@ export class DataRepository {
 
   private nextParams: Record<string, any> = {};
   private followingNextEndBlock: number | null = null;
+  /** Raw cache transaction rows already scanned per tab (not filtered item count). */
+  private cacheTxOffsets: Record<HomeTabId, number> = {
+    square: 0,
+    following: 0,
+    messages: 0,
+    self: 0,
+  };
   private listeners: Set<(tabId: HomeTabId) => void> = new Set();
 
   private constructor() {}
@@ -96,11 +104,13 @@ export class DataRepository {
       let items: InputDataItem[] = [];
       if (tabId === 'square') {
         const txs = await cacheService.getTransactions([BLACK_HOLE_ADDRESS], CACHE_LOAD_LIMIT);
+        this.cacheTxOffsets[tabId] = txs.length;
         items = mapTransactionsToMessages(txs, BLACK_HOLE_ADDRESS, 'square', this.formatTimestamp, shortenAddress);
       } else if (tabId === 'following') {
         const addresses = subscriptions.map(s => s.address).filter(Boolean);
         if (addresses.length > 0) {
           const txs = await cacheService.getTransactions(addresses, CACHE_LOAD_LIMIT);
+          this.cacheTxOffsets[tabId] = txs.length;
           const followedLower = new Set(addresses.map(a => a.toLowerCase()));
           items = filterFollowedWithInput(txs, followedLower)
             .map(tx => mapToInputDataItem(tx, 'all', '', this.formatTimestamp, shortenAddress))
@@ -109,6 +119,7 @@ export class DataRepository {
       } else if (tabId === 'messages') {
         if (userAddress) {
           const txs = await cacheService.getTransactions([userAddress], CACHE_LOAD_LIMIT);
+          this.cacheTxOffsets[tabId] = txs.length;
           const sent = mapTransactionsToMessages(txs, userAddress, 'sent', this.formatTimestamp, shortenAddress);
           const inbox = mapTransactionsToMessages(txs, userAddress, 'inbox', this.formatTimestamp, shortenAddress);
           const map = new Map<string, InputDataItem>();
@@ -119,7 +130,11 @@ export class DataRepository {
       } else if (tabId === 'self') {
         if (userAddress) {
           const txs = await cacheService.getTransactions([userAddress], CACHE_LOAD_LIMIT);
+          this.cacheTxOffsets[tabId] = txs.length;
           items = mapTransactionsToMessages(txs, userAddress, 'self', this.formatTimestamp, shortenAddress);
+          // #region agent log
+          fetch('http://127.0.0.1:7624/ingest/7f60fc00-0b3b-4ad4-9431-f73512e8d5cf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37bf2b'},body:JSON.stringify({sessionId:'37bf2b',location:'DataRepository.ts:initializeTab:self',message:'self tab cache init',data:{cacheTxCount:txs.length,selfItemCount:items.length,cacheTxOffset:this.cacheTxOffsets[tabId],cacheLimit:CACHE_LOAD_LIMIT},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+          // #endregion
         }
       }
 
@@ -169,6 +184,7 @@ export class DataRepository {
           // Only reset pagination cursor if this is a full (non-incremental) refresh
           if (!isIncremental) {
             this.nextParams[tabId] = null;
+            this.cacheTxOffsets[tabId] = 0;
             if (tabId === 'following') this.followingNextEndBlock = null;
           }
 
@@ -223,44 +239,91 @@ export class DataRepository {
     const state = this.states[tabId];
     if (state.loadingMore || !state.hasMore) return;
 
+    // #region agent log
+    if (tabId === 'self') {
+      fetch('http://127.0.0.1:7624/ingest/7f60fc00-0b3b-4ad4-9431-f73512e8d5cf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37bf2b'},body:JSON.stringify({sessionId:'37bf2b',location:'DataRepository.ts:loadMore:entry',message:'self loadMore start',data:{rawDataLen:this.rawData[tabId].length,displayDataLen:state.data.length,cacheTxOffset:this.cacheTxOffsets[tabId],hasMore:state.hasMore,loadingMore:state.loadingMore,nextParams:this.nextParams[tabId]},timestamp:Date.now(),hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
+    }
+    // #endregion
+
     this.updateState(tabId, { loadingMore: true });
 
     try {
-      // 1. Try to load more from cache first
-      const currentOffset = this.rawData[tabId].length;
+      // 1. Try to load more from cache first (offset tracks raw tx rows, not filtered items)
+      let cacheOffset = this.cacheTxOffsets[tabId];
       let cachedItems: InputDataItem[] = [];
+      let lastCacheBatchSize = 0;
 
       if (tabId === 'square') {
-        const txs = await cacheService.getTransactions([BLACK_HOLE_ADDRESS], CACHE_LOAD_LIMIT, currentOffset);
+        const txs = await cacheService.getTransactions([BLACK_HOLE_ADDRESS], CACHE_LOAD_LIMIT, cacheOffset);
+        lastCacheBatchSize = txs.length;
+        cacheOffset += txs.length;
         cachedItems = mapTransactionsToMessages(txs, BLACK_HOLE_ADDRESS, 'square', this.formatTimestamp, shortenAddress);
       } else if (tabId === 'following') {
         const addresses = subscriptions.map(s => s.address).filter(Boolean);
         if (addresses.length > 0) {
-          const txs = await cacheService.getTransactions(addresses, CACHE_LOAD_LIMIT, currentOffset);
-          const followedLower = new Set(addresses.map(a => a.toLowerCase()));
-          cachedItems = filterFollowedWithInput(txs, followedLower)
-            .map(tx => mapToInputDataItem(tx, 'all', '', this.formatTimestamp, shortenAddress))
-            .sort((a, b) => b.timestamp - a.timestamp);
+          let cacheHasMore = true;
+          while (cacheHasMore) {
+            const txs = await cacheService.getTransactions(addresses, CACHE_LOAD_LIMIT, cacheOffset);
+            lastCacheBatchSize = txs.length;
+            cacheOffset += txs.length;
+            cacheHasMore = txs.length === CACHE_LOAD_LIMIT;
+            const followedLower = new Set(addresses.map(a => a.toLowerCase()));
+            const batch = filterFollowedWithInput(txs, followedLower)
+              .map(tx => mapToInputDataItem(tx, 'all', '', this.formatTimestamp, shortenAddress))
+              .sort((a, b) => b.timestamp - a.timestamp);
+            if (batch.length > 0) {
+              cachedItems = this.mergeData(cachedItems, batch);
+              break;
+            }
+            if (!cacheHasMore) break;
+          }
         }
       } else if (tabId === 'self') {
         if (userAddress) {
-          const txs = await cacheService.getTransactions([userAddress], CACHE_LOAD_LIMIT, currentOffset);
-          cachedItems = mapTransactionsToMessages(txs, userAddress, 'self', this.formatTimestamp, shortenAddress);
+          let cacheHasMore = true;
+          while (cacheHasMore) {
+            const txs = await cacheService.getTransactions([userAddress], CACHE_LOAD_LIMIT, cacheOffset);
+            lastCacheBatchSize = txs.length;
+            cacheOffset += txs.length;
+            cacheHasMore = txs.length === CACHE_LOAD_LIMIT;
+            const batch = mapTransactionsToMessages(txs, userAddress, 'self', this.formatTimestamp, shortenAddress);
+            // #region agent log
+            fetch('http://127.0.0.1:7624/ingest/7f60fc00-0b3b-4ad4-9431-f73512e8d5cf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37bf2b'},body:JSON.stringify({sessionId:'37bf2b',location:'DataRepository.ts:loadMore:cache',message:'self loadMore cache batch',data:{cacheOffsetBefore:cacheOffset-txs.length,cacheTxCount:txs.length,cachedSelfCount:batch.length,rawDataLen:this.rawData[tabId].length,cacheHasMore},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+            // #endregion
+            if (batch.length > 0) {
+              cachedItems = this.mergeData(cachedItems, batch);
+              break;
+            }
+            if (!cacheHasMore) break;
+          }
         }
       }
-      // Note: Following and Messages cache loading more is complex due to multi-address merge.
+      this.cacheTxOffsets[tabId] = cacheOffset;
+      // Note: Messages cache loading more is complex due to sent/inbox merge.
       // For simplicity, if not in cache, go to network.
 
       if (cachedItems.length > 0) {
         const mergedRaw = this.mergeData(this.rawData[tabId], cachedItems);
         this.rawData[tabId] = mergedRaw;
         const processed = await this.processItems(mergedRaw, userAddress);
-        this.updateState(tabId, { data: processed, loadingMore: false });
+        const cacheHasMore = lastCacheBatchSize === CACHE_LOAD_LIMIT;
+        this.updateState(tabId, {
+          data: processed,
+          loadingMore: false,
+          hasMore: cacheHasMore || !!this.nextParams[tabId],
+        });
         return;
       }
 
       // 2. Load from Network
-      const result = await this.fetchFromNetwork(tabId, userAddress, subscriptions, this.nextParams[tabId]);
+      const continueEmptyPages = tabId === 'self';
+      const result = await this.fetchFromNetwork(
+        tabId,
+        userAddress,
+        subscriptions,
+        this.nextParams[tabId],
+        continueEmptyPages,
+      );
 
       const mergedRaw = this.mergeData(this.rawData[tabId], result.items);
       this.rawData[tabId] = mergedRaw;
@@ -269,17 +332,29 @@ export class DataRepository {
       this.nextParams[tabId] = result.nextParams;
       if (tabId === 'following') this.followingNextEndBlock = result.followingNextEndBlock;
 
+      const nextHasMore = !!result.nextParams || (tabId === 'following' && result.followingNextEndBlock != null);
+      // #region agent log
+      if (tabId === 'self') {
+        fetch('http://127.0.0.1:7624/ingest/7f60fc00-0b3b-4ad4-9431-f73512e8d5cf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37bf2b'},body:JSON.stringify({sessionId:'37bf2b',location:'DataRepository.ts:loadMore:network',message:'self loadMore network result',data:{networkItemCount:result.items.length,mergedRawLen:mergedRaw.length,processedLen:processed.length,hasNextParams:!!result.nextParams,nextHasMore},timestamp:Date.now(),hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
+      }
+      // #endregion
       this.updateState(tabId, {
         data: processed,
         loadingMore: false,
-        hasMore: !!result.nextParams || (tabId === 'following' && result.followingNextEndBlock != null)
+        hasMore: nextHasMore,
       });
     } catch (e: any) {
       this.updateState(tabId, { loadingMore: false, error: e.message || 'Load more failed' });
     }
   }
 
-  private async fetchFromNetwork(tabId: HomeTabId, userAddress?: string, subscriptions: any[] = [], params: any) {
+  private async fetchFromNetwork(
+    tabId: HomeTabId,
+    userAddress?: string,
+    subscriptions: any[] = [],
+    params: any,
+    continueEmptyPages = false,
+  ) {
     console.log(`[DataRepository] fetchFromNetwork started. tab=${tabId}, params=`, params);
     let resultItems: InputDataItem[] = [];
     let nextParams: any = null;
@@ -369,10 +444,24 @@ export class DataRepository {
     } else if (tabId === 'self') {
       if (!userAddress) throw new Error('Address required');
       console.log(`[DataRepository] fetchFromNetwork (self) address=${userAddress}`);
-      const res = await dataSourceManager.fetchAll(userAddress, 'self', params);
-      resultItems = res.items;
-      nextParams = res.next_page_params;
-      rawTxs = res.rawTransactions || [];
+      let pageParams = params;
+      const collected: InputDataItem[] = [];
+      const collectedRaw: any[] = [];
+      let pages = 0;
+      const maxPages = continueEmptyPages ? FILTERED_EMPTY_CONTINUE_PAGES : 1;
+
+      do {
+        const res = await dataSourceManager.fetchAll(userAddress, 'self', pageParams);
+        res.items.forEach((i) => collected.push(i));
+        if (res.rawTransactions) collectedRaw.push(...res.rawTransactions);
+        pageParams = res.next_page_params ?? null;
+        pages += 1;
+        if (!continueEmptyPages || collected.length > 0 || !pageParams) break;
+      } while (pages < maxPages);
+
+      resultItems = collected;
+      nextParams = pageParams;
+      rawTxs = collectedRaw;
     }
 
     console.log(`[DataRepository] fetchFromNetwork completed. tab=${tabId}, itemsFetched=${resultItems.length}, hasNext=${!!nextParams}`);
@@ -437,7 +526,13 @@ export class DataRepository {
   public async reprocessAll(userAddress?: string) {
     for (const tabId of Object.keys(this.states) as HomeTabId[]) {
       if (this.rawData[tabId].length > 0) {
+        const beforeLen = this.states[tabId].data.length;
         const processed = await this.processItems(this.rawData[tabId], userAddress);
+        // #region agent log
+        if (tabId === 'self') {
+          fetch('http://127.0.0.1:7624/ingest/7f60fc00-0b3b-4ad4-9431-f73512e8d5cf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37bf2b'},body:JSON.stringify({sessionId:'37bf2b',location:'DataRepository.ts:reprocessAll:self',message:'self reprocess after unlock',data:{rawLen:this.rawData[tabId].length,beforeLen,afterLen:processed.length,userAddress:!!userAddress},timestamp:Date.now(),hypothesisId:'C',runId:'post-fix'})}).catch(()=>{});
+        }
+        // #endregion
         this.updateState(tabId, { data: processed });
       }
     }

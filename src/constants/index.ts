@@ -56,6 +56,11 @@ export const BLACK_HOLE_PAGE_SIZE = 200;
  */
 export const BLACK_HOLE_EMPTY_CONTINUE_PAGES = 3;
 
+/**
+ * 「仅自己」等客户端过滤模式下，单页过滤结果为空时自动续拉下一页的最多次数。
+ */
+export const FILTERED_EMPTY_CONTINUE_PAGES = 10;
+
 /** 数据源权重 0 --> 1000, 数值越大越优先请求该数据源 */
 export const DATA_SOURCE_WEIGHTS = {
   ROUTESCAN: 500,

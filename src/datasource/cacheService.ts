@@ -165,6 +165,29 @@ export class CacheService {
     });
   }
 
+  private mapTransactionRows(rows: any[]): ChainTransaction[] {
+    return rows.map(
+      (row) =>
+        new ChainTransaction({
+          hash: row.hash,
+          from: row.fromAddress,
+          to: row.toAddress,
+          input: row.input,
+          value: row.value,
+          timestamp: row.timestamp,
+          blockNumber: row.blockNumber,
+          gas: row.gas,
+          gasPrice: row.gasPrice,
+          gasUsed: row.gasUsed,
+          nonce: row.nonce,
+          transactionIndex: row.transactionIndex,
+          isError: row.isError === 1,
+          methodId: row.methodId,
+          contractAddress: row.contractAddress,
+        })
+    );
+  }
+
   /**
    * Get cached transactions for a list of addresses
    */
@@ -192,26 +215,32 @@ export class CacheService {
       )
     );
 
-    return rows.map(
-      (row) =>
-        new ChainTransaction({
-          hash: row.hash,
-          from: row.fromAddress,
-          to: row.toAddress,
-          input: row.input,
-          value: row.value,
-          timestamp: row.timestamp,
-          blockNumber: row.blockNumber,
-          gas: row.gas,
-          gasPrice: row.gasPrice,
-          gasUsed: row.gasUsed,
-          nonce: row.nonce,
-          transactionIndex: row.transactionIndex,
-          isError: row.isError === 1,
-          methodId: row.methodId,
-          contractAddress: row.contractAddress,
-        })
+    return this.mapTransactionRows(rows);
+  }
+
+  /**
+   * Get all cached transactions for a list of addresses (no pagination).
+   */
+  public async getAllTransactions(addresses: string[]): Promise<ChainTransaction[]> {
+    if (!(await this.isGlobalCacheEnabled())) return [];
+    if (addresses.length === 0) return [];
+
+    const lowerAddresses = addresses.filter(Boolean).map((a) => a.toLowerCase());
+    if (lowerAddresses.length === 0) return [];
+
+    const placeholders = lowerAddresses.map(() => '?').join(',');
+
+    const rows = await withDb(async (db) =>
+      db.getAllAsync<any>(
+        `SELECT DISTINCT t.* FROM transactions t
+         JOIN address_tx_map m ON t.hash = m.txHash
+         WHERE m.address IN (${placeholders})
+         ORDER BY t.timestamp DESC`,
+        lowerAddresses
+      )
     );
+
+    return this.mapTransactionRows(rows);
   }
 
   /**
