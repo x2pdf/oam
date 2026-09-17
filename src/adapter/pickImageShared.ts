@@ -1,6 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { ImagePickerResult } from './ImagePickerAdapter';
 import { isGifBase64 } from './imageUri';
@@ -11,25 +10,6 @@ type PickedImageInput = {
   fileName?: string | null;
   rawBase64?: string | null;
 };
-
-async function compressStillImage(
-  uri: string,
-  type: 'image/jpeg' | 'image/png'
-): Promise<{ uri: string; base64: string } | null> {
-  const format =
-    type === 'image/png'
-      ? ImageManipulator.SaveFormat.PNG
-      : ImageManipulator.SaveFormat.JPEG;
-  const compressed = await ImageManipulator.manipulateAsync(uri, [], {
-    compress: 0.8,
-    format,
-    base64: true,
-  });
-  if (!compressed.base64) {
-    return null;
-  }
-  return { uri: compressed.uri, base64: compressed.base64 };
-}
 
 function inferMimeFromName(name?: string | null): string | undefined {
   if (!name) {
@@ -68,8 +48,8 @@ async function readBase64FromUri(uri: string): Promise<string> {
 
 /**
  * Shared post-processing for gallery and file picks.
- * GIF: keep original bytes (iOS would otherwise convert GIF → JPEG).
- * jpeg/png: recompress at 0.8 after pick.
+ * Does not re-encode or compress; returns the bytes read from the picker.
+ * GIF: validates file header only (iOS picker must not use quality that converts GIF → JPEG).
  */
 export async function finalizePickedImage(
   input: PickedImageInput
@@ -105,30 +85,8 @@ export async function finalizePickedImage(
     type = 'image/gif';
   }
 
-  if (type === 'image/gif') {
-    if (!isGifBase64(rawBase64)) {
-      return null;
-    }
-    return {
-      base64: rawBase64,
-      uri,
-      name: fileName,
-      type,
-    };
-  }
-
-  try {
-    const compressed = await compressStillImage(uri, type);
-    if (compressed) {
-      return {
-        base64: compressed.base64,
-        uri: compressed.uri,
-        name: fileName,
-        type,
-      };
-    }
-  } catch {
-    // Fall through to uncompressed original.
+  if (type === 'image/gif' && !isGifBase64(rawBase64)) {
+    return null;
   }
 
   return {
@@ -142,7 +100,6 @@ export async function finalizePickedImage(
 /**
  * Shared picker for all platforms.
  * GIF: no `quality` in the picker (iOS would otherwise convert GIF → JPEG).
- * jpeg/png: recompress at 0.8 after pick.
  */
 export async function pickImageFromLibrary(): Promise<ImagePickerResult | null> {
   const result = await ImagePicker.launchImageLibraryAsync({

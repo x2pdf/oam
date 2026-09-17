@@ -1,6 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { base64ByteLength } from './format';
 import { inferUploadFileType, resolveMimeType } from './fileTypes';
@@ -42,23 +41,26 @@ function isGifBase64(base64: string): boolean {
   }
 }
 
-async function compressStillImage(
-  uri: string,
-  type: 'image/jpeg' | 'image/png',
-): Promise<{ uri: string; base64: string } | null> {
-  const format =
-    type === 'image/png'
-      ? ImageManipulator.SaveFormat.PNG
-      : ImageManipulator.SaveFormat.JPEG;
-  const compressed = await ImageManipulator.manipulateAsync(uri, [], {
-    compress: 0.8,
-    format,
-    base64: true,
-  });
-  if (!compressed.base64) return null;
-  return { uri: compressed.uri, base64: compressed.base64 };
+function buildPickedUploadFile(
+  fileName: string,
+  mimeType: string,
+  base64: string,
+  previewUri: string,
+): PickedUploadFile {
+  const fileType = inferUploadFileType(mimeType, fileName);
+  return {
+    fileName,
+    mimeType,
+    base64,
+    sizeBytes: base64ByteLength(base64),
+    fileType,
+    previewUri,
+  };
 }
 
+/**
+ * Gallery images: read original bytes only (no re-encode, no format conversion).
+ */
 async function finalizeGalleryImage(asset: {
   uri: string;
   mimeType?: string | null;
@@ -85,72 +87,11 @@ async function finalizeGalleryImage(asset: {
   }
   if (!rawBase64) return null;
 
-  let type: 'image/png' | 'image/jpeg' | 'image/gif' = 'image/jpeg';
-  if (mimeType.includes('png')) type = 'image/png';
-  else if (mimeType.includes('gif')) type = 'image/gif';
-
-  if (isHeicImage) {
-    try {
-      const converted = await ImageManipulator.manipulateAsync(uri, [], {
-        compress: 0.8,
-        format: ImageManipulator.SaveFormat.JPEG,
-        base64: true,
-      });
-      if (converted.base64) {
-        return {
-          fileName,
-          mimeType: 'image/jpeg',
-          base64: converted.base64,
-          sizeBytes: base64ByteLength(converted.base64),
-          fileType: 'jpeg',
-          previewUri: converted.uri,
-        };
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  }
-
-  if (type === 'image/gif') {
+  if (mimeType.includes('gif')) {
     if (!isGifBase64(rawBase64)) return null;
-    const fileType = inferUploadFileType('image/gif', fileName);
-    return {
-      fileName,
-      mimeType: 'image/gif',
-      base64: rawBase64,
-      sizeBytes: base64ByteLength(rawBase64),
-      fileType,
-      previewUri: uri,
-    };
   }
 
-  try {
-    const compressed = await compressStillImage(uri, type);
-    if (compressed) {
-      const fileType = inferUploadFileType(type, fileName);
-      return {
-        fileName,
-        mimeType: type,
-        base64: compressed.base64,
-        sizeBytes: base64ByteLength(compressed.base64),
-        fileType,
-        previewUri: compressed.uri,
-      };
-    }
-  } catch {
-    // Fall through to original bytes.
-  }
-
-  const fileType = inferUploadFileType(type, fileName);
-  return {
-    fileName,
-    mimeType: type,
-    base64: rawBase64,
-    sizeBytes: base64ByteLength(rawBase64),
-    fileType,
-    previewUri: uri,
-  };
+  return buildPickedUploadFile(fileName, mimeType, rawBase64, uri);
 }
 
 export async function pickUploadFileFromGallery(): Promise<PickedUploadFile | null> {
