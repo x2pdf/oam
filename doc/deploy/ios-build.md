@@ -554,3 +554,43 @@ xcodebuild -exportArchive -archivePath build/OAM.xcarchive -exportOptionsPlist E
 # EAS Build（云端）
 npx eas-cli build --platform ios
 ```
+
+
+## 12. 打包出没有签名的IPA安装包
+
+来得iOS目录：
+cd oam/ios/
+
+执行不签名的打包命令：
+xcodebuild -workspace OAM.xcworkspace -scheme OAM -configuration Release -sdk iphoneos18.2 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+
+找到打包好的安装包的位置：
+find ~/Library/Developer/Xcode/DerivedData -path "*/Build/Products/Release-iphoneos/*.app" -print
+
+检查安装包是不是没有签名的：
+codesign -dv "/Users/megan/Library/Developer/Xcode/DerivedData/OAM-xxxxxxxxxxxxxxxxx/Build/Products/Release-iphoneos/OAM.app“
+如果显示：
+code object is not signed at all
+那么就确认是未签名的。
+
+
+创建IPA包名目录（不要改为别的名字）：
+mkdir -p Payload
+
+复制未签名的安装包到IPA包目录下：
+cp -R /Users/megan/Library/Developer/Xcode/DerivedData/OAM-xxxxxxxxxxxx/Build/Products/Release-iphoneos/OAM.app Payload
+
+最后封装为IPA安装包：
+zip -r OAM.ipa Payload
+
+
+
+
+
+
+
+
+
+
+
+
