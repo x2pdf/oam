@@ -28,6 +28,7 @@ import { useModalListRowStyle } from '../theme/surfaces';
 import { withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, formatUsd } from '../rpc/ethPrice';
 import { dataSourceManager } from '../datasource/DataSourceManager';
+import { useDataSourceConnectivityProbe } from '../hooks/useDataSourceConnectivityProbe';
 import {
   getHomeTabOrder,
   normalizeHomeTabWeights,
@@ -145,6 +146,12 @@ export default function ProfileScreen() {
   }, [setFontScale, hideFontSizeDialog]);
 
   const sources = useMemo(() => dataSourceManager.getSources(), []);
+
+  const dataSourceProbeByName = useDataSourceConnectivityProbe(
+    isWeightModalVisible,
+    sources,
+    state.apiKey ?? '',
+  );
 
   const activeSourcesCount = useMemo(() => {
     return sources.filter((s) => !s.requiresApiKey || !!s.apiKey).length;
@@ -937,14 +944,34 @@ export default function ProfileScreen() {
             return (
               <View key={source.name} style={[modalListRowStyle, styles.weightItem]}>
                 <View style={styles.weightHeader}>
-                  <Text variant="titleSmall" style={{ color: isDisabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface }}>
-                    {source.name}
-                  </Text>
-                  {isDisabled && (
-                    <Text variant="bodySmall" style={{ color: theme.colors.error, fontSize: 10 }}>
-                      ({t('profile.inactiveSource')})
+                  <View style={styles.weightHeaderLeft}>
+                    <Text variant="titleSmall" style={{ color: isDisabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface }}>
+                      {source.name}
                     </Text>
-                  )}
+                    {isDisabled && (
+                      <Text variant="bodySmall" style={{ color: theme.colors.error, fontSize: 10 }}>
+                        ({t('profile.inactiveSource')})
+                      </Text>
+                    )}
+                  </View>
+                  <Text
+                    variant="bodySmall"
+                    style={{ color: theme.colors.onSurfaceVariant, flexShrink: 0, marginLeft: 8 }}
+                  >
+                    {(() => {
+                      const probe = dataSourceProbeByName[source.name];
+                      if (isDisabled || probe?.kind === 'unconfigured') {
+                        return t('profile.dataSourceUnconfigured');
+                      }
+                      if (probe?.kind === 'ok') {
+                        return t('profile.dataSourceNetworkLatency', { ms: probe.latencyMs });
+                      }
+                      if (probe?.kind === 'timeout') {
+                        return t('profile.dataSourceNetworkTimeout');
+                      }
+                      return t('profile.dataSourceNetworkChecking');
+                    })()}
+                  </Text>
                 </View>
                 <TextInput
                   mode="outlined"
@@ -1095,6 +1122,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 4,
+  },
+  weightHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    flexWrap: 'wrap',
+    gap: 4,
   },
   weightInput: {
     height: 40,
