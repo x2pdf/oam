@@ -150,6 +150,7 @@ export default function ProfileScreen() {
   const dataSourceProbeByName = useDataSourceConnectivityProbe(
     isWeightModalVisible,
     sources,
+    state.profile?.address,
     state.apiKey ?? '',
   );
 

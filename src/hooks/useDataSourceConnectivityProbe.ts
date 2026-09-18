@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { DATA_SOURCE_REQUEST_TIMEOUT_MS } from '../constants';
 import type { IDataSource } from '../datasource/types';
 
+/** Same APIs as messages tab; request a single recent transaction for latency only. */
+const CONNECTIVITY_PROBE_FETCH_PARAMS = { items_count: 1, offset: '1' };
+
 export type DataSourceProbeStatus =
   | { kind: 'unconfigured' }
   | { kind: 'checking' }
@@ -22,15 +25,21 @@ class ProbeTimeoutError extends Error {
 }
 
 /**
- * Measures round-trip time for fetchLatestBlockNumber, bounded by timeoutMs and abort signal.
+ * Measures round-trip time via fetchMessages (one tx), bounded by timeoutMs and abort signal.
  */
 export async function measureSourceLatency(
   source: IDataSource,
+  address: string,
   timeoutMs: number,
   signal: AbortSignal,
 ): Promise<number> {
   if (signal.aborted) {
     throw new DOMException('Aborted', 'AbortError');
+  }
+
+  const cleanAddress = address.trim().toLowerCase();
+  if (!cleanAddress) {
+    throw new Error('PROBE_ADDRESS_REQUIRED');
   }
 
   return new Promise<number>((resolve, reject) => {
@@ -56,7 +65,7 @@ export async function measureSourceLatency(
     }, timeoutMs);
 
     source
-      .fetchLatestBlockNumber()
+      .fetchMessages(cleanAddress, 'all', CONNECTIVITY_PROBE_FETCH_PARAMS)
       .then(() => finish(() => resolve(Date.now() - start)))
       .catch((err) => finish(() => reject(err)));
   });
@@ -77,6 +86,7 @@ function buildInitialProbeMap(sources: IDataSource[]): DataSourceProbeMap {
 export function useDataSourceConnectivityProbe(
   visible: boolean,
   sources: IDataSource[],
+  probeAddress: string | null | undefined,
   apiKeyRevision: string,
 ): DataSourceProbeMap {
   const [probeBySource, setProbeBySource] = useState<DataSourceProbeMap>({});
@@ -89,6 +99,13 @@ export function useDataSourceConnectivityProbe(
 
     const modalAbort = new AbortController();
     setProbeBySource(buildInitialProbeMap(sources));
+
+    const normalizedAddress = probeAddress?.trim() ?? '';
+    if (!normalizedAddress) {
+      return () => {
+        modalAbort.abort();
+      };
+    }
 
     const setStatus = (name: string, status: DataSourceProbeStatus) => {
       if (modalAbort.signal.aborted) return;
@@ -108,6 +125,7 @@ export function useDataSourceConnectivityProbe(
         try {
           const latencyMs = await measureSourceLatency(
             source,
+            normalizedAddress,
             DATA_SOURCE_REQUEST_TIMEOUT_MS,
             attemptAbort.signal,
           );
@@ -130,7 +148,7 @@ export function useDataSourceConnectivityProbe(
     return () => {
       modalAbort.abort();
     };
-  }, [visible, sources, apiKeyRevision]);
+  }, [visible, sources, probeAddress, apiKeyRevision]);
 
   return probeBySource;
 }
