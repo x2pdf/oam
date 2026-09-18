@@ -59,36 +59,11 @@ export class DataSourceManager {
   }
 
   /**
-   * 判断数据源是否应该被跳过
+   * 按权重降序排列的可用数据源（本会话内已 skipped 的除外）。
    */
-  private isSourceDisabled(source: IDataSource): boolean {
-    if (this.skipped.has(source.name)) return true;
-    // 如果需要 API Key 但未提供，则跳过
-    if (source.requiresApiKey && !source.apiKey) return true;
-    return false;
-  }
-
-  /**
-   * 有 API Key 的数据源组（已填写 Key 才算），组内按 weight 降序。
-   */
-  private getSourcesWithApiKey(): IDataSource[] {
+  private getOrderedSources(): IDataSource[] {
     return [...this.sources]
-      .filter((source) => {
-        if (this.isSourceDisabled(source)) return false;
-        return !!source.apiKey;
-      })
-      .sort((a, b) => this.getWeight(b) - this.getWeight(a));
-  }
-
-  /**
-   * 无 API Key 的数据源组（不支持 Key 或 Key 未填写），组内按 weight 降序。
-   */
-  private getSourcesWithoutApiKey(): IDataSource[] {
-    return [...this.sources]
-      .filter((source) => {
-        if (this.isSourceDisabled(source)) return false;
-        return !source.apiKey;
-      })
+      .filter((source) => !this.skipped.has(source.name))
       .sort((a, b) => this.getWeight(b) - this.getWeight(a));
   }
 
@@ -211,56 +186,31 @@ export class DataSourceManager {
   }
 
   /**
-   * 两组优先级：有 API Key 组优先请求，全部失败后 fallback 到无 API Key 组。
-   * 每组内部保持按 weight 排序 + 多轮重试的 fallback 逻辑。
+   * 按 weight 降序依次请求；失败则 failover 到下一源，并保留多轮重试逻辑。
    */
   private async queryByWeight<T>(
     run: (source: IDataSource) => Promise<T>,
     label: string,
   ): Promise<T> {
-    const keyedSources = this.getSourcesWithApiKey();
-    const freeSources = this.getSourcesWithoutApiKey();
+    const orderedSources = this.getOrderedSources();
     const queryId = ++this.querySeq;
     queryInflight += 1;
     // #region agent log
     agentLog(
       'DataSourceManager.ts:queryByWeight:entry',
-      'queryByWeight start (two-tier)',
+      'queryByWeight start',
       {
         queryId,
         label,
         inflight: queryInflight,
-        keyedSources: keyedSources.map((s) => s.name),
-        freeSources: freeSources.map((s) => s.name),
+        orderedSources: orderedSources.map((s) => s.name),
         skipped: Array.from(this.skipped),
       },
       'B',
     );
     // #endregion
     try {
-      if (keyedSources.length === 0 && freeSources.length === 0) {
-        throw new Error('No data sources available');
-      }
-
-      // 优先使用有 API Key 的数据源组
-      if (keyedSources.length > 0) {
-        try {
-          return await this.trySourceList(keyedSources, run, `${label}:keyed`, queryId);
-        } catch (keyedError) {
-          // API Key 组全部失败，fallback 到无 API Key 组
-          if (freeSources.length === 0) {
-            throw keyedError;
-          }
-          console.log(
-            `All keyed sources failed, falling back to free sources. Reason: ${
-              keyedError instanceof Error ? keyedError.message : String(keyedError)
-            }`,
-          );
-        }
-      }
-
-      // Fallback: 无 API Key 的数据源组
-      return await this.trySourceList(freeSources, run, `${label}:free`, queryId);
+      return await this.trySourceList(orderedSources, run, label, queryId);
     } finally {
       queryInflight -= 1;
       // #region agent log

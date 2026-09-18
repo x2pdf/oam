@@ -154,10 +154,6 @@ export default function ProfileScreen() {
     state.apiKey ?? '',
   );
 
-  const activeSourcesCount = useMemo(() => {
-    return sources.filter((s) => !s.requiresApiKey || !!s.apiKey).length;
-  }, [sources, state.apiKey]); // Re-calc when apiKey changes
-
   const showWeightModal = useCallback(() => {
     const currentWeights = sources.reduce((acc, s) => {
       acc[s.name] = state.dataSourceWeights[s.name] ?? s.weight;
@@ -579,14 +575,8 @@ export default function ProfileScreen() {
                 color={theme.colors.primary}
               />
               <View style={styles.cardTextContainer}>
-                <Text
-                  variant="labelMedium"
-                  style={{ color: theme.colors.onSurfaceVariant }}
-                >
-                  {t('profile.dataSourceWeights')}
-                </Text>
                 <Text variant="titleMedium">
-                  {activeSourcesCount} / {sources.length} {t('profile.activeSource')}
+                  {t('profile.dataSourceWeights')}
                 </Text>
               </View>
               <IconButton icon="chevron-right" onPress={showWeightModal} />
@@ -941,16 +931,16 @@ export default function ProfileScreen() {
       >
         <ScrollView style={{ maxHeight: 400 }}>
           {sources.map((source) => {
-            const isDisabled = source.requiresApiKey && !source.apiKey;
+            const missingApiKey = source.requiresApiKey && !source.apiKey;
             return (
               <View key={source.name} style={[modalListRowStyle, styles.weightItem]}>
                 <View style={styles.weightHeader}>
                   <View style={styles.weightHeaderLeft}>
-                    <Text variant="titleSmall" style={{ color: isDisabled ? theme.colors.onSurfaceDisabled : theme.colors.onSurface }}>
+                    <Text variant="titleSmall" style={{ color: theme.colors.onSurface }}>
                       {source.name}
                     </Text>
-                    {isDisabled && (
-                      <Text variant="bodySmall" style={{ color: theme.colors.error, fontSize: 10 }}>
+                    {missingApiKey && (
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontSize: 10 }}>
                         ({t('profile.inactiveSource')})
                       </Text>
                     )}
@@ -961,7 +951,7 @@ export default function ProfileScreen() {
                   >
                     {(() => {
                       const probe = dataSourceProbeByName[source.name];
-                      if (isDisabled || probe?.kind === 'unconfigured') {
+                      if (missingApiKey || probe?.kind === 'unconfigured') {
                         return t('profile.dataSourceUnconfigured');
                       }
                       if (probe?.kind === 'ok') {
@@ -981,10 +971,9 @@ export default function ProfileScreen() {
                   value={String(localWeights[source.name] ?? source.weight)}
                   onChangeText={(val) => updateLocalWeight(source.name, val)}
                   keyboardType="numeric"
-                  disabled={isDisabled}
                   style={styles.weightInput}
                 />
-                {isDisabled && (
+                {missingApiKey && (
                   <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, marginTop: 2 }}>
                     {t('profile.requiresKeyHint')}
                   </Text>
