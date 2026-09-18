@@ -37,8 +37,6 @@ const URI_INPUT_PROPS = {
 };
 
 const LABEL_INPUT_PROPS = {
-  multiline: true,
-  numberOfLines: 2,
   keyboardType: 'default' as const,
   autoCapitalize: 'none' as const,
   autoCorrect: false,
@@ -107,15 +105,12 @@ const AttachmentLabelInput = React.memo(function AttachmentLabelInput({
       placeholder={placeholder}
       defaultValue=""
       {...LABEL_INPUT_PROPS}
-      style={styles.labelInput}
-      contentStyle={styles.labelContent}
       render={(props) => {
         const { value: _paperValue, onChangeText: paperOnChangeText, onBlur, ...rest } = props;
         return (
           <RNTextInput
             {...rest}
             {...LABEL_INPUT_PROPS}
-            style={[rest.style, styles.labelNative]}
             onChangeText={(text) => {
               draftRef.current = text;
               onChangeText(text);
@@ -338,19 +333,6 @@ const styles = StyleSheet.create({
   },
   uriContent: {
     minHeight: 72,
-    textAlignVertical: 'top',
-    paddingTop: 8,
-  },
-  labelInput: {
-    minHeight: 68,
-  },
-  labelContent: {
-    minHeight: 52,
-    textAlignVertical: 'top',
-    paddingTop: 8,
-  },
-  labelNative: {
-    minHeight: 52,
     textAlignVertical: 'top',
     paddingTop: 8,
   },

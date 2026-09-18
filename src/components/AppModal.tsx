@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Keyboard,
   Platform,
@@ -12,10 +12,6 @@ import { isDesktopOs } from '../theme/layout';
 import { getModalSurfaceColor } from '../theme';
 
 const KEYBOARD_BOTTOM_PADDING = 16;
-/** Title, action buttons, modal margin/padding, and scroll margin (not the scroll body). */
-const MODAL_CHROME_ESTIMATE = 184;
-const MIN_SCROLL_HEIGHT = 120;
-const KEYBOARD_SCROLL_CONTENT_PADDING = 32;
 
 function readKeyboardHeight(): number {
   const metrics = Keyboard.metrics();
@@ -63,7 +59,6 @@ export function AppModal({
   // content height → Modal recenters → KAV recalculates → visible jitter loop.
   // On iOS, anchor above the keyboard via wrapper flex-end + paddingBottom instead.
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const scrollRef = useRef<ScrollView>(null);
 
   const resetKeyboardOffset = () => {
     Keyboard.dismiss();
@@ -129,14 +124,6 @@ export function AppModal({
     }
   }, [anyActionLoading]);
 
-  useEffect(() => {
-    if (!visible || !scrollable || keyboardHeight <= 0) return;
-    const frameId = requestAnimationFrame(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    });
-    return () => cancelAnimationFrame(frameId);
-  }, [keyboardHeight, scrollable, visible]);
-
   // iOS does not resize the window for the keyboard; anchor the modal above it.
   // Android uses adjustResize, so the window height already shrinks — do not
   // apply an extra offset or the layout will fight and jitter.
@@ -146,17 +133,7 @@ export function AppModal({
       ? [styles.keyboardVisibleWrapper, { paddingBottom: keyboardOffset + KEYBOARD_BOTTOM_PADDING }]
       : undefined;
   const availableHeight = Math.max(height - keyboardOffset, 240);
-  const scrollMaxFromChrome = availableHeight - MODAL_CHROME_ESTIMATE;
-  const scrollMaxHeight = Math.max(
-    MIN_SCROLL_HEIGHT,
-    keyboardHeight > 0
-      ? scrollMaxFromChrome
-      : Math.min(scrollMaxFromChrome, availableHeight * 0.65),
-  );
-  const scrollContentStyle = [
-    styles.scrollContent,
-    keyboardHeight > 0 && { paddingBottom: KEYBOARD_SCROLL_CONTENT_PADDING },
-  ];
+  const scrollMaxHeight = availableHeight * 0.5;
 
   const modalSurfaceStyle = theme.dark
     ? {
@@ -169,9 +146,8 @@ export function AppModal({
   const body = children ? (
     scrollable ? (
       <ScrollView
-        ref={scrollRef}
         style={[styles.scroll, { maxHeight: scrollMaxHeight }]}
-        contentContainerStyle={scrollContentStyle}
+        contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         automaticallyAdjustKeyboardInsets={false}
