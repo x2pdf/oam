@@ -42,6 +42,10 @@ export default function AppInfoScreen() {
       title: t('appInfo.disclaimerEncryption'),
       body: t('appInfo.disclaimerEncryptionBody'),
     },
+    {
+      title: t('appInfo.disclaimerPublicContent'),
+      body: t('appInfo.disclaimerPublicContentBody'),
+    },
   ];
 
   return (

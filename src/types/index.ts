@@ -31,6 +31,49 @@ export function normalizeSubscription(
   };
 }
 
+/** 用户内容过滤器匹配类型 */
+export type ContentFilterMatchType = 'text' | 'image';
+
+/** 用户内容过滤器规则 */
+export interface ContentFilterRule {
+  id: string;
+  description: string;
+  matchType: ContentFilterMatchType;
+  matchExpression: string;
+}
+
+const CONTENT_FILTER_MATCH_TYPES: ContentFilterMatchType[] = ['text', 'image'];
+
+export function isContentFilterMatchType(value: unknown): value is ContentFilterMatchType {
+  return CONTENT_FILTER_MATCH_TYPES.includes(value as ContentFilterMatchType);
+}
+
+/** 从持久化数据补全过滤器字段；无效 matchType 时返回 null */
+export function normalizeContentFilterRule(value: unknown): ContentFilterRule | null {
+  if (!value || typeof value !== 'object') return null;
+  const obj = value as Record<string, unknown>;
+  const id = typeof obj.id === 'string' ? obj.id.trim() : '';
+  const description = typeof obj.description === 'string' ? obj.description.trim() : '';
+  const matchExpression =
+    typeof obj.matchExpression === 'string' ? obj.matchExpression.trim() : '';
+  if (!id || !description || !matchExpression) return null;
+  if (!isContentFilterMatchType(obj.matchType)) return null;
+  return {
+    id,
+    description,
+    matchType: obj.matchType,
+    matchExpression,
+  };
+}
+
+/** 导入/去重用键 */
+export function contentFilterDedupeKey(
+  matchType: ContentFilterMatchType,
+  matchExpression: string,
+): string {
+  return `${matchType}\0${matchExpression.trim()}`;
+}
+
 /** 列表条目的展示类型（过滤器链写入） */
 export type ContentKind = 'OAMP' | 'OAMP_ENCRYPTED' | 'UTF-8' | 'RAW';
 
@@ -122,6 +165,12 @@ export type RootStackParamList = {
   AddressDataList: { address: string; title?: string; peerAddress?: string };
   LocalFavorites: undefined;
   LocalDrafts: undefined;
+  ContentFilters: undefined;
+  ContentFilterForm: {
+    mode: 'add' | 'edit';
+    filter?: ContentFilterRule;
+  };
+  ContentFilterDetail: { filter: ContentFilterRule };
   AppInfo: undefined;
   CacheManagement: undefined;
   FollowListSelection: undefined;

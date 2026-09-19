@@ -31,6 +31,9 @@ import AddressDataListScreen from '../screens/AddressDataListScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
 import LocalFavoritesScreen from '../screens/LocalFavoritesScreen';
 import LocalDraftsScreen from '../screens/LocalDraftsScreen';
+import ContentFiltersScreen from '../screens/ContentFiltersScreen';
+import ContentFilterFormScreen from '../screens/ContentFilterFormScreen';
+import ContentFilterDetailScreen from '../screens/ContentFilterDetailScreen';
 import AppInfoScreen from '../screens/AppInfoScreen';
 import FollowListSelectionScreen from '../screens/FollowListSelectionScreen';
 import CacheManagementScreen from '../screens/CacheManagementScreen';
@@ -303,6 +306,31 @@ export default function AppNavigator() {
           component={LocalDraftsScreen}
           options={{
             title: t('nav.localDrafts'),
+          }}
+        />
+        <Stack.Screen
+          name="ContentFilters"
+          component={ContentFiltersScreen}
+          options={{
+            title: t('nav.contentFilters'),
+          }}
+        />
+        <Stack.Screen
+          name="ContentFilterForm"
+          component={ContentFilterFormScreen}
+          options={({ route }) => ({
+            title:
+              route.params?.mode === 'add'
+                ? t('form.addContentFilter')
+                : t('form.editContentFilter'),
+            presentation: 'modal',
+          })}
+        />
+        <Stack.Screen
+          name="ContentFilterDetail"
+          component={ContentFilterDetailScreen}
+          options={{
+            title: t('nav.contentFilterDetail'),
           }}
         />
         <Stack.Screen

@@ -7,9 +7,13 @@ export const MAX_ADDRESS_LENGTH = 512;
 /** 描述最大长度 */
 export const MAX_DESCRIPTION_LENGTH = 156;
 
+/** 匹配表达式最大长度 */
+export const MAX_MATCH_EXPRESSION_LENGTH = 512;
+
 /** AsyncStorage 存储键 */
 export const STORAGE_KEYS = {
   SUBSCRIPTIONS: '@oam_subscriptions',
+  CONTENT_FILTERS: '@oam_content_filters',
   PROFILE: '@oam_profile',
   API_KEY: '@oam_api_key',
   THEME: '@oam_theme',

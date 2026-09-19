@@ -54,6 +54,8 @@
     "conversation": "Conversation",
     "localFavorites": "Local Favorites",
     "localDrafts": "Drafts",
+    "contentFilters": "Filters",
+    "contentFilterDetail": "Filter Detail",
     "appInfo": "App Info",
     "cacheManagement": "Cache Data Management",
     "exportData": "Export Data",
@@ -155,6 +157,33 @@
     "importResult": "Imported {{added}} item(s), skipped {{skipped}} duplicate(s).",
     "importResultNoNew": "Nothing new was added. All imported addresses already exist."
   },
+  "contentFilters": {
+    "count": "{{count}} items",
+    "empty": "No filters yet",
+    "addHint": "Tap + in the top right to add a filter",
+    "matchTypeText": "Text",
+    "matchTypeImage": "Image",
+    "searchPlaceholder": "Search description, type, or expression (regex)",
+    "searchNoResult": "No matching results",
+    "importExport": "Import / Export",
+    "importExportTitle": "Filter data",
+    "exportData": "Export data",
+    "importData": "Import data",
+    "exportTitle": "Export data",
+    "exportHint": "Copy the JSON below and save it elsewhere. You can import the same format later.",
+    "exportEmpty": "The filter list is empty. You can still copy this empty JSON.",
+    "copyJson": "Copy JSON",
+    "importTitle": "Import data",
+    "importHint": "Paste exported JSON. Existing match type + expression pairs are skipped; current list entries win.",
+    "importRiskWarning": "Risk notice: Only import from a trusted source and verify every description, match type, and expression yourself. This app does not validate that the JSON is truthful or accurate; pasted data may have been tampered with or fabricated. Incorrect rules may affect how content is shown later. You accept full responsibility for any consequences; the app assumes none.",
+    "importPlaceholder": "Paste JSON…",
+    "importConfirm": "Import",
+    "importInvalidJson": "Could not parse JSON. Please check the content.",
+    "importInvalidFormat": "Invalid JSON format. Expect a list of entries with description, matchType, and matchExpression.",
+    "importEmpty": "No valid entries to import.",
+    "importResult": "Imported {{added}} item(s), skipped {{skipped}} duplicate(s).",
+    "importResultNoNew": "Nothing new was added. All imported rules already exist."
+  },
   "favorites": {
     "empty": "No local favorites yet",
     "emptyHint": "Open a data detail page and tap Favorite to save it on this device",
@@ -203,6 +232,7 @@
     "exportDataHint": "Export messages as PDF",
     "localFavorites": "Local Favorites",
     "localDrafts": "Drafts",
+    "contentFilters": "Filters",
     "cacheManagement": "Cache Data Management",
     "appearance": "Appearance",
     "selectAppearance": "Select Appearance",
@@ -297,6 +327,8 @@
   "form": {
     "addSubscription": "Add Subscription",
     "editSubscription": "Edit Subscription",
+    "addContentFilter": "Add Filter",
+    "editContentFilter": "Edit Filter",
     "addressRequired": "Address is required",
     "descriptionRequired": "Description is required",
     "addressPlaceholder": "Please enter address",
@@ -315,6 +347,12 @@
     "payPasswordMaxLength": "Payment password cannot exceed 16 digits",
     "payPasswordMismatch": "Payment passwords do not match",
     "addressDuplicate": "This address is already in your subscription list ({{desc}}). Please do not add it again.",
+    "filterDuplicate": "A filter with the same match type and expression already exists ({{desc}}). Please do not add it again.",
+    "matchType": "Match type",
+    "matchExpression": "Match expression",
+    "matchExpressionPlaceholder": "Enter match expression (regex supported)",
+    "matchExpressionRequired": "Match expression is required",
+    "matchExpressionMaxLength": "Match expression cannot exceed {{max}} characters",
     "addressSelf": "You cannot add your own address to the subscription list."
   },
   "wallet": {
@@ -727,6 +765,8 @@
     "disclaimerOnChainBody": "Blockchain technology is immutable. Once information is sent to the blockchain through this project, it will be permanently stored on-chain and publicly visible worldwide. Developers cannot modify, hide, or delete any data already on-chain, nor can they prevent any third party from accessing it. Please ensure that no sensitive information is included before sending.",
     "disclaimerEncryption": "Encryption Disclaimer",
     "disclaimerEncryptionBody": "The encryption features provided by this project are for technical demonstration only. Developers are not responsible for any content stored or distributed by users using this feature. Encryption does not equate to absolute security. Developers assume no responsibility for compromised encryption due to user error, private key leakage, algorithm limitations, or future technological advances.",
+    "disclaimerPublicContent": "Public On-Chain Data & Content Risk",
+    "disclaimerPublicContentBody": "Data displayed in this app is sourced from publicly available blockchain information. Any user may independently upload data to the blockchain; such content is entirely controlled by the uploader, and developers cannot review, filter, or remove it in advance. While using this app to browse on-chain content, you may encounter material that is inappropriate, offensive, or potentially unlawful (including but not limited to violence, adult content, fraud, or other illegal material). You acknowledge and accept these risks. You are solely responsible for any consequences arising from viewing, relying on, or otherwise using third-party on-chain content; the developers assume no liability in connection therewith. You further represent that you have reached the age of legal majority in your jurisdiction and voluntarily assume all consequences of viewing or using public on-chain content.",
     "disclaimerAgree": "Continuing to use this program means you fully understand and agree to assume the associated risks."
   }
 }

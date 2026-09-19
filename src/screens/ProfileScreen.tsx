@@ -493,6 +493,40 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
+        {/* 3.5 过滤器 */}
+        <View style={styles.sectionSpacer} />
+        <Card
+          style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          mode="elevated"
+          onPress={() => navigation.navigate('ContentFilters')}
+        >
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.row}>
+              <Avatar.Icon
+                size={48}
+                icon="filter-variant"
+                style={{ backgroundColor: theme.colors.primaryContainer }}
+                color={theme.colors.primary}
+              />
+              <View style={styles.cardTextContainer}>
+                <Text
+                  variant="labelMedium"
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  {t('profile.contentFilters')}
+                </Text>
+                <Text variant="titleMedium">
+                  {t('contentFilters.count', { count: state.contentFilters.length })}
+                </Text>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                onPress={() => navigation.navigate('ContentFilters')}
+              />
+            </View>
+          </Card.Content>
+        </Card>
+
         {/* 4. 外观 / 主题 */}
         <View style={styles.sectionSpacer} />
         <Card

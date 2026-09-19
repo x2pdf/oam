@@ -17,6 +17,8 @@ import {
   SendDraftImage,
   SendDraftAttachment,
   normalizeSubscription,
+  ContentFilterRule,
+  normalizeContentFilterRule,
 } from '../types';
 import { STORAGE_KEYS, API_CONFIG, normalizeHomeTabWeights, type HomeTabId } from '../constants';
 import { migrateLegacyStorage } from '../storage/migrate';
@@ -84,6 +86,7 @@ function isSendDraft(value: unknown): value is SendDraft {
 
 interface AppState {
   subscriptions: Subscription[];
+  contentFilters: ContentFilterRule[];
   profile: Subscription | null;
   arProfile: Subscription | null;
   apiKey: string;
@@ -96,6 +99,7 @@ interface AppState {
 
 const initialState: AppState = {
   subscriptions: [],
+  contentFilters: [],
   profile: null,
   arProfile: null,
   apiKey: '',
@@ -116,6 +120,11 @@ type Action =
   | { type: 'ADD_SUBSCRIPTIONS'; payload: Subscription[] }
   | { type: 'UPDATE_SUBSCRIPTION'; payload: Subscription }
   | { type: 'DELETE_SUBSCRIPTION'; payload: string }
+  | { type: 'SET_CONTENT_FILTERS'; payload: ContentFilterRule[] }
+  | { type: 'ADD_CONTENT_FILTER'; payload: ContentFilterRule }
+  | { type: 'ADD_CONTENT_FILTERS'; payload: ContentFilterRule[] }
+  | { type: 'UPDATE_CONTENT_FILTER'; payload: ContentFilterRule }
+  | { type: 'DELETE_CONTENT_FILTER'; payload: string }
   | { type: 'SET_PROFILE'; payload: Subscription | null }
   | { type: 'SET_AR_PROFILE'; payload: Subscription | null }
   | { type: 'SET_API_KEY'; payload: string }
@@ -155,6 +164,31 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         subscriptions: state.subscriptions.filter((s) => s.id !== action.payload),
+      };
+    case 'SET_CONTENT_FILTERS':
+      return { ...state, contentFilters: action.payload };
+    case 'ADD_CONTENT_FILTER':
+      return {
+        ...state,
+        contentFilters: [...state.contentFilters, action.payload],
+      };
+    case 'ADD_CONTENT_FILTERS':
+      if (action.payload.length === 0) return state;
+      return {
+        ...state,
+        contentFilters: [...state.contentFilters, ...action.payload],
+      };
+    case 'UPDATE_CONTENT_FILTER':
+      return {
+        ...state,
+        contentFilters: state.contentFilters.map((f) =>
+          f.id === action.payload.id ? action.payload : f,
+        ),
+      };
+    case 'DELETE_CONTENT_FILTER':
+      return {
+        ...state,
+        contentFilters: state.contentFilters.filter((f) => f.id !== action.payload),
       };
     case 'SET_PROFILE':
       return { ...state, profile: action.payload };
@@ -216,6 +250,10 @@ interface AppContextType {
   addSubscriptions: (items: Subscription[]) => Promise<void>;
   updateSubscription: (item: Subscription) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
+  addContentFilter: (item: ContentFilterRule) => Promise<void>;
+  addContentFilters: (items: ContentFilterRule[]) => Promise<void>;
+  updateContentFilter: (item: ContentFilterRule) => Promise<void>;
+  deleteContentFilter: (id: string) => Promise<void>;
   saveProfile: (item: Subscription) => Promise<void>;
   updateProfile: (item: Subscription) => Promise<void>;
   deleteProfile: () => Promise<void>;
@@ -254,6 +292,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
         await migrateLegacyStorage();
         const results = await AsyncStorage.multiGet([
           STORAGE_KEYS.SUBSCRIPTIONS,
+          STORAGE_KEYS.CONTENT_FILTERS,
           STORAGE_KEYS.PROFILE,
           STORAGE_KEYS.AR_PROFILE,
           STORAGE_KEYS.API_KEY,
@@ -263,19 +302,29 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
           STORAGE_KEYS.HOME_TAB_WEIGHTS,
         ]);
         const subsValue = results[0]?.[1];
-        const profileValue = results[1]?.[1];
-        const arProfileValue = results[2]?.[1];
-        const apiKeyValue = results[3]?.[1];
-        const favoritesValue = results[4]?.[1];
-        const draftsValue = results[5]?.[1];
-        const weightsValue = results[6]?.[1];
-        const homeTabWeightsValue = results[7]?.[1];
+        const contentFiltersValue = results[1]?.[1];
+        const profileValue = results[2]?.[1];
+        const arProfileValue = results[3]?.[1];
+        const apiKeyValue = results[4]?.[1];
+        const favoritesValue = results[5]?.[1];
+        const draftsValue = results[6]?.[1];
+        const weightsValue = results[7]?.[1];
+        const homeTabWeightsValue = results[8]?.[1];
         if (subsValue) {
           const subs: Subscription[] = JSON.parse(subsValue);
           dispatch({
             type: 'SET_SUBSCRIPTIONS',
             payload: subs.map(normalizeSubscription),
           });
+        }
+        if (contentFiltersValue) {
+          const parsed: unknown = JSON.parse(contentFiltersValue);
+          const filters: ContentFilterRule[] = Array.isArray(parsed)
+            ? parsed
+                .map(normalizeContentFilterRule)
+                .filter((f): f is ContentFilterRule => f !== null)
+            : [];
+          dispatch({ type: 'SET_CONTENT_FILTERS', payload: filters });
         }
         if (profileValue) {
           dispatch({
@@ -353,6 +402,24 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
     dispatch({ type: 'DELETE_SUBSCRIPTION', payload: id });
   }, []);
 
+  /* ---------- 内容过滤器 CRUD ---------- */
+  const addContentFilter = useCallback(async (item: ContentFilterRule) => {
+    dispatch({ type: 'ADD_CONTENT_FILTER', payload: item });
+  }, []);
+
+  const addContentFilters = useCallback(async (items: ContentFilterRule[]) => {
+    if (items.length === 0) return;
+    dispatch({ type: 'ADD_CONTENT_FILTERS', payload: items });
+  }, []);
+
+  const updateContentFilter = useCallback(async (item: ContentFilterRule) => {
+    dispatch({ type: 'UPDATE_CONTENT_FILTER', payload: item });
+  }, []);
+
+  const deleteContentFilter = useCallback(async (id: string) => {
+    dispatch({ type: 'DELETE_CONTENT_FILTER', payload: id });
+  }, []);
+
   /* ---------- 同步订阅列表到 AsyncStorage ---------- */
   useEffect(() => {
     if (!state.isLoading) {
@@ -362,6 +429,16 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       ).catch(console.warn);
     }
   }, [state.subscriptions, state.isLoading]);
+
+  /* ---------- 同步内容过滤器到 AsyncStorage ---------- */
+  useEffect(() => {
+    if (!state.isLoading) {
+      AsyncStorage.setItem(
+        STORAGE_KEYS.CONTENT_FILTERS,
+        JSON.stringify(state.contentFilters),
+      ).catch(console.warn);
+    }
+  }, [state.contentFilters, state.isLoading]);
 
   /* ---------- Profile CRUD ---------- */
   const saveProfile = useCallback(async (item: Subscription) => {
@@ -528,6 +605,10 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       addSubscriptions,
       updateSubscription,
       deleteSubscription,
+      addContentFilter,
+      addContentFilters,
+      updateContentFilter,
+      deleteContentFilter,
       saveProfile,
       updateProfile,
       deleteProfile,
@@ -549,6 +630,10 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
       addSubscriptions,
       updateSubscription,
       deleteSubscription,
+      addContentFilter,
+      addContentFilters,
+      updateContentFilter,
+      deleteContentFilter,
       saveProfile,
       updateProfile,
       deleteProfile,

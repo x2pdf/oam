@@ -54,6 +54,8 @@
     "conversation": "双方对话",
     "localFavorites": "我的本地收藏",
     "localDrafts": "我的草稿",
+    "contentFilters": "过滤器",
+    "contentFilterDetail": "过滤器详情",
     "appInfo": "应用信息",
     "cacheManagement": "缓存数据管理",
     "exportData": "导出数据",
@@ -155,6 +157,33 @@
     "importResult": "已导入 {{added}} 条，跳过重复 {{skipped}} 条。",
     "importResultNoNew": "没有新增条目，导入内容均与现有地址重复。"
   },
+  "contentFilters": {
+    "count": "{{count}} 条",
+    "empty": "暂无过滤器",
+    "addHint": "点击右上角 + 添加过滤器",
+    "matchTypeText": "文本",
+    "matchTypeImage": "图片",
+    "searchPlaceholder": "搜索描述、类型或表达式（支持正则）",
+    "searchNoResult": "没有匹配的结果",
+    "importExport": "导入 / 导出",
+    "importExportTitle": "过滤器数据",
+    "exportData": "导出数据",
+    "importData": "导入数据",
+    "exportTitle": "导出数据",
+    "exportHint": "复制下方 JSON 并保存到其他地方。之后可用同一格式导入。",
+    "exportEmpty": "当前过滤器列表为空，仍可复制这份空列表 JSON。",
+    "copyJson": "复制 JSON",
+    "importTitle": "导入数据",
+    "importHint": "粘贴导出时的 JSON。已存在的匹配类型+表达式会跳过，以当前列表为准。",
+    "importRiskWarning": "风险提示：请确保数据来源可信，并自行核对每条描述、匹配类型与表达式。本应用不会验证 JSON 内容是否真实或准确；你粘贴的数据可能被篡改或伪造。错误的规则可能导致内容展示异常。由此产生的任何后果由你自行承担，本应用不承担责任。",
+    "importPlaceholder": "粘贴 JSON…",
+    "importConfirm": "导入",
+    "importInvalidJson": "JSON 无法解析，请检查内容。",
+    "importInvalidFormat": "JSON 格式不正确，需要包含 description、matchType 和 matchExpression 的条目列表。",
+    "importEmpty": "没有可导入的有效条目。",
+    "importResult": "已导入 {{added}} 条，跳过重复 {{skipped}} 条。",
+    "importResultNoNew": "没有新增条目，导入内容均与现有规则重复。"
+  },
   "favorites": {
     "empty": "暂无本地收藏",
     "emptyHint": "浏览数据详情时点击「收藏」，即可保存在本机",
@@ -203,6 +232,7 @@
     "exportDataHint": "将消息导出为 PDF",
     "localFavorites": "我的本地收藏",
     "localDrafts": "我的草稿",
+    "contentFilters": "过滤器",
     "cacheManagement": "缓存数据管理",
     "appearance": "外观",
     "selectAppearance": "选择外观",
@@ -297,6 +327,8 @@
   "form": {
     "addSubscription": "添加关注",
     "editSubscription": "编辑关注",
+    "addContentFilter": "添加过滤器",
+    "editContentFilter": "编辑过滤器",
     "addressRequired": "地址不能为空",
     "descriptionRequired": "描述不能为空",
     "addressPlaceholder": "请输入地址",
@@ -315,6 +347,12 @@
     "payPasswordMaxLength": "支付密码最多16位",
     "payPasswordMismatch": "两次输入的支付密码不一致",
     "addressDuplicate": "该地址已在关注列表中（{{desc}}），请勿重复添加。",
+    "filterDuplicate": "相同匹配类型与表达式已存在（{{desc}}），请勿重复添加。",
+    "matchType": "匹配类型",
+    "matchExpression": "匹配表达式",
+    "matchExpressionPlaceholder": "请输入匹配表达式（支持正则）",
+    "matchExpressionRequired": "匹配表达式不能为空",
+    "matchExpressionMaxLength": "匹配表达式不能超过 {{max}} 个字符",
     "addressSelf": "不能添加当前用户自己的地址。"
   },
   "wallet": {
@@ -727,6 +765,8 @@
     "disclaimerOnChainBody": "区块链技术具有不可篡改性。一旦信息通过本项目发送至区块链，该信息将永久保存在链上，且对全球公开可见。开发者无法修改、隐藏或删除已上链的任何数据，亦无法阻止任何第三方访问这些数据。请在发送前确保不包含任何不宜公开的敏感信息。",
     "disclaimerEncryption": "加密功能免责",
     "disclaimerEncryptionBody": "本项目提供的信息加密功能仅为技术展示。开发者不对用户利用该功能存储或传播的任何内容负责。加密并不等同于绝对安全，开发者不承担因用户误操作、私钥泄漏、算法局限性或未来技术进步导致的加密信息被破解所产生的任何责任。",
+    "disclaimerPublicContent": "链上公开数据与内容风险",
+    "disclaimerPublicContentBody": "本应用所展示的数据均来源于区块链上的公开信息。任何用户均可独立向区块链上传数据，相关内容完全由上传者自行控制，开发者无法对其加以事前审核、筛选或删除。您在使用本应用浏览链上内容时，可能会接触到不当、令人不适或涉嫌违法的信息（包括但不限于暴力、色情、欺诈或其他违法违规内容）。您已知悉并接受上述风险；因接触、依赖或使用链上第三方内容而产生的任何后果，由您自行承担，应用开发者不承担与此相关的任何责任。您进一步声明：已年满您所在司法管辖区法律规定的法定成年年龄，并自愿承担因浏览或使用链上公开内容而产生的全部后果。",
     "disclaimerAgree": "继续使用本程序即代表您已充分理解并同意承担相关风险。"
   }
 }
