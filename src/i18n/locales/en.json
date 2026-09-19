@@ -597,6 +597,7 @@
     "listEmpty": "No uploads yet",
     "listError": "Failed to load: {{message}}",
     "dataTxId": "Transaction ID (Arweave ID)",
+    "dataUri": "URI",
     "walletAddress": "AR Address",
     "addHint": "Tap here to add an Arweave wallet",
     "upgradeWallet": "Change Wallet",

@@ -597,6 +597,7 @@
     "listEmpty": "暂无上传记录",
     "listError": "加载失败：{{message}}",
     "dataTxId": "Transaction ID（Arweave ID）",
+    "dataUri": "URI",
     "walletAddress": "AR 地址",
     "addHint": "点击此处添加 Arweave 钱包",
     "upgradeWallet": "更换钱包",

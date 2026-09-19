@@ -11,6 +11,7 @@ import { AddressWithActions } from '../../../components/AddressWithActions';
 import { useThemePreference } from '../../../context/ThemeContext';
 import { ArweaveContentBody } from '../../../components/ArweaveContentBody';
 import { getArListDisplayTime } from '../utils/time';
+import { arweaveHref } from '../utils/mime';
 
 type RouteProps = RouteProp<RootStackParamList, 'ArweaveDataDetail'>;
 
@@ -25,6 +26,7 @@ export default function ArweaveDataDetailScreen() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const displayTime = useMemo(() => getArListDisplayTime(item.timestamp, t), [item.timestamp, t]);
+  const uri = useMemo(() => (item.id ? arweaveHref(item.id) : ''), [item.id]);
 
   const showCopiedSnackbar = useCallback(() => {
     setSnackbarMessage(t('common.copied'));
@@ -36,6 +38,12 @@ export default function ArweaveDataDetailScreen() {
     await Clipboard.setStringAsync(item.id);
     showCopiedSnackbar();
   }, [item.id, showCopiedSnackbar]);
+
+  const handleCopyUri = useCallback(async () => {
+    if (!uri) return;
+    await Clipboard.setStringAsync(uri);
+    showCopiedSnackbar();
+  }, [uri, showCopiedSnackbar]);
 
   const handleCopyTime = useCallback(async () => {
     if (!displayTime) return;
@@ -84,6 +92,34 @@ export default function ArweaveDataDetailScreen() {
                   icon="content-copy"
                   size={18}
                   onPress={handleCopyTxId}
+                  iconColor={theme.colors.primary}
+                  style={styles.copyIconBtn}
+                  accessibilityLabel={t('common.copy')}
+                />
+              </View>
+            </Card.Content>
+          </Card>
+
+          <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+            <Card.Content>
+              <Text
+                variant="titleSmall"
+                style={[styles.sectionTitle, { color: theme.colors.primary }]}
+              >
+                {t('arweave.dataUri')}
+              </Text>
+              <View style={styles.valueRow}>
+                <Text
+                  variant="bodySmall"
+                  style={[styles.monoText, styles.valueText, { fontSize: Math.round(12 * fontScale) }]}
+                  selectable
+                >
+                  {uri}
+                </Text>
+                <IconButton
+                  icon="content-copy"
+                  size={18}
+                  onPress={handleCopyUri}
                   iconColor={theme.colors.primary}
                   style={styles.copyIconBtn}
                   accessibilityLabel={t('common.copy')}
