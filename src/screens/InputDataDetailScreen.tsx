@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import { RootStackParamList } from '../types';
 import { AddressWithActions } from '../components/AddressWithActions';
-import { RichContentRenderer } from '../components/RichContentRenderer';
+import { OampContentBody } from '../components/OampContentBody';
 import { CONTENT_KIND_I18N_KEY } from '../display';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
@@ -136,7 +136,7 @@ export default function InputDataDetailScreen() {
     }
 
     if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-      return <RichContentRenderer items={item.oampItems} selectable />;
+      return <OampContentBody items={item.oampItems} selectable />;
     }
 
     if (kind === 'UTF-8' && item.textContent) {
@@ -169,7 +169,7 @@ export default function InputDataDetailScreen() {
       <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle]}>
         <ListColumn>
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-          <Card.Content>
+          <Card.Content style={styles.contentCardBody}>
             <View style={styles.sectionHeader}>
               <Text
                 variant="titleSmall"
@@ -331,6 +331,10 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 12,
     marginBottom: 12,
+  },
+  contentCardBody: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   metaRow: {
     marginBottom: 10,

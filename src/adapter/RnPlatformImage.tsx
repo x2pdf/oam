@@ -7,6 +7,7 @@ export const RnPlatformImage: React.FC<PlatformImageProps> = ({
   style,
   resizeMode = 'contain',
   onError,
+  onLoadDimensions,
 }) => {
   return (
     <Image
@@ -14,6 +15,12 @@ export const RnPlatformImage: React.FC<PlatformImageProps> = ({
       style={style}
       resizeMode={resizeMode}
       onError={onError}
+      onLoad={(event) => {
+        const { width, height } = event.nativeEvent.source;
+        if (width > 0 && height > 0) {
+          onLoadDimensions?.({ width, height });
+        }
+      }}
     />
   );
 };

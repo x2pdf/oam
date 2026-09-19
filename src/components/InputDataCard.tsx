@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, Pressable } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { InputDataItem } from '../types';
-import { RichContentRenderer } from './RichContentRenderer';
+import { OampContentBody } from './OampContentBody';
 import { shortenAddress, isBlackHoleAddress } from '../utils/address';
 import { CONTENT_KIND_I18N_KEY } from '../display';
 import { useAppContext } from '../context/AppContext';
@@ -47,7 +47,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
 
     const renderBody = () => {
       if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-        return <RichContentRenderer items={item.oampItems} truncate />;
+        return <OampContentBody items={item.oampItems} truncate />;
       }
 
       if (kind === 'UTF-8' && item.textContent) {

@@ -16,7 +16,16 @@ function toContentFit(resizeMode: PlatformImageProps['resizeMode']): ImageConten
 }
 
 export const AndroidPlatformImage: React.FC<PlatformImageProps> = (props) => {
-  const { uri, style, resizeMode = 'contain', mimeType, onPress, onLongPress, onError } = props;
+  const {
+    uri,
+    style,
+    resizeMode = 'contain',
+    mimeType,
+    onPress,
+    onLongPress,
+    onError,
+    onLoadDimensions,
+  } = props;
 
   const inner = isGifUri(uri, mimeType) ? (
     <ExpoImage
@@ -25,6 +34,12 @@ export const AndroidPlatformImage: React.FC<PlatformImageProps> = (props) => {
       contentFit={toContentFit(resizeMode)}
       autoplay
       onError={() => onError?.()}
+      onLoad={(event) => {
+        const { width, height } = event.source;
+        if (width > 0 && height > 0) {
+          onLoadDimensions?.({ width, height });
+        }
+      }}
     />
   ) : (
     <RnPlatformImage {...props} />

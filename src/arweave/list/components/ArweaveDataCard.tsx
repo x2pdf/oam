@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useThemePreference } from '../../../context/ThemeContext';
 import { wasRecentImagePress } from '../../../adapter/wrapImagePress';
 import { ArweaveListItem } from '../types';
-import { ArweaveContentRenderer } from './ArweaveContentRenderer';
+import { ArweaveContentBody } from '../../../components/ArweaveContentBody';
 import { getArListDisplayTime } from '../utils/time';
 
 interface ArweaveDataCardProps {
@@ -24,7 +24,7 @@ export const ArweaveDataCard: React.FC<ArweaveDataCardProps> = React.memo(
 
     const renderBody = () => {
       if (!item.contentItems.length) return null;
-      return <ArweaveContentRenderer items={item.contentItems} truncate />;
+      return <ArweaveContentBody items={item.contentItems} truncate />;
     };
 
     const card = (

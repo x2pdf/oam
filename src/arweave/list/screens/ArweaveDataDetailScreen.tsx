@@ -9,7 +9,7 @@ import * as Clipboard from 'expo-clipboard';
 import { RootStackParamList } from '../../../types';
 import { AddressWithActions } from '../../../components/AddressWithActions';
 import { useThemePreference } from '../../../context/ThemeContext';
-import { ArweaveContentRenderer } from '../components/ArweaveContentRenderer';
+import { ArweaveContentBody } from '../../../components/ArweaveContentBody';
 import { getArListDisplayTime } from '../utils/time';
 
 type RouteProps = RouteProp<RootStackParamList, 'ArweaveDataDetail'>;
@@ -45,7 +45,7 @@ export default function ArweaveDataDetailScreen() {
 
   const renderBody = () => {
     if (!item.contentItems.length) return null;
-    return <ArweaveContentRenderer items={item.contentItems} />;
+    return <ArweaveContentBody items={item.contentItems} />;
   };
 
   return (
@@ -53,7 +53,7 @@ export default function ArweaveDataDetailScreen() {
       <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle]}>
         <ListColumn>
           <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-            <Card.Content>
+            <Card.Content style={styles.contentCardBody}>
               <Text
                 variant="titleSmall"
                 style={[styles.sectionTitle, { color: theme.colors.primary }]}
@@ -172,6 +172,10 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 12,
     marginBottom: 12,
+  },
+  contentCardBody: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   metaRow: {
     marginBottom: 10,

@@ -1,11 +1,15 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { getImageRendererAdapter } from '../adapter';
+import { getImageRendererAdapter, peekCachedRemoteImageUri } from '../adapter';
 import { PlatformImageProps } from '../adapter/ImageRendererAdapter';
 import { useImageAspectRatio } from '../hooks/useImageAspectRatio';
 import { isHttpUrl } from '../utils/attachment';
 import { isDesktopOs } from '../theme/layout';
+import {
+  pickCachedAspectRatio,
+  rememberImageAspectRatio,
+} from '../utils/imageAspectRatioCache';
 import { CachedRemoteImage } from './CachedRemoteImage';
 
 const LIST_GUTTER = 16;
@@ -68,7 +72,63 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
 }) => {
   const theme = useTheme();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const aspectRatio = useImageAspectRatio(uri);
+  const [resolvedUri, setResolvedUri] = useState<string | null>(() =>
+    isHttpUrl(uri) ? peekCachedRemoteImageUri(uri) : null,
+  );
+
+  const aspectCandidates = useMemo(() => {
+    const list = [uri];
+    if (resolvedUri && resolvedUri !== uri) {
+      list.push(resolvedUri);
+    }
+    return list;
+  }, [uri, resolvedUri]);
+
+  const [loadedAspectRatio, setLoadedAspectRatio] = useState<number | null>(() =>
+    pickCachedAspectRatio([uri]),
+  );
+
+  useEffect(() => {
+    setResolvedUri(isHttpUrl(uri) ? peekCachedRemoteImageUri(uri) : null);
+  }, [uri]);
+
+  useEffect(() => {
+    const cached = pickCachedAspectRatio(aspectCandidates);
+    if (cached != null) {
+      setLoadedAspectRatio(cached);
+    }
+  }, [aspectCandidates]);
+
+  useEffect(() => {
+    setLoadedAspectRatio(pickCachedAspectRatio([uri]));
+  }, [uri]);
+
+  const hookAspectRatio = useImageAspectRatio(aspectCandidates);
+  const aspectRatio = loadedAspectRatio ?? hookAspectRatio;
+
+  const handleLoadDimensions = useCallback(
+    (size: { width: number; height: number }) => {
+      if (size.width <= 0 || size.height <= 0) {
+        return;
+      }
+      const ratio = size.width / size.height;
+      rememberImageAspectRatio(ratio, uri, resolvedUri ?? undefined);
+      setLoadedAspectRatio(ratio);
+    },
+    [uri, resolvedUri],
+  );
+
+  const handleDisplayUri = useCallback(
+    (localUri: string) => {
+      setResolvedUri(localUri);
+      const cached = pickCachedAspectRatio([uri, localUri]);
+      if (cached != null) {
+        setLoadedAspectRatio(cached);
+      }
+    },
+    [uri],
+  );
+
   const [layoutWidth, setLayoutWidth] = useState(0);
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
@@ -86,8 +146,8 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
 
   const backgroundColor = theme.dark ? '#262626' : '#F5F5F5';
   const imageStyle = useMemo(
-    () => [styles.image, { backgroundColor }],
-    [backgroundColor],
+    () => [styles.image, containerStyle, { backgroundColor }],
+    [containerStyle, backgroundColor],
   );
 
   const inner = isHttpUrl(uri) ? (
@@ -101,6 +161,8 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
       onPress={onPress}
       onLongPress={onLongPress}
       onError={onError}
+      onDisplayUri={handleDisplayUri}
+      onLoadDimensions={handleLoadDimensions}
     />
   ) : (
     <PlatformImage
@@ -111,12 +173,13 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
       onPress={onPress}
       onLongPress={onLongPress}
       onError={onError}
+      onLoadDimensions={handleLoadDimensions}
     />
   );
 
   return (
     <View style={styles.outer} onLayout={onLayout}>
-      <View style={[styles.clip, containerStyle, { backgroundColor }]}>{inner}</View>
+      <View style={[styles.clip, { backgroundColor }]}>{inner}</View>
     </View>
   );
 };
@@ -124,6 +187,7 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
 const styles = StyleSheet.create({
   outer: {
     width: '100%',
+    alignSelf: 'stretch',
     marginVertical: 8,
   },
   clip: {
@@ -133,6 +197,5 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
-    height: '100%',
   },
 });

@@ -14,6 +14,8 @@ const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'avif', '
 
 const inFlight = new Map<string, Promise<string>>();
 const webBlobCache = new Map<string, string>();
+/** Native: http(s) URL → cached file:// URI after first resolve (for sync peek). */
+const nativeResolvedUriByUrl = new Map<string, string>();
 
 function hashString(value: string): string {
   let hash = 0;
@@ -228,7 +230,9 @@ async function downloadRemoteImage(url: string, mimeHint?: string): Promise<stri
     try {
       const { bytes, mime } = await fetchImageBytes(candidate, mimeHint);
       const meta = resolveImageMeta(mime, candidate);
-      return await writeCache(cacheKey, bytes, meta);
+      const local = await writeCache(cacheKey, bytes, meta);
+      nativeResolvedUriByUrl.set(url, local);
+      return local;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
     }
@@ -242,10 +246,10 @@ export function peekCachedRemoteImageUri(uri: string): string | null {
   if (!uri || !isHttpUrl(uri)) {
     return null;
   }
-  if (Platform.OS !== 'web') {
-    return null;
+  if (Platform.OS === 'web') {
+    return webBlobCache.get(cacheKeyFor(uri)) ?? null;
   }
-  return webBlobCache.get(cacheKeyFor(uri)) ?? null;
+  return nativeResolvedUriByUrl.get(uri) ?? null;
 }
 
 export async function resolveRemoteImageUri(uri: string, mimeHint?: string): Promise<string> {
@@ -262,6 +266,7 @@ export async function resolveRemoteImageUri(uri: string, mimeHint?: string): Pro
   const cacheKey = cacheKeyFor(uri);
   const cached = await findCachedFile(cacheKey);
   if (cached) {
+    nativeResolvedUriByUrl.set(uri, cached);
     return cached;
   }
 

@@ -12,6 +12,8 @@ type Props = PlatformImageProps & {
   containerStyle?: StyleProp<ViewStyle>;
   /** 点击时传入已解析的本地/blob URI，避免全屏再次下载远程图 */
   onPressWithUri?: (resolvedUri: string) => void;
+  /** 本地/blob 解析完成（用于宽高比探测） */
+  onDisplayUri?: (resolvedUri: string) => void;
 };
 
 export const CachedRemoteImage: React.FC<Props> = ({
@@ -24,6 +26,8 @@ export const CachedRemoteImage: React.FC<Props> = ({
   onPressWithUri,
   onLongPress,
   onError,
+  onLoadDimensions,
+  onDisplayUri,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -34,6 +38,12 @@ export const CachedRemoteImage: React.FC<Props> = ({
       onError?.();
     }
   }, [failed, onError]);
+
+  useEffect(() => {
+    if (displayUri) {
+      onDisplayUri?.(displayUri);
+    }
+  }, [displayUri, onDisplayUri]);
 
   if (failed) {
     return null;
@@ -78,6 +88,7 @@ export const CachedRemoteImage: React.FC<Props> = ({
       onPress={onPress || onPressWithUri ? handlePress : undefined}
       onLongPress={onLongPress}
       onError={onError}
+      onLoadDimensions={onLoadDimensions}
     />
   );
 };

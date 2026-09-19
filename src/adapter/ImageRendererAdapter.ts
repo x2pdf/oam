@@ -13,6 +13,8 @@ export interface PlatformImageProps {
   onPress?: () => void;
   /** Called when the image fails to load. */
   onError?: () => void;
+  /** Called when intrinsic dimensions are known (fallback when Image.getSize fails). */
+  onLoadDimensions?: (size: { width: number; height: number }) => void;
 }
 
 export interface IImageRendererAdapter {
