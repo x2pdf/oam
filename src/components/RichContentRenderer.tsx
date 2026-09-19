@@ -2,15 +2,13 @@ import React, { useCallback, useState } from 'react';
 import { Linking, View, StyleSheet } from 'react-native';
 import { Text, Portal, Snackbar, Icon, useTheme } from 'react-native-paper';
 import { ContentItem } from '../mypayload';
-import { getImageRendererAdapter, saveImageToAlbum } from '../adapter';
+import { saveImageToAlbum } from '../adapter';
 import { useTranslation } from 'react-i18next';
 import { truncateListText } from '../utils/text';
-import { CachedRemoteImage } from './CachedRemoteImage';
+import { ContentCardImage } from './ContentCardImage';
 import { openImageLightbox } from './ImageLightbox';
 import { wrapImagePress } from '../adapter/wrapImagePress';
 import { isHttpUrl, isImageMime } from '../utils/attachment';
-
-const PlatformImage = getImageRendererAdapter().Image;
 
 interface Props {
   items: ContentItem[];
@@ -68,26 +66,18 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
           );
         }
         if (item.type === 'image') {
-          const imageStyle = [styles.image, { backgroundColor: theme.dark ? '#262626' : '#F5F5F5' }];
-          if (isHttpUrl(item.data)) {
-            return (
-              <CachedRemoteImage
-                key={index}
-                uri={item.data}
-                style={imageStyle}
-                resizeMode="contain"
-                onPressWithUri={(resolvedUri) => openImageLightbox(resolvedUri)}
-                onLongPress={() => handleSaveImage(item.data)}
-              />
-            );
-          }
           return (
-            <PlatformImage
+            <ContentCardImage
               key={index}
               uri={item.data}
-              style={imageStyle}
-              resizeMode="contain"
-              onPress={() => openImageLightbox(item.data)}
+              onPressWithUri={
+                isHttpUrl(item.data)
+                  ? (resolvedUri) => openImageLightbox(resolvedUri)
+                  : undefined
+              }
+              onPress={
+                isHttpUrl(item.data) ? undefined : () => openImageLightbox(item.data)
+              }
               onLongPress={() => handleSaveImage(item.data)}
             />
           );
@@ -153,11 +143,9 @@ function LinkAttachment({
 
   if (showImage) {
     return (
-      <CachedRemoteImage
+      <ContentCardImage
         uri={href}
         mimeType={mime}
-        style={[styles.image, { backgroundColor: theme.dark ? '#262626' : '#F5F5F5' }]}
-        resizeMode="contain"
         onPressWithUri={(resolvedUri) => openImageLightbox(resolvedUri)}
         onLongPress={onSaveImage}
         onError={() => setImageFailed(true)}
@@ -212,12 +200,6 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
     marginVertical: 4,
     lineHeight: 20,
-  },
-  image: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginVertical: 8,
   },
   linkCard: {
     width: '100%',

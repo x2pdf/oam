@@ -4,14 +4,21 @@ import { WebView } from 'react-native-webview';
 import { PlatformImageProps } from './ImageRendererAdapter';
 import { isSafeGifDataUrl, isSafeLocalGifFileUri } from './imageUri';
 
-function objectFitFor(resizeMode: PlatformImageProps['resizeMode']): string {
+function imgCssFor(resizeMode: PlatformImageProps['resizeMode']): string {
   if (resizeMode === 'cover') {
-    return 'cover';
+    return 'img{width:100%;height:100%;object-fit:cover;display:block;}';
   }
   if (resizeMode === 'stretch') {
-    return 'fill';
+    return 'img{width:100%;height:100%;object-fit:fill;display:block;}';
   }
-  return 'contain';
+  return 'img{width:100%;height:auto;display:block;}';
+}
+
+function bodyCssFor(resizeMode: PlatformImageProps['resizeMode']): string {
+  if (resizeMode === 'cover' || resizeMode === 'stretch') {
+    return 'html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;overflow:hidden;}';
+  }
+  return 'html,body{margin:0;padding:0;width:100%;background:transparent;overflow:hidden;}';
 }
 
 function buildSafeGifHtml(
@@ -21,13 +28,11 @@ function buildSafeGifHtml(
   if (!isSafeGifDataUrl(uri) && !isSafeLocalGifFileUri(uri)) {
     return null;
   }
-  const objectFit = objectFitFor(resizeMode);
   const src = uri.replace(/&/g, '&amp;');
   return (
     '<!DOCTYPE html><html><head>' +
     '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>' +
-    '<style>html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;overflow:hidden;}' +
-    `img{width:100%;height:100%;object-fit:${objectFit};display:block;}</style>` +
+    `<style>${bodyCssFor(resizeMode)}${imgCssFor(resizeMode)}</style>` +
     `</head><body><img src="${src}"/></body></html>`
   );
 }
