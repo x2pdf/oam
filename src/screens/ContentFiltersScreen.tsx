@@ -96,13 +96,22 @@ export default function ContentFiltersScreen() {
     const headerChrome = getHeaderChrome(theme);
     navigation.setOptions({
       headerLeft: () => (
-        <IconButton
-          icon="swap-vertical"
-          iconColor={headerChrome.tintColor}
-          size={22}
-          accessibilityLabel={t('contentFilters.importExport')}
-          onPress={() => setIoModal('menu')}
-        />
+        <View style={styles.headerLeft}>
+          <IconButton
+            icon="arrow-left"
+            iconColor={headerChrome.tintColor}
+            size={22}
+            accessibilityLabel={t('common.back')}
+            onPress={() => navigation.goBack()}
+          />
+          <IconButton
+            icon="swap-vertical"
+            iconColor={headerChrome.tintColor}
+            size={22}
+            accessibilityLabel={t('contentFilters.importExport')}
+            onPress={() => setIoModal('menu')}
+          />
+        </View>
       ),
       headerRight: () => (
         <View style={styles.headerRight}>
@@ -490,6 +499,10 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 12,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerRight: {
     flexDirection: 'row',
