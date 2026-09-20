@@ -54,7 +54,7 @@
     "conversation": "双方对话",
     "localFavorites": "我的本地收藏",
     "localDrafts": "我的草稿",
-    "contentFilters": "过滤器",
+    "contentFilters": "内容过滤",
     "contentFilterDetail": "过滤器详情",
     "appInfo": "应用信息",
     "cacheManagement": "缓存数据管理",
@@ -162,6 +162,8 @@
     "empty": "暂无过滤器",
     "addHint": "点击右上角 + 添加过滤器",
     "matchTypeText": "文本",
+    "matchTypeRegex": "正则表达式",
+    "matchTypeAddress": "地址",
     "matchTypeImage": "图片",
     "searchPlaceholder": "搜索描述、类型或表达式（支持正则）",
     "searchNoResult": "没有匹配的结果",
@@ -232,7 +234,7 @@
     "exportDataHint": "将消息导出为 PDF",
     "localFavorites": "我的本地收藏",
     "localDrafts": "我的草稿",
-    "contentFilters": "过滤器",
+    "contentFilters": "内容过滤",
     "cacheManagement": "缓存数据管理",
     "appearance": "外观",
     "selectAppearance": "选择外观",
@@ -353,6 +355,7 @@
     "matchExpressionPlaceholder": "请输入匹配表达式（支持正则）",
     "matchExpressionRequired": "匹配表达式不能为空",
     "matchExpressionMaxLength": "匹配表达式不能超过 {{max}} 个字符",
+    "matchExpressionInvalidRegex": "正则表达式无效，请检查语法",
     "addressSelf": "不能添加当前用户自己的地址。"
   },
   "wallet": {
@@ -717,6 +720,8 @@
         "zip": "ZIP",
         "other": "其他"
       },
+      "formatMismatchTitle": "文件类型可能不匹配",
+      "formatMismatchMsg": "当前选择的类型为 {{selected}}，但文件实际格式似乎是 {{actual}}。这不会阻止上传，但可能导致 Content-Type 与文件内容不一致。",
       "selectFile": "选择上传文件",
       "selectFileHint": "仅可选择一个文件；再次选择将替换当前文件。",
       "fileSizeHint": "10MB 以内的文件上传体验较好；超过 10MB 的文件可能上传失败，文件越大失败概率越高。请保持网络状态良好，并在上传时保持 App 在前台运行。",

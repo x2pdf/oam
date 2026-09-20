@@ -25,10 +25,18 @@ export default function ContentFilterDetailScreen({ route, navigation }: Props) 
     [state.contentFilters, routeFilter],
   );
 
-  const matchTypeLabel =
-    filter.matchType === 'text'
-      ? t('contentFilters.matchTypeText')
-      : t('contentFilters.matchTypeImage');
+  const matchTypeLabel = (() => {
+    switch (filter.matchType) {
+      case 'text':
+        return t('contentFilters.matchTypeText');
+      case 'regex':
+        return t('contentFilters.matchTypeRegex');
+      case 'address':
+        return t('contentFilters.matchTypeAddress');
+      case 'image':
+        return t('contentFilters.matchTypeImage');
+    }
+  })();
 
   useLayoutEffect(() => {
     const headerChrome = getHeaderChrome(theme);

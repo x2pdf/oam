@@ -493,7 +493,7 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        {/* 3.5 过滤器 */}
+        {/* 3.5 内容过滤 */}
         <View style={styles.sectionSpacer} />
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}

@@ -54,7 +54,7 @@
     "conversation": "Conversation",
     "localFavorites": "Local Favorites",
     "localDrafts": "Drafts",
-    "contentFilters": "Filters",
+    "contentFilters": "Content Filters",
     "contentFilterDetail": "Filter Detail",
     "appInfo": "App Info",
     "cacheManagement": "Cache Data Management",
@@ -162,6 +162,8 @@
     "empty": "No filters yet",
     "addHint": "Tap + in the top right to add a filter",
     "matchTypeText": "Text",
+    "matchTypeRegex": "Regex",
+    "matchTypeAddress": "Address",
     "matchTypeImage": "Image",
     "searchPlaceholder": "Search description, type, or expression (regex)",
     "searchNoResult": "No matching results",
@@ -232,7 +234,7 @@
     "exportDataHint": "Export messages as PDF",
     "localFavorites": "Local Favorites",
     "localDrafts": "Drafts",
-    "contentFilters": "Filters",
+    "contentFilters": "Content Filters",
     "cacheManagement": "Cache Data Management",
     "appearance": "Appearance",
     "selectAppearance": "Select Appearance",
@@ -353,6 +355,7 @@
     "matchExpressionPlaceholder": "Enter match expression (regex supported)",
     "matchExpressionRequired": "Match expression is required",
     "matchExpressionMaxLength": "Match expression cannot exceed {{max}} characters",
+    "matchExpressionInvalidRegex": "Invalid regular expression. Please check the syntax.",
     "addressSelf": "You cannot add your own address to the subscription list."
   },
   "wallet": {
@@ -717,6 +720,8 @@
         "zip": "ZIP",
         "other": "Other"
       },
+      "formatMismatchTitle": "File type may not match",
+      "formatMismatchMsg": "You selected {{selected}}, but the file appears to be {{actual}}. You can still upload, but the Content-Type may not match the file contents.",
       "selectFile": "Select File to Upload",
       "selectFileHint": "Only one file at a time. Selecting again replaces the current file.",
       "fileSizeHint": "Uploads under 10 MB generally work best. Files over 10 MB may fail, and larger files are more likely to fail. Keep a stable network connection and leave the app in the foreground while uploading.",

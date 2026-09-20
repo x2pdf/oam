@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert, showConfirm } from '../utils/alert';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
@@ -9,7 +10,6 @@ import {
   Text,
   useTheme,
   HelperText,
-  RadioButton,
 } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -28,9 +28,59 @@ import {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContentFilterForm'>;
 
+/** 新建/编辑表单可选的匹配类型 */
+const SELECTABLE_MATCH_TYPES: ContentFilterMatchType[] = [
+  'text',
+  'regex',
+  'address',
+  // TODO: 'image' — 等本地 AI 对图片暴力、成人内容识别更准确且更快后再开放
+];
+
+function MatchTypeChip({
+  selected,
+  label,
+  onPress,
+}: {
+  selected: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Button
+      mode="outlined"
+      compact
+      onPress={onPress}
+      buttonColor={selected ? theme.colors.primary : undefined}
+      textColor={selected ? theme.colors.onPrimary : theme.colors.onSurface}
+      style={[
+        styles.chip,
+        { borderColor: selected ? theme.colors.primary : theme.colors.outline },
+      ]}
+      labelStyle={styles.chipLabel}
+    >
+      {label}
+    </Button>
+  );
+}
+
+function matchTypeI18nKey(matchType: ContentFilterMatchType): string {
+  switch (matchType) {
+    case 'text':
+      return 'contentFilters.matchTypeText';
+    case 'regex':
+      return 'contentFilters.matchTypeRegex';
+    case 'address':
+      return 'contentFilters.matchTypeAddress';
+    case 'image':
+      return 'contentFilters.matchTypeImage';
+  }
+}
+
 export default function ContentFilterFormScreen({ route, navigation }: Props) {
   const { mode, filter } = route.params;
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { fontScale } = useThemePreference();
   const { t } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
@@ -69,11 +119,18 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
       newErrors.matchExpression = t('form.matchExpressionMaxLength', {
         max: MAX_MATCH_EXPRESSION_LENGTH,
       });
+    } else if (matchType === 'regex') {
+      try {
+        // eslint-disable-next-line no-new
+        new RegExp(matchExpression.trim());
+      } catch {
+        newErrors.matchExpression = t('form.matchExpressionInvalidRegex');
+      }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [description, matchExpression, t]);
+  }, [description, matchExpression, matchType, t]);
 
   const checkDuplicate = useCallback((): ContentFilterRule | null => {
     if (isEdit && filter) {
@@ -150,143 +207,149 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
   }, [navigation]);
 
   return (
-    <ScrollView
-      style={[scrollFill, styles.container, { backgroundColor: theme.colors.background }]}
-      contentContainerStyle={[styles.content, listContentStyle]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <ListColumn>
-        <Text
-          variant="labelLarge"
-          style={[styles.fieldLabel, { color: theme.colors.onSurface }]}
-        >
-          {t('common.description')}
-        </Text>
-        <TextInput
-          mode="outlined"
-          placeholder={t('form.descriptionPlaceholder')}
-          value={description}
-          onChangeText={(text) => {
-            setDescription(text);
-            if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }));
-          }}
-          maxLength={MAX_DESCRIPTION_LENGTH}
-          multiline
-          numberOfLines={2}
-          autoFocus={mode === 'add'}
-          error={!!errors.description}
-          style={[styles.input, { textAlignVertical: 'top' }]}
-          outlineColor={theme.colors.outline}
-          activeOutlineColor={theme.colors.primary}
-        />
-        <HelperText type="error" visible={!!errors.description}>
-          {errors.description}
-        </HelperText>
-        <HelperText
-          type="info"
-          visible
-          style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}
-        >
-          {description.length} / {MAX_DESCRIPTION_LENGTH}
-        </HelperText>
-
-        <Text
-          variant="labelLarge"
-          style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
-        >
-          {t('form.matchType')}
-        </Text>
-        <RadioButton.Group
-          onValueChange={(value) => setMatchType(value as ContentFilterMatchType)}
-          value={matchType}
-        >
-          <RadioButton.Item
-            label={t('contentFilters.matchTypeText')}
-            value="text"
-            position="leading"
-          />
-          <RadioButton.Item
-            label={t('contentFilters.matchTypeImage')}
-            value="image"
-            position="leading"
-          />
-        </RadioButton.Group>
-
-        <Text
-          variant="labelLarge"
-          style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
-        >
-          {t('form.matchExpression')}
-        </Text>
-        <TextInput
-          mode="outlined"
-          placeholder={t('form.matchExpressionPlaceholder')}
-          value={matchExpression}
-          onChangeText={(text) => {
-            setMatchExpression(text);
-            if (errors.matchExpression) {
-              setErrors((prev) => ({ ...prev, matchExpression: undefined }));
-            }
-          }}
-          maxLength={MAX_MATCH_EXPRESSION_LENGTH}
-          multiline
-          numberOfLines={4}
-          error={!!errors.matchExpression}
-          style={styles.input}
-          contentStyle={[
-            { fontSize: Math.round(13 * fontScale) },
-            Platform.OS === 'web'
-              ? ({ wordBreak: 'break-all', overflowWrap: 'anywhere' } as object)
-              : null,
-          ]}
-          outlineColor={theme.colors.outline}
-          activeOutlineColor={theme.colors.primary}
-        />
-        <HelperText type="error" visible={!!errors.matchExpression}>
-          {errors.matchExpression}
-        </HelperText>
-        <HelperText
-          type="info"
-          visible
-          style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}
-        >
-          {matchExpression.length} / {MAX_MATCH_EXPRESSION_LENGTH}
-        </HelperText>
-
-        <View style={styles.buttonGroup}>
-          <Button
-            mode="contained"
-            onPress={handleSave}
-            style={[styles.button, styles.primaryButton]}
-            buttonColor={theme.colors.primary}
-            contentStyle={styles.buttonContent}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        style={[scrollFill, styles.container]}
+        contentContainerStyle={[
+          styles.content,
+          listContentStyle,
+          { paddingBottom: insets.bottom + 20 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <ListColumn>
+          <Text
+            variant="labelLarge"
+            style={[styles.fieldLabel, { color: theme.colors.onSurface }]}
           >
-            {t('common.save')}
-          </Button>
-
-          <Button
+            {t('common.description')}
+          </Text>
+          <TextInput
             mode="outlined"
-            onPress={handleCancel}
-            style={[styles.button, styles.outlinedButton]}
-            contentStyle={styles.buttonContent}
+            placeholder={t('form.descriptionPlaceholder')}
+            value={description}
+            onChangeText={(text) => {
+              setDescription(text);
+              if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }));
+            }}
+            maxLength={MAX_DESCRIPTION_LENGTH}
+            multiline
+            numberOfLines={2}
+            error={!!errors.description}
+            style={[styles.input, { textAlignVertical: 'top' }]}
+            outlineColor={theme.colors.outline}
+            activeOutlineColor={theme.colors.primary}
+          />
+          <HelperText type="error" visible={!!errors.description}>
+            {errors.description}
+          </HelperText>
+          <HelperText
+            type="info"
+            visible
+            style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}
           >
-            {t('common.cancel')}
-          </Button>
+            {description.length} / {MAX_DESCRIPTION_LENGTH}
+          </HelperText>
 
-          {isEdit && (
+          <Text
+            variant="labelLarge"
+            style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
+          >
+            {t('form.matchType')}
+          </Text>
+          <View style={styles.chipWrap}>
+            {SELECTABLE_MATCH_TYPES.map((type) => (
+              <MatchTypeChip
+                key={type}
+                selected={matchType === type}
+                label={t(matchTypeI18nKey(type))}
+                onPress={() => setMatchType(type)}
+              />
+            ))}
+          </View>
+          {matchType === 'image' ? (
+            <HelperText type="info" visible>
+              {t('contentFilters.matchTypeImage')}
+            </HelperText>
+          ) : null}
+
+          <Text
+            variant="labelLarge"
+            style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
+          >
+            {t('form.matchExpression')}
+          </Text>
+          <TextInput
+            mode="outlined"
+            placeholder={t('form.matchExpressionPlaceholder')}
+            value={matchExpression}
+            onChangeText={(text) => {
+              setMatchExpression(text);
+              if (errors.matchExpression) {
+                setErrors((prev) => ({ ...prev, matchExpression: undefined }));
+              }
+            }}
+            maxLength={MAX_MATCH_EXPRESSION_LENGTH}
+            multiline
+            numberOfLines={4}
+            error={!!errors.matchExpression}
+            style={styles.input}
+            contentStyle={[
+              { fontSize: Math.round(13 * fontScale) },
+              Platform.OS === 'web'
+                ? ({ wordBreak: 'break-all', overflowWrap: 'anywhere' } as object)
+                : null,
+            ]}
+            outlineColor={theme.colors.outline}
+            activeOutlineColor={theme.colors.primary}
+          />
+          <HelperText type="error" visible={!!errors.matchExpression}>
+            {errors.matchExpression}
+          </HelperText>
+          <HelperText
+            type="info"
+            visible
+            style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}
+          >
+            {matchExpression.length} / {MAX_MATCH_EXPRESSION_LENGTH}
+          </HelperText>
+
+          <View style={styles.buttonGroup}>
             <Button
-              mode="outlined"
-              onPress={handleDelete}
-              style={[styles.button, styles.deleteButton]}
-              textColor="#D32F2F"
+              mode="contained"
+              onPress={handleSave}
+              style={[styles.button, styles.primaryButton]}
+              buttonColor={theme.colors.primary}
               contentStyle={styles.buttonContent}
             >
-              {t('common.delete')}
+              {t('common.save')}
             </Button>
-          )}
-        </View>
-      </ListColumn>
-    </ScrollView>
+
+            <Button
+              mode="outlined"
+              onPress={handleCancel}
+              style={[styles.button, styles.outlinedButton]}
+              contentStyle={styles.buttonContent}
+            >
+              {t('common.cancel')}
+            </Button>
+
+            {isEdit && (
+              <Button
+                mode="outlined"
+                onPress={handleDelete}
+                style={[styles.button, styles.deleteButton]}
+                textColor="#D32F2F"
+                contentStyle={styles.buttonContent}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
+          </View>
+        </ListColumn>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -296,11 +359,24 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 40,
   },
   fieldLabel: {
     marginBottom: 6,
     fontWeight: '600',
+  },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  chip: {
+    borderRadius: 6,
+  },
+  chipLabel: {
+    fontSize: 12,
+    marginVertical: 2,
+    marginHorizontal: 6,
   },
   input: {
     marginBottom: 0,

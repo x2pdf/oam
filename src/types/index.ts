@@ -32,7 +32,7 @@ export function normalizeSubscription(
 }
 
 /** 用户内容过滤器匹配类型 */
-export type ContentFilterMatchType = 'text' | 'image';
+export type ContentFilterMatchType = 'text' | 'regex' | 'address' | 'image';
 
 /** 用户内容过滤器规则 */
 export interface ContentFilterRule {
@@ -42,7 +42,14 @@ export interface ContentFilterRule {
   matchExpression: string;
 }
 
-const CONTENT_FILTER_MATCH_TYPES: ContentFilterMatchType[] = ['text', 'image'];
+// 表单可选：text / regex / address
+// TODO: image — 等本地 AI 对图片暴力、成人内容识别更准确且更快后再开放
+const CONTENT_FILTER_MATCH_TYPES: ContentFilterMatchType[] = [
+  'text',
+  'regex',
+  'address',
+  'image',
+];
 
 export function isContentFilterMatchType(value: unknown): value is ContentFilterMatchType {
   return CONTENT_FILTER_MATCH_TYPES.includes(value as ContentFilterMatchType);

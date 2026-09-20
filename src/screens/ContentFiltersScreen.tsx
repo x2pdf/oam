@@ -51,10 +51,18 @@ export default function ContentFiltersScreen() {
   const [importError, setImportError] = useState('');
 
   const matchTypeLabel = useCallback(
-    (matchType: ContentFilterRule['matchType']) =>
-      matchType === 'text'
-        ? t('contentFilters.matchTypeText')
-        : t('contentFilters.matchTypeImage'),
+    (matchType: ContentFilterRule['matchType']) => {
+      switch (matchType) {
+        case 'text':
+          return t('contentFilters.matchTypeText');
+        case 'regex':
+          return t('contentFilters.matchTypeRegex');
+        case 'address':
+          return t('contentFilters.matchTypeAddress');
+        case 'image':
+          return t('contentFilters.matchTypeImage');
+      }
+    },
     [t],
   );
 

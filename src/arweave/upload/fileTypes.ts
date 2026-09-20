@@ -49,3 +49,53 @@ export function resolveMimeType(
   }
   return resolved;
 }
+
+/** Decode only enough base64 to cover file-header magic bytes. */
+function decodeBase64Prefix(base64: string, maxBytes: number): Uint8Array {
+  const charsNeeded = Math.ceil(maxBytes / 3) * 4 + 4;
+  try {
+    const binary = atob(base64.slice(0, charsNeeded));
+    const length = Math.min(binary.length, maxBytes);
+    const bytes = new Uint8Array(length);
+    for (let i = 0; i < length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return new Uint8Array(0);
+  }
+}
+
+/**
+ * Detect image type from magic bytes (JPEG / PNG / GIF).
+ * Returns null when the header is unrecognized.
+ */
+export function sniffUploadFileType(bytes: Uint8Array): UploadFileType | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'jpeg';
+  }
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    return 'png';
+  }
+  if (bytes.length >= 6 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+    return 'gif';
+  }
+  return null;
+}
+
+/**
+ * Resolve the file's actual type: prefer magic-byte sniff, else picker inference.
+ */
+export function resolveActualUploadFileType(file: {
+  base64: string;
+  fileType: UploadFileType;
+}): UploadFileType {
+  const sniffed = sniffUploadFileType(decodeBase64Prefix(file.base64, 16));
+  return sniffed ?? file.fileType;
+}

@@ -23,6 +23,7 @@ import { RootStackParamList } from '../../../types';
 import { AppModal } from '../../../components/AppModal';
 import { decryptJwk, loadEncryptedArKeystore } from '../../wallet/keystore';
 import { UploadFileType, UPLOAD_FILE_TYPE_TO_MIME } from '../constants';
+import { resolveActualUploadFileType } from '../fileTypes';
 import { FileTypeSelector } from '../components/FileTypeSelector';
 import { PickedFileCard } from '../components/PickedFileCard';
 import {
@@ -64,6 +65,9 @@ export default function ArweaveUploadScreen() {
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [formatMismatchVisible, setFormatMismatchVisible] = useState(false);
+  const [formatMismatchActual, setFormatMismatchActual] = useState<UploadFileType | null>(null);
+  const [openConfirmAfterMismatch, setOpenConfirmAfterMismatch] = useState(false);
 
   const [balanceDisplay, setBalanceDisplay] = useState('—');
   const [feeDisplay, setFeeDisplay] = useState('—');
@@ -118,6 +122,31 @@ export default function ArweaveUploadScreen() {
     setFileType(file.fileType);
   }, []);
 
+  const showFormatMismatch = useCallback((actualType: UploadFileType, thenOpenConfirm: boolean) => {
+    setFormatMismatchActual(actualType);
+    setOpenConfirmAfterMismatch(thenOpenConfirm);
+    setFormatMismatchVisible(true);
+  }, []);
+
+  const dismissFormatMismatch = useCallback(() => {
+    setFormatMismatchVisible(false);
+    const shouldOpenConfirm = openConfirmAfterMismatch;
+    setOpenConfirmAfterMismatch(false);
+    setFormatMismatchActual(null);
+    if (shouldOpenConfirm) {
+      setConfirmVisible(true);
+    }
+  }, [openConfirmAfterMismatch]);
+
+  const handleFileTypeChange = useCallback((nextType: UploadFileType) => {
+    setFileType(nextType);
+    if (!pickedFile) return;
+    const actualType = resolveActualUploadFileType(pickedFile);
+    if (nextType !== actualType) {
+      showFormatMismatch(actualType, false);
+    }
+  }, [pickedFile, showFormatMismatch]);
+
   const pickFromSource = useCallback(async (source: 'gallery' | 'documents') => {
     setFileSourceDialogVisible(false);
     try {
@@ -140,8 +169,13 @@ export default function ArweaveUploadScreen() {
       setSnackbarVisible(true);
       return;
     }
+    const actualType = resolveActualUploadFileType(pickedFile);
+    if (fileType !== actualType) {
+      showFormatMismatch(actualType, true);
+      return;
+    }
     setConfirmVisible(true);
-  }, [pickedFile, t]);
+  }, [pickedFile, fileType, showFormatMismatch, t]);
 
   const startPasswordInput = useCallback(() => {
     if (insufficientBalance || feeLoading || balanceLoading || feeError) return;
@@ -228,7 +262,7 @@ export default function ArweaveUploadScreen() {
             activeOutlineColor={theme.colors.primary}
           />
 
-          <FileTypeSelector value={fileType} onChange={setFileType} />
+          <FileTypeSelector value={fileType} onChange={handleFileTypeChange} />
 
           <Button
             mode="outlined"
@@ -301,6 +335,27 @@ export default function ArweaveUploadScreen() {
         >
           {t('arweave.upload.pickFromFiles')}
         </Button>
+      </AppModal>
+
+      <AppModal
+        visible={formatMismatchVisible}
+        onDismiss={dismissFormatMismatch}
+        title={t('arweave.upload.formatMismatchTitle')}
+        actions={[
+          {
+            label: t('common.ok'),
+            onPress: dismissFormatMismatch,
+          },
+        ]}
+      >
+        <Text style={{ color: theme.colors.onSurface, fontSize: Math.round(14 * fontScale) }}>
+          {t('arweave.upload.formatMismatchMsg', {
+            selected: t(`arweave.upload.fileType.${fileType}`),
+            actual: formatMismatchActual
+              ? t(`arweave.upload.fileType.${formatMismatchActual}`)
+              : '—',
+          })}
+        </Text>
       </AppModal>
 
       <AppModal
