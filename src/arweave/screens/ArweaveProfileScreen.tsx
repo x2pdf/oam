@@ -6,6 +6,7 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { scrollFill } from '../../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../../theme/layout';
@@ -288,6 +289,7 @@ export default function ArweaveProfileScreen() {
           styles.scrollContent,
           listContentStyle,
           arProfile && { paddingBottom: 88 + insets.bottom },
+          txState.data.length === 0 && { flexGrow: 1 },
         ]}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -297,6 +299,7 @@ export default function ArweaveProfileScreen() {
               refreshing={txState.refreshing}
               onRefresh={refresh}
               colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
             />
           ) : undefined
         }
@@ -315,6 +318,33 @@ export default function ArweaveProfileScreen() {
         }}
         onEndReachedThreshold={0.2}
       />
+
+      {arProfile && Platform.OS === 'web' ? (
+        <TouchableOpacity
+          style={[
+            styles.webRefreshBtn,
+            {
+              backgroundColor: theme.colors.surface,
+              bottom: 72 + insets.bottom,
+            },
+            centered && { marginRight: '25%' },
+          ]}
+          onPress={refresh}
+          activeOpacity={0.7}
+          accessibilityLabel={t('home.retry')}
+        >
+          {txState.refreshing ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : (
+            <IconButton
+              icon="refresh"
+              size={20}
+              iconColor={theme.colors.onSurfaceVariant}
+              style={styles.webRefreshIcon}
+            />
+          )}
+        </TouchableOpacity>
+      ) : null}
 
       {arProfile ? (
         <FAB
@@ -350,6 +380,24 @@ const styles = StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  webRefreshBtn: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  webRefreshIcon: {
+    margin: 0,
   },
   card: { marginBottom: 12, borderRadius: 12 },
   cardContent: { paddingVertical: 12, paddingHorizontal: 8 },

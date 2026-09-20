@@ -239,7 +239,7 @@ export default function AddressDataListScreen() {
         data={data}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        contentContainerStyle={[styles.listContent, listContentStyle]}
+        contentContainerStyle={[styles.listContent, listContentStyle, data.length === 0 && { flexGrow: 1 }]}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
@@ -248,6 +248,7 @@ export default function AddressDataListScreen() {
               refreshing={refreshing}
               onRefresh={() => loadData(true)}
               colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
             />
           ) : undefined
         }

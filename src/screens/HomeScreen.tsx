@@ -671,7 +671,11 @@ export default function HomeScreen() {
         data={displayData}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        contentContainerStyle={[styles.listContent, listContentStyle]}
+        contentContainerStyle={[
+          styles.listContent,
+          listContentStyle,
+          displayData.length === 0 && { flexGrow: 1 },
+        ]}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
@@ -680,6 +684,7 @@ export default function HomeScreen() {
               refreshing={state.refreshing}
               onRefresh={() => triggerRefresh(tabId)}
               colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
               enabled={true}
             />
           ) : undefined

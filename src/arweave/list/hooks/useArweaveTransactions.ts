@@ -109,8 +109,11 @@ export function useArweaveTransactions(address: string | undefined) {
   const cursorRef = useRef<string | null>(null);
   const dataLengthRef = useRef(0);
   const addressRef = useRef(address);
+  const requestIdRef = useRef(0);
   addressRef.current = address;
   dataLengthRef.current = state.data.length;
+
+  const isCurrentRequest = useCallback((requestId: number) => requestIdRef.current === requestId, []);
 
   const applyNetworkResult = useCallback(
     async (
@@ -119,9 +122,14 @@ export function useArweaveTransactions(address: string | undefined) {
       mapped: ArweaveListItem[],
       hasNextPage: boolean,
       endCursor: string | null,
+      requestId: number,
     ) => {
+      if (!isCurrentRequest(requestId)) return;
+
       cursorRef.current = endCursor;
       await arweaveListCacheService.saveItems(owner, mapped);
+
+      if (!isCurrentRequest(requestId)) return;
 
       setState((prev) => ({
         ...prev,
@@ -133,13 +141,20 @@ export function useArweaveTransactions(address: string | undefined) {
         error: null,
       }));
     },
-    [],
+    [isCurrentRequest],
   );
 
   const applyCacheFallback = useCallback(
-    async (owner: string, mode: 'initial' | 'refresh' | 'more'): Promise<boolean> => {
+    async (
+      owner: string,
+      mode: 'initial' | 'refresh' | 'more',
+      requestId: number,
+    ): Promise<boolean> => {
+      if (!isCurrentRequest(requestId)) return false;
+
       const offset = mode === 'more' ? dataLengthRef.current : 0;
       const { items, hasMore } = await readCachePage(owner, offset);
+      if (!isCurrentRequest(requestId)) return false;
       if (items.length === 0) return false;
 
       setState((prev) => ({
@@ -153,16 +168,19 @@ export function useArweaveTransactions(address: string | undefined) {
       }));
       return true;
     },
-    [],
+    [isCurrentRequest],
   );
 
   const loadPage = useCallback(
     async (mode: 'initial' | 'refresh' | 'more') => {
       const owner = addressRef.current;
       if (!owner) {
+        requestIdRef.current += 1;
         setState({ ...initialState, hasMore: false });
         return;
       }
+
+      const requestId = ++requestIdRef.current;
 
       setState((prev) => ({
         ...prev,
@@ -175,12 +193,44 @@ export function useArweaveTransactions(address: string | undefined) {
       try {
         const after = mode === 'more' ? cursorRef.current : null;
         const { mapped, hasNextPage, endCursor } = await fetchDisplayablePage(owner, after, mode);
-        await applyNetworkResult(owner, mode, mapped, hasNextPage, endCursor);
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : String(e);
-        const usedCache = await applyCacheFallback(owner, mode);
+        if (!isCurrentRequest(requestId)) return;
 
-        if (!usedCache) {
+        // Empty successful network results must not wipe cache-hydrated UI.
+        if (mode !== 'more' && mapped.length === 0) {
+          const usedCache = await applyCacheFallback(owner, mode, requestId);
+          if (usedCache || !isCurrentRequest(requestId)) return;
+
+          setState((prev) => {
+            if (prev.data.length > 0) {
+              return {
+                ...prev,
+                loading: false,
+                refreshing: false,
+                loadingMore: false,
+                error: null,
+              };
+            }
+            return {
+              ...prev,
+              data: [],
+              loading: false,
+              refreshing: false,
+              loadingMore: false,
+              hasMore: false,
+              error: null,
+            };
+          });
+          return;
+        }
+
+        await applyNetworkResult(owner, mode, mapped, hasNextPage, endCursor, requestId);
+      } catch (e: unknown) {
+        if (!isCurrentRequest(requestId)) return;
+
+        const message = e instanceof Error ? e.message : String(e);
+        const usedCache = await applyCacheFallback(owner, mode, requestId);
+
+        if (!usedCache && isCurrentRequest(requestId)) {
           setState((prev) => {
             const noData = prev.data.length === 0 && mode !== 'more';
             return {
@@ -195,25 +245,28 @@ export function useArweaveTransactions(address: string | undefined) {
         }
       }
     },
-    [applyCacheFallback, applyNetworkResult],
+    [applyCacheFallback, applyNetworkResult, isCurrentRequest],
   );
 
-  const initializeFromCache = useCallback(async (owner: string) => {
-    try {
-      const { items, hasMore } = await readCachePage(owner, 0);
-      if (items.length === 0) return;
+  const initializeFromCache = useCallback(
+    async (owner: string, requestId: number) => {
+      try {
+        const { items, hasMore } = await readCachePage(owner, 0);
+        if (!isCurrentRequest(requestId) || items.length === 0) return;
 
-      setState((prev) => ({
-        ...prev,
-        data: items,
-        loading: false,
-        hasMore,
-        error: null,
-      }));
-    } catch (e) {
-      console.warn('Failed to initialize Arweave list from cache:', e);
-    }
-  }, []);
+        setState((prev) => ({
+          ...prev,
+          data: items,
+          loading: false,
+          hasMore,
+          error: null,
+        }));
+      } catch (e) {
+        console.warn('Failed to initialize Arweave list from cache:', e);
+      }
+    },
+    [isCurrentRequest],
+  );
 
   const refresh = useCallback(() => {
     cursorRef.current = null;
@@ -228,23 +281,24 @@ export function useArweaveTransactions(address: string | undefined) {
 
   useEffect(() => {
     cursorRef.current = null;
+    const requestId = ++requestIdRef.current;
+
     if (!address) {
       setState({ ...initialState, hasMore: false });
       return;
     }
 
-    let cancelled = false;
     (async () => {
-      await initializeFromCache(address);
-      if (!cancelled) {
+      await initializeFromCache(address, requestId);
+      if (isCurrentRequest(requestId)) {
         await loadPage('initial');
       }
     })();
 
     return () => {
-      cancelled = true;
+      requestIdRef.current += 1;
     };
-  }, [address, initializeFromCache, loadPage]);
+  }, [address, initializeFromCache, isCurrentRequest, loadPage]);
 
   const isFirstFocus = useRef(true);
   useFocusEffect(
