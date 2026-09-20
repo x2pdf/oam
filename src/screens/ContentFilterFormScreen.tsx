@@ -1,11 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert, showConfirm } from '../utils/alert';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
-  TextInput,
   Button,
   Text,
   useTheme,
@@ -15,10 +14,12 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
+import { CjkSafeOutlinedTextInput } from '../components/CjkSafeOutlinedTextInput';
 import {
   ContentFilterMatchType,
   ContentFilterRule,
   contentFilterDedupeKey,
+  normalizeMatchExpression,
   RootStackParamList,
 } from '../types';
 import {
@@ -77,6 +78,32 @@ function matchTypeI18nKey(matchType: ContentFilterMatchType): string {
   }
 }
 
+function matchExpressionLabelKey(matchType: ContentFilterMatchType): string {
+  switch (matchType) {
+    case 'regex':
+      return 'form.matchExpressionLabelRegex';
+    case 'address':
+      return 'form.matchExpressionLabelAddress';
+    case 'text':
+    case 'image':
+    default:
+      return 'form.matchExpressionLabelText';
+  }
+}
+
+function matchExpressionPlaceholderKey(matchType: ContentFilterMatchType): string {
+  switch (matchType) {
+    case 'regex':
+      return 'form.matchExpressionPlaceholderRegex';
+    case 'address':
+      return 'form.matchExpressionPlaceholderAddress';
+    case 'text':
+    case 'image':
+    default:
+      return 'form.matchExpressionPlaceholderText';
+  }
+}
+
 export default function ContentFilterFormScreen({ route, navigation }: Props) {
   const { mode, filter } = route.params;
   const theme = useTheme();
@@ -92,6 +119,10 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
   } = useAppContext();
 
   const isEdit = mode === 'edit';
+  const inputResetKey = useMemo(
+    () => `${mode}-${filter?.id ?? 'new'}`,
+    [mode, filter?.id],
+  );
 
   const [description, setDescription] = useState(filter?.description ?? '');
   const [matchType, setMatchType] = useState<ContentFilterMatchType>(
@@ -104,25 +135,59 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
     matchExpression?: string;
   }>({});
 
+  const onMatchExpressionChange = useCallback((text: string) => {
+    setMatchExpression(text);
+  }, []);
+
+  const onDescriptionChange = useCallback((text: string) => {
+    setDescription(text);
+  }, []);
+
+  const expressionInputStyle = useMemo(
+    () => [styles.input, styles.expressionInput],
+    [],
+  );
+  const expressionContentStyle = useMemo(
+    () => [
+      styles.expressionInputContent,
+      { fontSize: Math.round(13 * fontScale) },
+      Platform.OS === 'web'
+        ? ({ wordBreak: 'break-all', overflowWrap: 'anywhere' } as object)
+        : null,
+    ],
+    [fontScale],
+  );
+  const descriptionInputStyle = useMemo(
+    () => [styles.input, styles.descriptionInput],
+    [],
+  );
+
   const validate = useCallback((): boolean => {
     const newErrors: typeof errors = {};
+    const trimmedDescription = description.trim();
+    const trimmedExpression = normalizeMatchExpression(matchExpression);
 
-    if (!description.trim()) {
+    if (!trimmedDescription) {
       newErrors.description = t('form.descriptionRequired');
-    } else if (description.length > MAX_DESCRIPTION_LENGTH) {
+    } else if (trimmedDescription.length > MAX_DESCRIPTION_LENGTH) {
       newErrors.description = t('form.descriptionMaxLength', { max: MAX_DESCRIPTION_LENGTH });
     }
 
-    if (!matchExpression.trim()) {
-      newErrors.matchExpression = t('form.matchExpressionRequired');
-    } else if (matchExpression.length > MAX_MATCH_EXPRESSION_LENGTH) {
+    if (!trimmedExpression) {
+      newErrors.matchExpression =
+        matchType === 'regex'
+          ? t('form.matchExpressionRequiredRegex')
+          : matchType === 'address'
+            ? t('form.matchExpressionRequiredAddress')
+            : t('form.matchExpressionRequiredText');
+    } else if (trimmedExpression.length > MAX_MATCH_EXPRESSION_LENGTH) {
       newErrors.matchExpression = t('form.matchExpressionMaxLength', {
         max: MAX_MATCH_EXPRESSION_LENGTH,
       });
     } else if (matchType === 'regex') {
       try {
         // eslint-disable-next-line no-new
-        new RegExp(matchExpression.trim());
+        new RegExp(trimmedExpression);
       } catch {
         newErrors.matchExpression = t('form.matchExpressionInvalidRegex');
       }
@@ -133,12 +198,13 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
   }, [description, matchExpression, matchType, t]);
 
   const checkDuplicate = useCallback((): ContentFilterRule | null => {
+    const trimmedExpression = normalizeMatchExpression(matchExpression);
     if (isEdit && filter) {
-      const key = contentFilterDedupeKey(matchType, matchExpression);
+      const key = contentFilterDedupeKey(matchType, trimmedExpression);
       const selfKey = contentFilterDedupeKey(filter.matchType, filter.matchExpression);
       if (key === selfKey) return null;
     }
-    const key = contentFilterDedupeKey(matchType, matchExpression);
+    const key = contentFilterDedupeKey(matchType, trimmedExpression);
     return (
       state.contentFilters.find(
         (f) => contentFilterDedupeKey(f.matchType, f.matchExpression) === key,
@@ -159,11 +225,16 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
       return;
     }
 
+    const trimmedDescription = description.trim();
+    const trimmedExpression = normalizeMatchExpression(matchExpression);
+    setDescription(trimmedDescription);
+    setMatchExpression(trimmedExpression);
+
     const item: ContentFilterRule = {
       id: filter?.id ?? Date.now().toString(),
-      description: description.trim(),
+      description: trimmedDescription,
       matchType,
-      matchExpression: matchExpression.trim(),
+      matchExpression: trimmedExpression,
     };
 
     if (isEdit) {
@@ -223,39 +294,6 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
             variant="labelLarge"
             style={[styles.fieldLabel, { color: theme.colors.onSurface }]}
           >
-            {t('common.description')}
-          </Text>
-          <TextInput
-            mode="outlined"
-            placeholder={t('form.descriptionPlaceholder')}
-            value={description}
-            onChangeText={(text) => {
-              setDescription(text);
-              if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }));
-            }}
-            maxLength={MAX_DESCRIPTION_LENGTH}
-            multiline
-            numberOfLines={2}
-            error={!!errors.description}
-            style={[styles.input, { textAlignVertical: 'top' }]}
-            outlineColor={theme.colors.outline}
-            activeOutlineColor={theme.colors.primary}
-          />
-          <HelperText type="error" visible={!!errors.description}>
-            {errors.description}
-          </HelperText>
-          <HelperText
-            type="info"
-            visible
-            style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}
-          >
-            {description.length} / {MAX_DESCRIPTION_LENGTH}
-          </HelperText>
-
-          <Text
-            variant="labelLarge"
-            style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
-          >
             {t('form.matchType')}
           </Text>
           <View style={styles.chipWrap}>
@@ -278,29 +316,19 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
             variant="labelLarge"
             style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
           >
-            {t('form.matchExpression')}
+            {t(matchExpressionLabelKey(matchType))}
           </Text>
-          <TextInput
-            mode="outlined"
-            placeholder={t('form.matchExpressionPlaceholder')}
-            value={matchExpression}
-            onChangeText={(text) => {
-              setMatchExpression(text);
-              if (errors.matchExpression) {
-                setErrors((prev) => ({ ...prev, matchExpression: undefined }));
-              }
-            }}
+          <CjkSafeOutlinedTextInput
+            resetKey={`${inputResetKey}-expression`}
+            defaultValue={filter?.matchExpression ?? ''}
+            placeholder={t(matchExpressionPlaceholderKey(matchType))}
+            onChangeText={onMatchExpressionChange}
             maxLength={MAX_MATCH_EXPRESSION_LENGTH}
             multiline
-            numberOfLines={4}
+            numberOfLines={6}
             error={!!errors.matchExpression}
-            style={styles.input}
-            contentStyle={[
-              { fontSize: Math.round(13 * fontScale) },
-              Platform.OS === 'web'
-                ? ({ wordBreak: 'break-all', overflowWrap: 'anywhere' } as object)
-                : null,
-            ]}
+            style={expressionInputStyle}
+            contentStyle={expressionContentStyle}
             outlineColor={theme.colors.outline}
             activeOutlineColor={theme.colors.primary}
           />
@@ -314,6 +342,59 @@ export default function ContentFilterFormScreen({ route, navigation }: Props) {
           >
             {matchExpression.length} / {MAX_MATCH_EXPRESSION_LENGTH}
           </HelperText>
+
+          <Text
+            variant="labelLarge"
+            style={[styles.fieldLabel, { color: theme.colors.onSurface, marginTop: 8 }]}
+          >
+            {t('common.description')}
+          </Text>
+          <CjkSafeOutlinedTextInput
+            resetKey={`${inputResetKey}-description`}
+            defaultValue={filter?.description ?? ''}
+            placeholder={t('form.descriptionPlaceholder')}
+            onChangeText={onDescriptionChange}
+            maxLength={MAX_DESCRIPTION_LENGTH}
+            multiline
+            numberOfLines={2}
+            error={!!errors.description}
+            style={descriptionInputStyle}
+            outlineColor={theme.colors.outline}
+            activeOutlineColor={theme.colors.primary}
+          />
+          <HelperText type="error" visible={!!errors.description}>
+            {errors.description}
+          </HelperText>
+          <HelperText
+            type="info"
+            visible
+            style={[styles.counter, { fontSize: Math.round(12 * fontScale) }]}
+          >
+            {description.length} / {MAX_DESCRIPTION_LENGTH}
+          </HelperText>
+
+          <View
+            style={[
+              styles.rulesBox,
+              {
+                backgroundColor: theme.colors.surfaceVariant,
+                borderColor: theme.colors.outline,
+              },
+            ]}
+          >
+            <Text
+              variant="labelLarge"
+              style={[styles.rulesTitle, { color: theme.colors.onSurface }]}
+            >
+              {t('form.filterApplyRulesTitle')}
+            </Text>
+            <Text
+              variant="bodySmall"
+              style={{ color: theme.colors.onSurfaceVariant, lineHeight: Math.round(18 * fontScale) }}
+            >
+              {t('form.filterApplyRulesBody')}
+            </Text>
+          </View>
 
           <View style={styles.buttonGroup}>
             <Button
@@ -383,12 +464,33 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: '100%',
   },
+  expressionInput: {
+    minHeight: 210,
+  },
+  expressionInputContent: {
+    minHeight: 180,
+    textAlignVertical: 'top',
+    paddingTop: 8,
+  },
+  descriptionInput: {
+    textAlignVertical: 'top',
+  },
   counter: {
     textAlign: 'right',
     fontSize: 12,
   },
+  rulesBox: {
+    marginTop: 20,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+  },
+  rulesTitle: {
+    fontWeight: '600',
+  },
   buttonGroup: {
-    marginTop: 32,
+    marginTop: 16,
     gap: 12,
   },
   button: {

@@ -29,6 +29,7 @@ import { isBlackHoleAddress } from '../utils/address';
 import { cacheService } from '../datasource/cacheService';
 import { dataRepository } from '../datasource/DataRepository';
 import { searchLocalMessages } from '../datasource/messageSearch';
+import { applyContentFilters } from '../utils/contentFilterApply';
 import {
   isDesktopLockPolicy,
   usePasswordLockRemaining,
@@ -61,6 +62,7 @@ export default function HomeScreen() {
   const { state } = useAppContext();
   const { t } = useTranslation();
   const { apiKey, profile, subscriptions, isLoading: contextLoading, homeTabWeights } = state;
+  const contentFilters = state.contentFilters;
   const { unlocked, unlock, lock } = useWalletSession();
   const isWriteWallet = profile?.walletType === 'write';
 
@@ -201,27 +203,43 @@ export default function HomeScreen() {
     return repoState.square.data.filter(item => item.contentKind === 'RAW');
   }, [repoState.square.data]);
 
-  // 关注页：窗口内 from/to 任一落在关注列表、且 input 非空的交易
+  // 根据广场勾选项决定当前显示的数据，再套用内容过滤
+  const displayedSquareData = useMemo(() => {
+    const squareData = repoState.square.data;
+    let result: InputDataItem[];
+    if (showSquareAll) {
+      result = squareData;
+    } else {
+      const map = new Map<string, InputDataItem>();
+      if (showSquareUtf8) utf8FilteredData.forEach(i => map.set(i.id, i));
+      if (showSquareOamp) oampFilteredData.forEach(i => map.set(i.id, i));
+      if (showSquareRaw) rawFilteredData.forEach(i => map.set(i.id, i));
+      result = Array.from(map.values()).sort((a, b) =>
+        b.timestamp - a.timestamp
+      );
+    }
+    return applyContentFilters(result, contentFilters);
+  }, [
+    repoState.square.data,
+    showSquareAll,
+    showSquareUtf8,
+    showSquareOamp,
+    showSquareRaw,
+    utf8FilteredData,
+    oampFilteredData,
+    rawFilteredData,
+    contentFilters,
+  ]);
+
+  // 关注页：窗口内 from/to 任一落在关注列表、且 input 非空的交易，再套用内容过滤
   const displayedFollowingData = useMemo(() => {
     const followingRawData = repoState.following.data;
     const subSet = new Set(subscriptions.map(s => s.address.toLowerCase()));
-    return followingRawData.filter(item =>
+    const following = followingRawData.filter(item =>
       subSet.has((item.from || '').toLowerCase()) || subSet.has((item.to || '').toLowerCase()),
     );
-  }, [repoState.following.data, subscriptions]);
-
-  // 根据广场勾选项决定当前显示的数据
-  const displayedSquareData = useMemo(() => {
-    const squareData = repoState.square.data;
-    if (showSquareAll) return squareData;
-    const map = new Map<string, InputDataItem>();
-    if (showSquareUtf8) utf8FilteredData.forEach(i => map.set(i.id, i));
-    if (showSquareOamp) oampFilteredData.forEach(i => map.set(i.id, i));
-    if (showSquareRaw) rawFilteredData.forEach(i => map.set(i.id, i));
-    return Array.from(map.values()).sort((a, b) =>
-      b.timestamp - a.timestamp
-    );
-  }, [repoState.square.data, showSquareAll, showSquareUtf8, showSquareOamp, showSquareRaw, utf8FilteredData, oampFilteredData, rawFilteredData]);
+    return applyContentFilters(following, contentFilters);
+  }, [repoState.following.data, subscriptions, contentFilters]);
 
   const messagesFiltersActive = showFilterSent || showFilterReceived;
   const squareFiltersActive =

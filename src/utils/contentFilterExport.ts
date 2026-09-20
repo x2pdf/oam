@@ -2,6 +2,7 @@ import { MAX_DESCRIPTION_LENGTH, MAX_MATCH_EXPRESSION_LENGTH } from '../constant
 import {
   ContentFilterMatchType,
   isContentFilterMatchType,
+  normalizeMatchExpression,
 } from '../types';
 
 export const CONTENT_FILTER_EXPORT_TYPE = 'oam-content-filter-list';
@@ -32,7 +33,10 @@ function normalizeItem(value: unknown): ContentFilterExportItem | null {
   if (!value || typeof value !== 'object') return null;
   const obj = value as Record<string, unknown>;
   const description = asTrimmedString(obj.description);
-  const matchExpression = asTrimmedString(obj.matchExpression);
+  const matchExpression =
+    typeof obj.matchExpression === 'string'
+      ? normalizeMatchExpression(obj.matchExpression)
+      : '';
   const matchType = obj.matchType;
   if (!description || !matchExpression) return null;
   if (!isContentFilterMatchType(matchType)) return null;

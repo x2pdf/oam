@@ -55,6 +55,11 @@ export function isContentFilterMatchType(value: unknown): value is ContentFilter
   return CONTENT_FILTER_MATCH_TYPES.includes(value as ContentFilterMatchType);
 }
 
+/** 去掉换行并 trim，用于匹配表达式入库与比对 */
+export function normalizeMatchExpression(value: string): string {
+  return value.replace(/[\r\n]+/g, '').trim();
+}
+
 /** 从持久化数据补全过滤器字段；无效 matchType 时返回 null */
 export function normalizeContentFilterRule(value: unknown): ContentFilterRule | null {
   if (!value || typeof value !== 'object') return null;
@@ -62,7 +67,9 @@ export function normalizeContentFilterRule(value: unknown): ContentFilterRule | 
   const id = typeof obj.id === 'string' ? obj.id.trim() : '';
   const description = typeof obj.description === 'string' ? obj.description.trim() : '';
   const matchExpression =
-    typeof obj.matchExpression === 'string' ? obj.matchExpression.trim() : '';
+    typeof obj.matchExpression === 'string'
+      ? normalizeMatchExpression(obj.matchExpression)
+      : '';
   if (!id || !description || !matchExpression) return null;
   if (!isContentFilterMatchType(obj.matchType)) return null;
   return {
@@ -78,7 +85,7 @@ export function contentFilterDedupeKey(
   matchType: ContentFilterMatchType,
   matchExpression: string,
 ): string {
-  return `${matchType}\0${matchExpression.trim()}`;
+  return `${matchType}\0${normalizeMatchExpression(matchExpression)}`;
 }
 
 /** 列表条目的展示类型（过滤器链写入） */

@@ -38,6 +38,19 @@ export default function ContentFilterDetailScreen({ route, navigation }: Props) 
     }
   })();
 
+  const matchExpressionLabel = (() => {
+    switch (filter.matchType) {
+      case 'regex':
+        return t('form.matchExpressionLabelRegex');
+      case 'address':
+        return t('form.matchExpressionLabelAddress');
+      case 'text':
+      case 'image':
+      default:
+        return t('form.matchExpressionLabelText');
+    }
+  })();
+
   useLayoutEffect(() => {
     const headerChrome = getHeaderChrome(theme);
     navigation.setOptions({
@@ -68,23 +81,6 @@ export default function ContentFilterDetailScreen({ route, navigation }: Props) 
                 variant="labelMedium"
                 style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}
               >
-                {t('common.description')}
-              </Text>
-              <Text
-                variant="titleMedium"
-                style={[styles.fieldValue, { color: theme.colors.onSurface }]}
-              >
-                {filter.description}
-              </Text>
-
-              <Text
-                variant="labelMedium"
-                style={{
-                  color: theme.colors.onSurfaceVariant,
-                  marginTop: 16,
-                  marginBottom: 4,
-                }}
-              >
                 {t('form.matchType')}
               </Text>
               <Text variant="titleMedium" style={{ color: theme.colors.onSurface }}>
@@ -99,13 +95,30 @@ export default function ContentFilterDetailScreen({ route, navigation }: Props) 
                   marginBottom: 4,
                 }}
               >
-                {t('form.matchExpression')}
+                {matchExpressionLabel}
               </Text>
               <Text
                 variant="bodyLarge"
                 style={[styles.expression, { color: theme.colors.onSurface }]}
               >
                 {filter.matchExpression}
+              </Text>
+
+              <Text
+                variant="labelMedium"
+                style={{
+                  color: theme.colors.onSurfaceVariant,
+                  marginTop: 16,
+                  marginBottom: 4,
+                }}
+              >
+                {t('common.description')}
+              </Text>
+              <Text
+                variant="titleMedium"
+                style={[styles.fieldValue, { color: theme.colors.onSurface }]}
+              >
+                {filter.description}
               </Text>
             </View>
           </View>
