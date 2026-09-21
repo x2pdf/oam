@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Linking, View, StyleSheet } from 'react-native';
 import { Text, Portal, Snackbar, Icon, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -8,15 +8,19 @@ import { ContentCardImage } from '../../../components/ContentCardImage';
 import { openImageLightbox } from '../../../components/ImageLightbox';
 import { wrapImagePress } from '../../../adapter/wrapImagePress';
 import { ArweaveContentItem } from '../types';
-import { isHttpUrl, isImageMime, mimeToIcon } from '../utils/mime';
+import { isHttpUrl, isImageMime, mimeToIcon, shouldDownload } from '../utils/mime';
 
 interface Props {
   items: ArweaveContentItem[];
   truncate?: boolean;
+  imageReloadToken?: number;
 }
 
-export const ArweaveContentRenderer: React.FC<Props> = ({ items, truncate = false }) => {
-  const theme = useTheme();
+export const ArweaveContentRenderer: React.FC<Props> = ({
+  items,
+  truncate = false,
+  imageReloadToken,
+}) => {
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -59,31 +63,32 @@ export const ArweaveContentRenderer: React.FC<Props> = ({ items, truncate = fals
     <View style={styles.container}>
       {items.map((item, index) => {
         if (item.type === 'image') {
+          const mime = item.mime || 'image/png';
+          const label = item.alt || item.data;
           return (
-            <ContentCardImage
+            <ImageOrExternalLink
               key={index}
               uri={item.data}
-              onPressWithUri={
-                isHttpUrl(item.data)
-                  ? (resolvedUri) => openImageLightbox(resolvedUri)
-                  : undefined
-              }
-              onPress={
-                isHttpUrl(item.data) ? undefined : () => openImageLightbox(item.data)
-              }
-              onLongPress={() => handleSaveImage(item.data)}
+              mime={mime}
+              label={truncate ? truncateListText(label) : label}
+              download={shouldDownload(mime)}
+              reloadToken={imageReloadToken}
+              onOpen={() => handleOpenUrl(item.data)}
+              onSaveImage={() => handleSaveImage(item.data)}
             />
           );
         }
         if (item.type === 'link') {
           const label = truncate ? truncateListText(item.label) : item.label;
           return (
-            <LinkAttachment
+            <ImageOrExternalLink
               key={index}
-              href={item.href}
+              uri={item.href}
               mime={item.mime}
               label={label}
               download={item.download}
+              reloadToken={imageReloadToken}
+              tryImage={isImageMime(item.mime)}
               onOpen={() => handleOpenUrl(item.href)}
               onSaveImage={() => handleSaveImage(item.href)}
             />
@@ -105,33 +110,42 @@ export const ArweaveContentRenderer: React.FC<Props> = ({ items, truncate = fals
   );
 };
 
-function LinkAttachment({
-  href,
+function ImageOrExternalLink({
+  uri,
   mime,
   label,
   download,
+  reloadToken,
+  tryImage = true,
   onOpen,
   onSaveImage,
 }: {
-  href: string;
+  uri: string;
   mime: string;
   label: string;
   download?: boolean;
+  reloadToken?: number;
+  tryImage?: boolean;
   onOpen: () => void;
   onSaveImage: () => void;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [imageFailed, setImageFailed] = useState(false);
-  const showImage = isImageMime(mime) && !imageFailed;
-  const displayLabel = label || href;
+  const showImage = tryImage && isImageMime(mime) && isHttpUrl(uri) && !imageFailed;
+  const displayLabel = label || uri;
   const tapHint = download ? t('detail.tapToOpenOrDownload') : t('detail.tapToOpen');
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [reloadToken, uri]);
 
   if (showImage) {
     return (
       <ContentCardImage
-        uri={href}
+        uri={uri}
         mimeType={mime}
+        reloadToken={reloadToken}
         onPressWithUri={(resolvedUri) => openImageLightbox(resolvedUri)}
         onLongPress={onSaveImage}
         onError={() => setImageFailed(true)}
@@ -139,6 +153,30 @@ function LinkAttachment({
     );
   }
 
+  return (
+    <ExternalOpenCard
+      mime={mime}
+      label={displayLabel}
+      tapHint={tapHint}
+      onOpen={onOpen}
+      theme={theme}
+    />
+  );
+}
+
+function ExternalOpenCard({
+  mime,
+  label,
+  tapHint,
+  onOpen,
+  theme,
+}: {
+  mime: string;
+  label: string;
+  tapHint: string;
+  onOpen: () => void;
+  theme: ReturnType<typeof useTheme>;
+}) {
   return wrapImagePress(
     <View
       style={[
@@ -146,14 +184,14 @@ function LinkAttachment({
         { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={displayLabel}
+      accessibilityLabel={label}
       accessibilityHint={tapHint}
     >
       <View style={styles.linkCardRow}>
         <Icon source={mimeToIcon(mime)} size={28} color={theme.colors.primary} />
         <View style={styles.linkCardContent}>
           <Text variant="bodyMedium" style={{ color: theme.colors.onSurface }} numberOfLines={2}>
-            {displayLabel}
+            {label}
           </Text>
           <Text
             variant="bodySmall"

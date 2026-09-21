@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View, ViewStyle, StyleProp } from 'react-native';
 import { ActivityIndicator, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -8,12 +8,16 @@ import { useCachedRemoteImage } from '../hooks/useCachedRemoteImage';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
+const MAX_DECODE_RETRIES = 2;
+
 type Props = PlatformImageProps & {
   containerStyle?: StyleProp<ViewStyle>;
   /** 点击时传入已解析的本地/blob URI，避免全屏再次下载远程图 */
   onPressWithUri?: (resolvedUri: string) => void;
   /** 本地/blob 解析完成（用于宽高比探测） */
   onDisplayUri?: (resolvedUri: string) => void;
+  /** 变化时即使上次失败也会重新拉取远程图 */
+  reloadToken?: number;
 };
 
 export const CachedRemoteImage: React.FC<Props> = ({
@@ -28,10 +32,20 @@ export const CachedRemoteImage: React.FC<Props> = ({
   onError,
   onLoadDimensions,
   onDisplayUri,
+  reloadToken,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { displayUri, loading, failed } = useCachedRemoteImage(uri, mimeType);
+  const { displayUri, loading, failed, retry, invalidate } = useCachedRemoteImage(
+    uri,
+    mimeType,
+    reloadToken,
+  );
+  const [decodeRetries, setDecodeRetries] = useState(0);
+
+  useEffect(() => {
+    setDecodeRetries(0);
+  }, [uri, reloadToken]);
 
   useEffect(() => {
     if (failed) {
@@ -45,7 +59,18 @@ export const CachedRemoteImage: React.FC<Props> = ({
     }
   }, [displayUri, onDisplayUri]);
 
-  if (failed) {
+  const handleImageError = useCallback(async () => {
+    // Native Image decoded the cached file unsuccessfully. Drop the cache and
+    // try once more automatically before giving up and falling back to link.
+    if (uri && decodeRetries < MAX_DECODE_RETRIES) {
+      setDecodeRetries((n) => n + 1);
+      await invalidate().catch(() => {});
+      retry();
+    }
+    onError?.();
+  }, [uri, decodeRetries, invalidate, retry, onError]);
+
+  if (failed && decodeRetries >= MAX_DECODE_RETRIES) {
     return null;
   }
 
@@ -87,7 +112,7 @@ export const CachedRemoteImage: React.FC<Props> = ({
       mimeType={mimeType}
       onPress={onPress || onPressWithUri ? handlePress : undefined}
       onLongPress={onLongPress}
-      onError={onError}
+      onError={handleImageError}
       onLoadDimensions={onLoadDimensions}
     />
   );

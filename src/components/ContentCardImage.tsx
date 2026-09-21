@@ -27,6 +27,8 @@ export type ContentCardImageProps = {
   onPressWithUri?: (resolvedUri: string) => void;
   onLongPress?: () => void;
   onError?: () => void;
+  /** 变化时即使上次失败也会重新拉取远程图 */
+  reloadToken?: number;
 };
 
 function estimateContentWidth(screenWidth: number, screenHeight: number): number {
@@ -69,6 +71,7 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
   onPressWithUri,
   onLongPress,
   onError,
+  reloadToken,
 }) => {
   const theme = useTheme();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -163,6 +166,7 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
       onError={onError}
       onDisplayUri={handleDisplayUri}
       onLoadDimensions={handleLoadDimensions}
+      reloadToken={reloadToken}
     />
   ) : (
     <PlatformImage

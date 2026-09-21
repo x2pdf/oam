@@ -12,10 +12,11 @@ interface ArweaveDataCardProps {
   item: ArweaveListItem;
   cardWidth?: number;
   onPress?: () => void;
+  imageReloadToken?: number;
 }
 
 export const ArweaveDataCard: React.FC<ArweaveDataCardProps> = React.memo(
-  ({ item, cardWidth, onPress }) => {
+  ({ item, cardWidth, onPress, imageReloadToken }) => {
     const theme = useTheme();
     const { t } = useTranslation();
     const { fontScale } = useThemePreference();
@@ -24,7 +25,9 @@ export const ArweaveDataCard: React.FC<ArweaveDataCardProps> = React.memo(
 
     const renderBody = () => {
       if (!item.contentItems.length) return null;
-      return <ArweaveContentBody items={item.contentItems} truncate />;
+      return (
+        <ArweaveContentBody items={item.contentItems} truncate imageReloadToken={imageReloadToken} />
+      );
     };
 
     const card = (

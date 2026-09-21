@@ -6,7 +6,6 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
-  TouchableOpacity,
 } from 'react-native';
 import { scrollFill } from '../../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../../theme/layout';
@@ -51,7 +50,9 @@ export default function ArweaveProfileScreen() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const arProfile = state.arProfile;
-  const { state: txState, refresh, loadMore } = useArweaveTransactions(arProfile?.address);
+  const { state: txState, refresh, loadMore, imageReloadToken } = useArweaveTransactions(
+    arProfile?.address,
+  );
 
   const handleAdd = useCallback(() => {
     navigation.navigate('ArweaveAddInfoSelect');
@@ -94,9 +95,10 @@ export default function ArweaveProfileScreen() {
         item={item}
         cardWidth={cardWidth}
         onPress={() => handleItemPress(item)}
+        imageReloadToken={imageReloadToken}
       />
     ),
-    [cardWidth, handleItemPress],
+    [cardWidth, handleItemPress, imageReloadToken],
   );
 
   const keyExtractor = useCallback((item: ArweaveListItem) => item.id, []);
@@ -288,7 +290,9 @@ export default function ArweaveProfileScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           listContentStyle,
-          arProfile && { paddingBottom: 88 + insets.bottom },
+          arProfile && {
+            paddingBottom: (Platform.OS === 'web' ? 140 : 88) + insets.bottom,
+          },
           txState.data.length === 0 && { flexGrow: 1 },
         ]}
         showsVerticalScrollIndicator={false}
@@ -320,30 +324,22 @@ export default function ArweaveProfileScreen() {
       />
 
       {arProfile && Platform.OS === 'web' ? (
-        <TouchableOpacity
+        <FAB
+          icon={txState.refreshing ? 'autorenew' : 'refresh'}
           style={[
-            styles.webRefreshBtn,
+            styles.fabRefresh,
             {
-              backgroundColor: theme.colors.surface,
+              backgroundColor: theme.colors.secondaryContainer,
               bottom: 72 + insets.bottom,
             },
             centered && { marginRight: '25%' },
           ]}
           onPress={refresh}
-          activeOpacity={0.7}
+          disabled={txState.refreshing}
+          color={theme.colors.onSecondaryContainer}
+          small
           accessibilityLabel={t('home.retry')}
-        >
-          {txState.refreshing ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-          ) : (
-            <IconButton
-              icon="refresh"
-              size={20}
-              iconColor={theme.colors.onSurfaceVariant}
-              style={styles.webRefreshIcon}
-            />
-          )}
-        </TouchableOpacity>
+        />
       ) : null}
 
       {arProfile ? (
@@ -381,23 +377,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  webRefreshBtn: {
+  fabRefresh: {
     position: 'absolute',
     margin: 16,
     right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-  webRefreshIcon: {
-    margin: 0,
+    bottom: 56,
   },
   card: { marginBottom: 12, borderRadius: 12 },
   cardContent: { paddingVertical: 12, paddingHorizontal: 8 },

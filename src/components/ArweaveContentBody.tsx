@@ -6,6 +6,7 @@ import { ArweaveContentRenderer } from '../arweave/list/components/ArweaveConten
 type Props = {
   items: ArweaveContentItem[];
   truncate?: boolean;
+  imageReloadToken?: number;
 };
 
 /** Arweave 富文本正文：列表卡片与数据详情页共用。 */

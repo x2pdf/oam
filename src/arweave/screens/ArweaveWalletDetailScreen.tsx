@@ -9,6 +9,8 @@ import {
   Divider,
   IconButton,
   ActivityIndicator,
+  Button,
+  Snackbar,
 } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +19,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppContext } from '../../context/AppContext';
 import { RootStackParamList } from '../../types';
 import { CopyableAddress } from '../../components/CopyableAddress';
+import {
+  clearRemoteImageCache,
+  getRemoteImageCacheCount,
+} from '../../adapter/remoteImageLoader';
 import { getUploadWalletBalanceAr } from '../upload/transaction';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -45,6 +51,10 @@ export default function ArweaveWalletDetailScreen() {
   const [balanceAr, setBalanceAr] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [balanceError, setBalanceError] = useState(false);
+  const [cacheCount, setCacheCount] = useState<number | null>(null);
+  const [clearingCache, setClearingCache] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const loadBalance = useCallback(async (walletAddress: string) => {
     setBalanceLoading(true);
@@ -61,13 +71,43 @@ export default function ArweaveWalletDetailScreen() {
     }
   }, []);
 
+  const loadCacheCount = useCallback(async () => {
+    try {
+      const count = await getRemoteImageCacheCount();
+      setCacheCount(count);
+    } catch (e) {
+      console.warn('loadCacheCount failed:', e);
+      setCacheCount(null);
+    }
+  }, []);
+
+  const handleClearCache = useCallback(async () => {
+    setClearingCache(true);
+    try {
+      await clearRemoteImageCache();
+      setCacheCount(0);
+      setSnackbarMessage(
+        t('arweave.walletDetail.cacheCleared', { defaultValue: '已清除 AR 图片本地缓存' }),
+      );
+    } catch (e) {
+      console.warn('clearRemoteImageCache failed:', e);
+      setSnackbarMessage(
+        t('arweave.walletDetail.cacheClearFailed', { defaultValue: '清除缓存失败' }),
+      );
+    } finally {
+      setClearingCache(false);
+      setSnackbarVisible(true);
+    }
+  }, [t]);
+
   useEffect(() => {
     if (!address) {
       navigation.goBack();
       return;
     }
     loadBalance(address);
-  }, [address, loadBalance, navigation]);
+    loadCacheCount();
+  }, [address, loadBalance, loadCacheCount, navigation]);
 
   const balanceDisplayText = useMemo(() => {
     if (balanceLoading) return t('arweave.walletDetail.balanceLoading');
@@ -173,6 +213,37 @@ export default function ArweaveWalletDetailScreen() {
           >
             <Card.Content style={styles.cardContent}>
               <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                {t('arweave.walletDetail.cacheTitle', { defaultValue: '本地缓存' })}
+              </Text>
+              <View style={styles.cacheRow}>
+                <Text variant="bodyMedium" style={{ color: theme.colors.onSurface }}>
+                  {cacheCount == null
+                    ? t('arweave.walletDetail.cacheCountLoading', { defaultValue: '统计中…' })
+                    : t('arweave.walletDetail.cacheCount', {
+                        count: cacheCount,
+                        defaultValue: `已缓存 {{count}} 个文件`,
+                      })}
+                </Text>
+                <Button
+                  mode="outlined"
+                  onPress={handleClearCache}
+                  loading={clearingCache}
+                  disabled={clearingCache || cacheCount === 0}
+                  icon="trash-can-outline"
+                >
+                  {t('arweave.walletDetail.clearCache', { defaultValue: '清除缓存' })}
+                </Button>
+              </View>
+            </Card.Content>
+          </Card>
+
+          <View style={styles.sectionSpacer} />
+          <Card
+            style={[styles.card, { backgroundColor: theme.colors.surface }]}
+            mode="elevated"
+          >
+            <Card.Content style={styles.cardContent}>
+              <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
                 {t('arweave.walletDetail.libTitle')}
               </Text>
               {libInfoRows.map((row, index) => (
@@ -246,6 +317,14 @@ export default function ArweaveWalletDetailScreen() {
           </Card>
         </ListColumn>
       </ScrollView>
+
+      <Snackbar
+        visible={snackbarVisible}
+        onDismiss={() => setSnackbarVisible(false)}
+        duration={2000}
+      >
+        {snackbarMessage}
+      </Snackbar>
     </View>
   );
 }
@@ -268,6 +347,13 @@ const styles = StyleSheet.create({
   infoRow: {},
   infoRowSpaced: { marginTop: 10 },
   infoValue: { marginTop: 2, lineHeight: 22 },
+  cacheRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    gap: 12,
+  },
   tipItem: { marginBottom: 10 },
   disclaimerTitle: { fontWeight: '700', textAlign: 'center', marginBottom: 12 },
   riskHint: { lineHeight: 22, marginBottom: 8 },

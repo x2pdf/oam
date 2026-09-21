@@ -5,7 +5,7 @@ import {
   REMOTE_IMAGE_RETRY_PER_URL,
   REMOTE_IMAGE_TIMEOUT_MS,
 } from '../constants';
-import { fetchWithTimeout } from '../datasource/fetchWithTimeout';
+import { fetchImageWithTimeout } from '../datasource/fetchWithTimeout';
 import { ContentItem } from '../mypayload';
 import { extractArweaveIdFromUri, isHttpUrl, isImageMime } from '../utils/attachment';
 
@@ -101,13 +101,28 @@ async function ensureRemoteCacheFolder(): Promise<string> {
   return folder;
 }
 
-async function findCachedFile(cacheKey: string): Promise<string | null> {
+async function findCachedFile(
+  cacheKey: string,
+  preferredExt?: string,
+): Promise<string | null> {
   if (Platform.OS === 'web') {
     return webBlobCache.get(cacheKey) ?? null;
   }
 
   const folder = await ensureRemoteCacheFolder();
+
+  // Prefer the extension matching the expected MIME type to avoid returning
+  // stale files cached under a wrong extension (e.g. PNG data saved as .jpg).
+  if (preferredExt) {
+    const preferredPath = `${folder}${cacheKey}.${preferredExt}`;
+    const info = await FileSystem.getInfoAsync(preferredPath);
+    if (info.exists) {
+      return toFileUri(preferredPath);
+    }
+  }
+
   for (const ext of IMAGE_EXTENSIONS) {
+    if (ext === preferredExt) continue;
     const path = `${folder}${cacheKey}.${ext}`;
     const info = await FileSystem.getInfoAsync(path);
     if (info.exists) {
@@ -115,6 +130,27 @@ async function findCachedFile(cacheKey: string): Promise<string | null> {
     }
   }
   return null;
+}
+
+async function deleteCachedFile(cacheKey: string, exceptExt?: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    const blobUri = webBlobCache.get(cacheKey);
+    if (blobUri) {
+      URL.revokeObjectURL(blobUri);
+      webBlobCache.delete(cacheKey);
+    }
+    return;
+  }
+
+  const folder = await ensureRemoteCacheFolder();
+  for (const ext of IMAGE_EXTENSIONS) {
+    if (ext === exceptExt) continue;
+    const path = `${folder}${cacheKey}.${ext}`;
+    const info = await FileSystem.getInfoAsync(path);
+    if (info.exists) {
+      await FileSystem.deleteAsync(path, { idempotent: true });
+    }
+  }
 }
 
 async function writeCache(
@@ -185,11 +221,7 @@ async function fetchImageBytes(
   url: string,
   mimeHint?: string,
 ): Promise<{ bytes: Uint8Array; mime: string }> {
-  const response = await fetchWithTimeout(
-    url,
-    { headers: { Accept: 'image/*,*/*' } },
-    REMOTE_IMAGE_TIMEOUT_MS,
-  );
+  const response = await fetchImageWithTimeout(url, REMOTE_IMAGE_TIMEOUT_MS);
   if (!response.ok) {
     throw new Error(`Download failed (${response.status})`);
   }
@@ -218,10 +250,15 @@ async function fetchImageBytes(
 
 async function downloadRemoteImage(url: string, mimeHint?: string): Promise<string> {
   const cacheKey = cacheKeyFor(url);
-  const cached = await findCachedFile(cacheKey);
+  const preferredExt = mimeHint ? resolveImageMeta(mimeHint, url).ext : undefined;
+  const cached = await findCachedFile(cacheKey, preferredExt);
   if (cached) {
     return cached;
   }
+
+  // Drop stale files saved under a wrong extension so they won't be returned
+  // again on the next reload.
+  await deleteCachedFile(cacheKey, preferredExt);
 
   const candidates = expandCandidateUrls(url);
   let lastError: Error | null = null;
@@ -252,6 +289,11 @@ export function peekCachedRemoteImageUri(uri: string): string | null {
   return nativeResolvedUriByUrl.get(uri) ?? null;
 }
 
+/**
+ * Web：浏览器打开图片 URL 不经过 CORS；JS fetch 常被网关 CORS 拦下。
+ * 因此 Web 直接返回 https 地址给 img，与「点到浏览器能看」一致。
+ * Native：仍下载到本地缓存，并在多网关间回退。
+ */
 export async function resolveRemoteImageUri(uri: string, mimeHint?: string): Promise<string> {
   if (!uri) {
     throw new Error('Empty URI');
@@ -263,8 +305,14 @@ export async function resolveRemoteImageUri(uri: string, mimeHint?: string): Pro
     throw new Error('Unsupported image URI');
   }
 
+  if (Platform.OS === 'web') {
+    const candidates = expandCandidateUrls(uri);
+    return candidates[0] ?? uri;
+  }
+
   const cacheKey = cacheKeyFor(uri);
-  const cached = await findCachedFile(cacheKey);
+  const preferredExt = mimeHint ? resolveImageMeta(mimeHint, uri).ext : undefined;
+  const cached = await findCachedFile(cacheKey, preferredExt);
   if (cached) {
     nativeResolvedUriByUrl.set(uri, cached);
     return cached;
@@ -282,8 +330,56 @@ export async function resolveRemoteImageUri(uri: string, mimeHint?: string): Pro
   return promise;
 }
 
+/** 删除本地/内存缓存并取消进行中的下载，用于图片解码失败后强制重试。 */
+export async function invalidateRemoteImageCache(uri: string): Promise<void> {
+  if (!uri || !isHttpUrl(uri)) return;
+  const cacheKey = cacheKeyFor(uri);
+  nativeResolvedUriByUrl.delete(uri);
+  inFlight.delete(cacheKey);
+  await deleteCachedFile(cacheKey);
+}
+
+/** 统计本地远程图片缓存文件数量（Web 返回内存 blob 数）。 */
+export async function getRemoteImageCacheCount(): Promise<number> {
+  if (Platform.OS === 'web') {
+    return webBlobCache.size;
+  }
+
+  const folder = await ensureRemoteCacheFolder();
+  const folderInfo = await FileSystem.getInfoAsync(folder);
+  if (!folderInfo.exists) {
+    return 0;
+  }
+  const names = await FileSystem.readDirectoryAsync(folder);
+  return names.filter((name) =>
+    IMAGE_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(`.${ext}`)),
+  ).length;
+}
+
+/** 清空全部远程图片本地/内存缓存。 */
+export async function clearRemoteImageCache(): Promise<void> {
+  if (Platform.OS === 'web') {
+    for (const uri of webBlobCache.values()) {
+      URL.revokeObjectURL(uri);
+    }
+    webBlobCache.clear();
+    return;
+  }
+
+  const folder = await ensureRemoteCacheFolder();
+  const info = await FileSystem.getInfoAsync(folder);
+  if (info.exists) {
+    await FileSystem.deleteAsync(folder, { idempotent: true });
+  }
+  nativeResolvedUriByUrl.clear();
+  inFlight.clear();
+}
+
 /** 后台预取 OAMP 内容中的远程图片链接，成功后会写入本地/内存缓存。 */
 export function prefetchRemoteImagesFromItems(items: ContentItem[]): void {
+  if (Platform.OS === 'web') {
+    return;
+  }
   for (const item of items) {
     if (item.type === 'link' && isImageMime(item.mime) && isHttpUrl(item.href)) {
       resolveRemoteImageUri(item.href, item.mime).catch(() => {});

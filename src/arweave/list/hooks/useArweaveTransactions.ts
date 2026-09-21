@@ -4,8 +4,11 @@ import { fetchOwnerTransactions } from '../api/graphql';
 import { arweaveListCacheService } from '../cache/cacheService';
 import { ARWEAVE_GRAPHQL_PAGE_SIZE } from '../constants';
 import {
+  compareArweaveListItems,
   filterDisplayableListItems,
   mapTransactionToListItem,
+  toArweaveBlockHeight,
+  toArweaveTimestampMs,
 } from '../mapToListItem';
 import { ArweaveListItem } from '../types';
 
@@ -45,11 +48,36 @@ async function fetchWithRetry(
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
+function normalizeListItem(item: ArweaveListItem): ArweaveListItem {
+  return {
+    ...item,
+    timestamp: toArweaveTimestampMs(item.timestamp),
+    blockHeight: toArweaveBlockHeight(item.blockHeight),
+  };
+}
+
 function mergeUniqueItems(existing: ArweaveListItem[], incoming: ArweaveListItem[]): ArweaveListItem[] {
   const map = new Map<string, ArweaveListItem>();
-  for (const item of existing) map.set(item.id, item);
-  for (const item of incoming) map.set(item.id, item);
-  return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+  for (const item of existing) map.set(item.id, normalizeListItem(item));
+  for (const raw of incoming) {
+    const item = normalizeListItem(raw);
+    const prev = map.get(item.id);
+    if (!prev) {
+      map.set(item.id, item);
+      continue;
+    }
+    // Prefer confirmed height/time when one side is still pending (0).
+    const blockHeight =
+      item.blockHeight > 0
+        ? item.blockHeight
+        : prev.blockHeight > 0
+          ? prev.blockHeight
+          : item.blockHeight;
+    const timestamp =
+      item.timestamp > 0 ? item.timestamp : prev.timestamp > 0 ? prev.timestamp : item.timestamp;
+    map.set(item.id, { ...item, blockHeight, timestamp });
+  }
+  return Array.from(map.values()).sort(compareArweaveListItems);
 }
 
 async function readCachePage(owner: string, offset: number): Promise<{
@@ -106,6 +134,7 @@ async function fetchDisplayablePage(
 
 export function useArweaveTransactions(address: string | undefined) {
   const [state, setState] = useState<ArweaveTransactionsState>(initialState);
+  const [imageReloadToken, setImageReloadToken] = useState(0);
   const cursorRef = useRef<string | null>(null);
   const dataLengthRef = useRef(0);
   const addressRef = useRef(address);
@@ -114,6 +143,10 @@ export function useArweaveTransactions(address: string | undefined) {
   dataLengthRef.current = state.data.length;
 
   const isCurrentRequest = useCallback((requestId: number) => requestIdRef.current === requestId, []);
+
+  const bumpImageReloadToken = useCallback(() => {
+    setImageReloadToken((n) => n + 1);
+  }, []);
 
   const applyNetworkResult = useCallback(
     async (
@@ -133,15 +166,19 @@ export function useArweaveTransactions(address: string | undefined) {
 
       setState((prev) => ({
         ...prev,
-        data: mode === 'more' ? mergeUniqueItems(prev.data, mapped) : mapped,
+        data: mergeUniqueItems(prev.data, mapped),
         loading: false,
         refreshing: false,
         loadingMore: false,
         hasMore: hasNextPage,
         error: null,
       }));
+
+      if (mode === 'initial' || mode === 'refresh') {
+        bumpImageReloadToken();
+      }
     },
-    [isCurrentRequest],
+    [bumpImageReloadToken, isCurrentRequest],
   );
 
   const applyCacheFallback = useCallback(
@@ -159,7 +196,7 @@ export function useArweaveTransactions(address: string | undefined) {
 
       setState((prev) => ({
         ...prev,
-        data: mode === 'more' ? mergeUniqueItems(prev.data, items) : items,
+        data: mode === 'more' ? mergeUniqueItems(prev.data, items) : mergeUniqueItems([], items),
         loading: false,
         refreshing: false,
         loadingMore: false,
@@ -198,7 +235,12 @@ export function useArweaveTransactions(address: string | undefined) {
         // Empty successful network results must not wipe cache-hydrated UI.
         if (mode !== 'more' && mapped.length === 0) {
           const usedCache = await applyCacheFallback(owner, mode, requestId);
-          if (usedCache || !isCurrentRequest(requestId)) return;
+          if (usedCache || !isCurrentRequest(requestId)) {
+            if (isCurrentRequest(requestId) && (mode === 'initial' || mode === 'refresh')) {
+              bumpImageReloadToken();
+            }
+            return;
+          }
 
           setState((prev) => {
             if (prev.data.length > 0) {
@@ -220,6 +262,9 @@ export function useArweaveTransactions(address: string | undefined) {
               error: null,
             };
           });
+          if (mode === 'initial' || mode === 'refresh') {
+            bumpImageReloadToken();
+          }
           return;
         }
 
@@ -245,7 +290,7 @@ export function useArweaveTransactions(address: string | undefined) {
         }
       }
     },
-    [applyCacheFallback, applyNetworkResult, isCurrentRequest],
+    [applyCacheFallback, applyNetworkResult, bumpImageReloadToken, isCurrentRequest],
   );
 
   const initializeFromCache = useCallback(
@@ -256,7 +301,7 @@ export function useArweaveTransactions(address: string | undefined) {
 
         setState((prev) => ({
           ...prev,
-          data: items,
+          data: mergeUniqueItems([], items),
           loading: false,
           hasMore,
           error: null,
@@ -313,5 +358,5 @@ export function useArweaveTransactions(address: string | undefined) {
     }, [refresh]),
   );
 
-  return { state, refresh, loadMore };
+  return { state, refresh, loadMore, imageReloadToken };
 }

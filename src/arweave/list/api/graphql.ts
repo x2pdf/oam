@@ -13,7 +13,7 @@ query OwnerTransactions($address: String!, $first: Int!, $after: String) {
       cursor
       node {
         id
-        block { timestamp }
+        block { timestamp height }
         tags { name value }
       }
     }

@@ -1,5 +1,5 @@
 export type ArweaveContentItem =
-  | { type: 'image'; data: string; alt?: string }
+  | { type: 'image'; data: string; alt?: string; mime?: string }
   | {
       type: 'link';
       href: string;
@@ -13,6 +13,8 @@ export interface ArweaveListItem {
   id: string;
   address: string;
   timestamp: number;
+  /** 区块高度；未确认 / 未知为 0。排序以 height 为主（与 GraphQL HEIGHT_DESC 一致）。 */
+  blockHeight: number;
   badgeLabel: string;
   contentItems: ArweaveContentItem[];
 }
@@ -24,6 +26,6 @@ export interface ArweaveGraphQLTag {
 
 export interface ArweaveGraphQLTransaction {
   id: string;
-  block: { timestamp: number } | null;
+  block: { timestamp: number; height: number } | null;
   tags: ArweaveGraphQLTag[];
 }

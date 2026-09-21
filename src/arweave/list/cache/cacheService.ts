@@ -91,7 +91,7 @@ export class ArweaveListCacheService {
       db.getAllAsync<{ itemJson: string }>(
         `SELECT itemJson FROM arweave_uploads
          WHERE ownerAddress = ?
-         ORDER BY timestamp DESC
+         ORDER BY CASE WHEN timestamp <= 0 THEN 1 ELSE 0 END DESC, timestamp DESC
          LIMIT ? OFFSET ?`,
         [ownerAddress, limit, offset],
       ),
@@ -152,7 +152,7 @@ export class ArweaveListCacheService {
          WHERE ownerAddress = ? AND id NOT IN (
            SELECT id FROM arweave_uploads
            WHERE ownerAddress = ?
-           ORDER BY timestamp DESC
+           ORDER BY CASE WHEN timestamp <= 0 THEN 1 ELSE 0 END DESC, timestamp DESC
            LIMIT ?
          )`,
         [ownerAddress, ownerAddress, limit],

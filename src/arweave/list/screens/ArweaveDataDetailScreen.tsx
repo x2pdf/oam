@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, ScrollView, StyleSheet, Platform } from 'react-native';
+import { View, ScrollView, StyleSheet, Platform, RefreshControl } from 'react-native';
 import { scrollFill } from '../../../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../../../theme/layout';
 import { Text, Card, IconButton, useTheme, Snackbar } from 'react-native-paper';
@@ -24,8 +24,18 @@ export default function ArweaveDataDetailScreen() {
   const { item } = route.params;
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [imageReloadToken, setImageReloadToken] = useState(0);
 
   const displayTime = useMemo(() => getArListDisplayTime(item.timestamp, t), [item.timestamp, t]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setImageReloadToken((n) => n + 1);
+    // The actual reload is driven by imageReloadToken; keep the indicator
+    // visible briefly so the user gets visual feedback.
+    setTimeout(() => setRefreshing(false), 500);
+  }, []);
   const uri = useMemo(() => (item.id ? arweaveHref(item.id) : ''), [item.id]);
 
   const showCopiedSnackbar = useCallback(() => {
@@ -53,12 +63,20 @@ export default function ArweaveDataDetailScreen() {
 
   const renderBody = () => {
     if (!item.contentItems.length) return null;
-    return <ArweaveContentBody items={item.contentItems} />;
+    return <ArweaveContentBody items={item.contentItems} imageReloadToken={imageReloadToken} />;
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView style={scrollFill} contentContainerStyle={[styles.content, listContentStyle]}>
+      <ScrollView
+        style={scrollFill}
+        contentContainerStyle={[styles.content, listContentStyle]}
+        refreshControl={
+          Platform.OS !== 'web' ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          ) : undefined
+        }
+      >
         <ListColumn>
           <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
             <Card.Content style={styles.contentCardBody}>
