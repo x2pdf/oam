@@ -12,6 +12,7 @@ import { useThemePreference } from '../../../context/ThemeContext';
 import { ArweaveContentBody } from '../../../components/ArweaveContentBody';
 import { getArListDisplayTime } from '../utils/time';
 import { arweaveHref } from '../utils/mime';
+import { getArweaveListItemContentPlainText } from '../utils/plainText';
 
 type RouteProps = RouteProp<RootStackParamList, 'ArweaveDataDetail'>;
 
@@ -41,6 +42,10 @@ export default function ArweaveDataDetailScreen() {
     setTimeout(() => setRefreshing(false), 500);
   }, []);
   const uri = useMemo(() => (item.id ? arweaveHref(item.id) : ''), [item.id]);
+  const copyableContent = useMemo(
+    () => getArweaveListItemContentPlainText(item),
+    [item],
+  );
 
   const showCopiedSnackbar = useCallback(() => {
     setSnackbarMessage(t('common.copied'));
@@ -65,9 +70,21 @@ export default function ArweaveDataDetailScreen() {
     showCopiedSnackbar();
   }, [displayTime, showCopiedSnackbar]);
 
+  const handleCopyContent = useCallback(async () => {
+    if (!copyableContent) return;
+    await Clipboard.setStringAsync(copyableContent);
+    showCopiedSnackbar();
+  }, [copyableContent, showCopiedSnackbar]);
+
   const renderBody = () => {
     if (!item.contentItems.length) return null;
-    return <ArweaveContentBody items={item.contentItems} imageReloadToken={imageReloadToken} />;
+    return (
+      <ArweaveContentBody
+        items={item.contentItems}
+        selectable
+        imageReloadToken={imageReloadToken}
+      />
+    );
   };
 
   return (
@@ -84,12 +101,24 @@ export default function ArweaveDataDetailScreen() {
         <ListColumn>
           <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
             <Card.Content style={styles.contentCardBody}>
-              <Text
-                variant="titleSmall"
-                style={[styles.sectionTitle, { color: theme.colors.primary }]}
-              >
-                {t('detail.content')}
-              </Text>
+              <View style={styles.sectionHeader}>
+                <Text
+                  variant="titleSmall"
+                  style={[styles.sectionTitle, styles.sectionHeaderTitle, { color: theme.colors.primary }]}
+                >
+                  {t('detail.content')}
+                </Text>
+                {copyableContent ? (
+                  <IconButton
+                    icon="content-copy"
+                    size={18}
+                    onPress={handleCopyContent}
+                    iconColor={theme.colors.primary}
+                    style={styles.copyIconBtn}
+                    accessibilityLabel={t('common.copy')}
+                  />
+                ) : null}
+              </View>
               {renderBody()}
             </Card.Content>
           </Card>
@@ -269,6 +298,16 @@ const styles = StyleSheet.create({
     margin: 0,
     width: 32,
     height: 32,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sectionHeaderTitle: {
+    marginBottom: 0,
+    flex: 1,
   },
   sectionTitle: {
     fontWeight: '700',

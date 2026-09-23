@@ -14,6 +14,7 @@ import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
 import { getOampPayloadUtf8, isOAMP } from '../utils/oampHelper';
 import { getDisplayTime } from '../utils/datetime';
+import { getInputDataCopyablePlainText } from '../utils/inputDataPlainText';
 
 type RouteProps = RouteProp<RootStackParamList, 'InputDataDetail'>;
 type ContentViewMode = 'default' | 'payload' | 'hex';
@@ -41,25 +42,16 @@ export default function InputDataDetailScreen() {
   const favorited = isFavorite(item.id);
   const displayTime = useMemo(() => getDisplayTime(item, t), [item, t]);
 
-  const copyableContent = useMemo(() => {
-    if (viewMode === 'hex') {
-      return rawHex;
-    }
-    if (viewMode === 'payload' && oampPayloadText) {
-      return oampPayloadText;
-    }
-    if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-      return item.oampItems
-        .filter((entry) => entry.type === 'text')
-        .map((entry) => (entry.type === 'text' ? entry.content : ''))
-        .join('\n')
-        .trim();
-    }
-    if (kind === 'UTF-8' && item.textContent) {
-      return item.textContent;
-    }
-    return rawHex;
-  }, [viewMode, oampPayloadText, kind, item.oampItems, item.textContent, rawHex]);
+  const copyableContent = useMemo(
+    () =>
+      getInputDataCopyablePlainText({
+        item,
+        viewMode,
+        rawHex,
+        oampPayloadText,
+      }),
+    [item, viewMode, rawHex, oampPayloadText],
+  );
 
   const showSnackbar = useCallback((message: string) => {
     setSnackbarMessage(message);

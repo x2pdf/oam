@@ -6,6 +6,7 @@ import { ArweaveContentRenderer } from '../arweave/list/components/ArweaveConten
 type Props = {
   items: ArweaveContentItem[];
   truncate?: boolean;
+  selectable?: boolean;
   imageReloadToken?: number;
 };
 

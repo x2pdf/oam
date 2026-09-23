@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, View, StyleSheet } from 'react-native';
+import { Linking, View, StyleSheet, Pressable } from 'react-native';
 import { Text, Portal, Snackbar, Icon, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { saveImageToAlbum } from '../../../adapter';
@@ -13,12 +13,14 @@ import { isHttpUrl, isImageMime, mimeToIcon, shouldDownload } from '../utils/mim
 interface Props {
   items: ArweaveContentItem[];
   truncate?: boolean;
+  selectable?: boolean;
   imageReloadToken?: number;
 }
 
 export const ArweaveContentRenderer: React.FC<Props> = ({
   items,
   truncate = false,
+  selectable = false,
   imageReloadToken,
 }) => {
   const { t } = useTranslation();
@@ -75,6 +77,7 @@ export const ArweaveContentRenderer: React.FC<Props> = ({
               reloadToken={imageReloadToken}
               onOpen={() => handleOpenUrl(item.data)}
               onSaveImage={() => handleSaveImage(item.data)}
+              selectable={selectable}
             />
           );
         }
@@ -91,6 +94,7 @@ export const ArweaveContentRenderer: React.FC<Props> = ({
               tryImage={isImageMime(item.mime)}
               onOpen={() => handleOpenUrl(item.href)}
               onSaveImage={() => handleSaveImage(item.href)}
+              selectable={selectable}
             />
           );
         }
@@ -119,6 +123,7 @@ function ImageOrExternalLink({
   tryImage = true,
   onOpen,
   onSaveImage,
+  selectable = false,
 }: {
   uri: string;
   mime: string;
@@ -128,6 +133,7 @@ function ImageOrExternalLink({
   tryImage?: boolean;
   onOpen: () => void;
   onSaveImage: () => void;
+  selectable?: boolean;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -160,6 +166,7 @@ function ImageOrExternalLink({
       tapHint={tapHint}
       onOpen={onOpen}
       theme={theme}
+      selectable={selectable}
     />
   );
 }
@@ -170,19 +177,57 @@ function ExternalOpenCard({
   tapHint,
   onOpen,
   theme,
+  selectable = false,
 }: {
   mime: string;
   label: string;
   tapHint: string;
   onOpen: () => void;
   theme: ReturnType<typeof useTheme>;
+  selectable?: boolean;
 }) {
+  const cardStyle = [
+    styles.linkCard,
+    { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant },
+  ];
+
+  if (selectable) {
+    return (
+      <View style={cardStyle} accessibilityLabel={label} accessibilityHint={tapHint}>
+        <View style={styles.linkCardRow}>
+          <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={tapHint}>
+            <Icon source={mimeToIcon(mime)} size={28} color={theme.colors.primary} />
+          </Pressable>
+          <View style={styles.linkCardContent}>
+            <Text
+              variant="bodyMedium"
+              style={{ color: theme.colors.onSurface }}
+              numberOfLines={2}
+              selectable
+            >
+              {label}
+            </Text>
+            <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={tapHint}>
+              <Text
+                variant="bodySmall"
+                style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}
+                numberOfLines={2}
+              >
+                {tapHint}
+              </Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={tapHint}>
+            <Icon source="open-in-new" size={20} color={theme.colors.onSurfaceVariant} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return wrapImagePress(
     <View
-      style={[
-        styles.linkCard,
-        { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant },
-      ]}
+      style={cardStyle}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={tapHint}
