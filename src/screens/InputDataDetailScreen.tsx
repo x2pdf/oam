@@ -9,6 +9,7 @@ import * as Clipboard from 'expo-clipboard';
 import { RootStackParamList } from '../types';
 import { AddressWithActions } from '../components/AddressWithActions';
 import { OampContentBody } from '../components/OampContentBody';
+import { SelectableText } from '../components/SelectableText';
 import { CONTENT_KIND_I18N_KEY } from '../display';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
@@ -121,17 +122,21 @@ export default function InputDataDetailScreen() {
   const renderBody = () => {
     if (viewMode === 'hex') {
       return (
-        <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} selectable>
-          {rawHex}
-        </Text>
+        <SelectableText
+          variant="bodyMedium"
+          style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]}
+          value={rawHex}
+        />
       );
     }
 
     if (viewMode === 'payload' && oampPayloadText) {
       return (
-        <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} selectable>
-          {oampPayloadText}
-        </Text>
+        <SelectableText
+          variant="bodyMedium"
+          style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]}
+          value={oampPayloadText}
+        />
       );
     }
 
@@ -141,9 +146,11 @@ export default function InputDataDetailScreen() {
 
     if (kind === 'UTF-8' && item.textContent) {
       return (
-        <Text variant="bodyMedium" style={styles.contentText} selectable>
-          {item.textContent}
-        </Text>
+        <SelectableText
+          variant="bodyMedium"
+          style={styles.contentText}
+          value={item.textContent}
+        />
       );
     }
 
@@ -157,9 +164,11 @@ export default function InputDataDetailScreen() {
             {t('home.encryptedHint')}
           </Text>
         ) : null}
-        <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} selectable>
-          {rawHex}
-        </Text>
+        <SelectableText
+          variant="bodyMedium"
+          style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]}
+          value={rawHex}
+        />
       </View>
     );
   };

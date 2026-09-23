@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { truncateListText } from '../utils/text';
 import { ContentCardImage } from './ContentCardImage';
 import { openImageLightbox } from './ImageLightbox';
+import { SelectableText } from './SelectableText';
 import { wrapImagePress } from '../adapter/wrapImagePress';
 import { isHttpUrl, isImageMime } from '../utils/attachment';
 
@@ -54,14 +55,21 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
     <View style={styles.container}>
       {items.map((item, index) => {
         if (item.type === 'text') {
-          return (
+          const textContent = truncate ? truncateListText(item.content) : item.content;
+          return selectable ? (
+            <SelectableText
+              key={index}
+              variant="bodyMedium"
+              style={[styles.preText, { color: theme.colors.onSurface }]}
+              value={textContent}
+            />
+          ) : (
             <Text
               key={index}
               variant="bodyMedium"
               style={[styles.preText, { color: theme.colors.onSurface }]}
-              selectable={selectable}
             >
-              {truncate ? truncateListText(item.content) : item.content}
+              {textContent}
             </Text>
           );
         }
