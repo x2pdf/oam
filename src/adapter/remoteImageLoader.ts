@@ -375,6 +375,17 @@ export async function clearRemoteImageCache(): Promise<void> {
   inFlight.clear();
 }
 
+/** 后台预取单张远程图片，成功后会写入本地/内存缓存。 */
+export function prefetchRemoteImage(uri: string, mimeHint?: string): void {
+  if (Platform.OS === 'web') {
+    return;
+  }
+  if (!isHttpUrl(uri)) {
+    return;
+  }
+  resolveRemoteImageUri(uri, mimeHint).catch(() => {});
+}
+
 /** 后台预取 OAMP 内容中的远程图片链接，成功后会写入本地/内存缓存。 */
 export function prefetchRemoteImagesFromItems(items: ContentItem[]): void {
   if (Platform.OS === 'web') {
@@ -382,11 +393,11 @@ export function prefetchRemoteImagesFromItems(items: ContentItem[]): void {
   }
   for (const item of items) {
     if (item.type === 'link' && isImageMime(item.mime) && isHttpUrl(item.href)) {
-      resolveRemoteImageUri(item.href, item.mime).catch(() => {});
+      prefetchRemoteImage(item.href, item.mime);
       continue;
     }
     if (item.type === 'image' && isHttpUrl(item.data)) {
-      resolveRemoteImageUri(item.data).catch(() => {});
+      prefetchRemoteImage(item.data);
     }
   }
 }

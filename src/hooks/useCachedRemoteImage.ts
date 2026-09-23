@@ -81,6 +81,16 @@ export function useCachedRemoteImage(
       setFailed(false);
       return;
     }
+    // 强制刷新时先尝试同步 peek，避免已缓存图片再次走异步磁盘扫描。
+    if (forceToken > 0) {
+      const peeked = peekCachedRemoteImageUri(uri);
+      if (peeked) {
+        setDisplayUri(peeked);
+        setLoading(false);
+        setFailed(false);
+        return;
+      }
+    }
     load(uri, mimeHint, forceToken > 0);
   }, [load, mimeHint, uri, forceToken]);
 

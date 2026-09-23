@@ -297,6 +297,11 @@ export default function ArweaveProfileScreen() {
         ]}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={5}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews={Platform.OS !== 'web'}
         refreshControl={
           arProfile && Platform.OS !== 'web' ? (
             <RefreshControl

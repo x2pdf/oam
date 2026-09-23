@@ -80,11 +80,11 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
   );
 
   const aspectCandidates = useMemo(() => {
-    const list = [uri];
+    // 优先用已解析的本地文件探测宽高，避免冷启动时用远程 URL 再下一次。
     if (resolvedUri && resolvedUri !== uri) {
-      list.push(resolvedUri);
+      return [resolvedUri, uri];
     }
-    return list;
+    return [uri];
   }, [uri, resolvedUri]);
 
   const [loadedAspectRatio, setLoadedAspectRatio] = useState<number | null>(() =>

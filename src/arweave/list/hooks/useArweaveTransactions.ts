@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { prefetchRemoteImage } from '../../../adapter/remoteImageLoader';
+import { isHttpUrl } from '../../../utils/attachment';
 import { fetchOwnerTransactions } from '../api/graphql';
 import { arweaveListCacheService } from '../cache/cacheService';
 import { ARWEAVE_GRAPHQL_PAGE_SIZE } from '../constants';
@@ -11,6 +14,7 @@ import {
   toArweaveTimestampMs,
 } from '../mapToListItem';
 import { ArweaveListItem } from '../types';
+import { isImageMime } from '../utils/mime';
 
 export interface ArweaveTransactionsState {
   data: ArweaveListItem[];
@@ -80,6 +84,25 @@ function mergeUniqueItems(existing: ArweaveListItem[], incoming: ArweaveListItem
     map.set(item.id, { ...item, blockHeight, timestamp });
   }
   return Array.from(map.values()).sort(compareArweaveListItems);
+}
+
+function prefetchImagesForItems(items: ArweaveListItem[]): void {
+  if (Platform.OS === 'web') {
+    return;
+  }
+  for (const item of items) {
+    for (const content of item.contentItems) {
+      if (content.type === 'image' && isHttpUrl(content.data)) {
+        prefetchRemoteImage(content.data, content.mime);
+      } else if (
+        content.type === 'link' &&
+        isImageMime(content.mime) &&
+        isHttpUrl(content.href)
+      ) {
+        prefetchRemoteImage(content.href, content.mime);
+      }
+    }
+  }
 }
 
 async function readCachePage(owner: string, offset: number): Promise<{
@@ -176,6 +199,8 @@ export function useArweaveTransactions(address: string | undefined) {
         error: null,
       }));
 
+      prefetchImagesForItems(mapped);
+
       if (mode === 'initial' || mode === 'refresh') {
         bumpImageReloadToken();
       }
@@ -205,6 +230,7 @@ export function useArweaveTransactions(address: string | undefined) {
         hasMore,
         error: null,
       }));
+      prefetchImagesForItems(items);
       return true;
     },
     [isCurrentRequest],
@@ -308,6 +334,7 @@ export function useArweaveTransactions(address: string | undefined) {
           hasMore,
           error: null,
         }));
+        prefetchImagesForItems(items);
       } catch (e) {
         console.warn('Failed to initialize Arweave list from cache:', e);
       }
