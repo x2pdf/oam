@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -23,69 +23,14 @@ export const ArweaveDataCard: React.FC<ArweaveDataCardProps> = React.memo(
 
     const displayTime = getArListDisplayTime(item.timestamp, t);
 
-    const handleNavigate = useCallback(() => {
-      if (!onPress) return;
-      if (wasRecentImagePress()) return;
-      onPress();
-    }, [onPress]);
-
     const renderBody = () => {
       if (!item.contentItems.length) return null;
       return (
-        <ArweaveContentBody
-          items={item.contentItems}
-          truncate
-          selectable
-          imageReloadToken={imageReloadToken}
-        />
+        <ArweaveContentBody items={item.contentItems} truncate imageReloadToken={imageReloadToken} />
       );
     };
 
-    const ripple = onPress ? { color: theme.colors.primary + '20' } : undefined;
-
-    const header = (
-      <Pressable
-        onPress={onPress ? handleNavigate : undefined}
-        android_ripple={ripple}
-        disabled={!onPress}
-      >
-        <View style={styles.cardHeader}>
-          <Text
-            variant="labelSmall"
-            style={[
-              styles.kindBadge,
-              {
-                color: theme.colors.primary,
-                borderColor: theme.colors.outline,
-                fontSize: Math.round(10 * fontScale),
-              },
-            ]}
-          >
-            {item.badgeLabel}
-          </Text>
-        </View>
-      </Pressable>
-    );
-
-    const timeRow = displayTime ? (
-      <Pressable
-        onPress={onPress ? handleNavigate : undefined}
-        android_ripple={ripple}
-        disabled={!onPress}
-      >
-        <Text
-          variant="labelSmall"
-          style={[
-            styles.timeText,
-            { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) },
-          ]}
-        >
-          {displayTime}
-        </Text>
-      </Pressable>
-    ) : null;
-
-    return (
+    const card = (
       <Card
         style={[
           styles.card,
@@ -95,12 +40,54 @@ export const ArweaveDataCard: React.FC<ArweaveDataCardProps> = React.memo(
         mode="elevated"
       >
         <Card.Content style={styles.cardContent}>
-          {header}
+          <View style={styles.cardHeader}>
+            <Text
+              variant="labelSmall"
+              style={[
+                styles.kindBadge,
+                {
+                  color: theme.colors.primary,
+                  borderColor: theme.colors.outline,
+                  fontSize: Math.round(10 * fontScale),
+                },
+              ]}
+            >
+              {item.badgeLabel}
+            </Text>
+          </View>
+
           {renderBody()}
-          {timeRow}
+
+          {displayTime ? (
+            <Text
+              variant="labelSmall"
+              style={[
+                styles.timeText,
+                { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) },
+              ]}
+            >
+              {displayTime}
+            </Text>
+          ) : null}
         </Card.Content>
       </Card>
     );
+
+    if (onPress) {
+      return (
+        <Pressable
+          onPress={() => {
+            if (wasRecentImagePress()) return;
+            onPress();
+          }}
+          android_ripple={{ color: theme.colors.primary + '20' }}
+        >
+          {card}
+        </Pressable>
+      );
+    }
+
+    return card;
   },
 );
 

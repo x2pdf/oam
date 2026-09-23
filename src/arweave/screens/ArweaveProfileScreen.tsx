@@ -284,7 +284,6 @@ export default function ArweaveProfileScreen() {
         data={arProfile ? txState.data : []}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        removeClippedSubviews={false}
         ListHeaderComponent={listHeader}
         ListFooterComponent={listFooter}
         ListEmptyComponent={listEmpty}

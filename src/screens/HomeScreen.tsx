@@ -671,7 +671,6 @@ export default function HomeScreen() {
         data={displayData}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        removeClippedSubviews={false}
         contentContainerStyle={[
           styles.listContent,
           listContentStyle,

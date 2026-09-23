@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { View, StyleSheet, Platform, Pressable } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +35,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
             (s) => s.address.toLowerCase() === item.address?.toLowerCase(),
           )
         : undefined;
+    // Always sender address; short label only for black hole / self / subscription.
     const shortName = isBlackHole
       ? t('send.recipientBlackHole')
       : isSelf
@@ -44,20 +45,14 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
           : null;
     const displayTime = getDisplayTime(item, t);
 
-    const handleNavigate = useCallback(() => {
-      if (!onPress) return;
-      if (wasRecentImagePress()) return;
-      onPress();
-    }, [onPress]);
-
     const renderBody = () => {
       if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-        return <OampContentBody items={item.oampItems} truncate selectable />;
+        return <OampContentBody items={item.oampItems} truncate />;
       }
 
       if (kind === 'UTF-8' && item.textContent) {
         return (
-          <Text variant="bodyMedium" style={styles.inputDataText} selectable>
+          <Text variant="bodyMedium" style={styles.inputDataText}>
             {truncateListText(item.textContent)}
           </Text>
         );
@@ -73,70 +68,14 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
               {t('home.encryptedHint')}
             </Text>
           ) : null}
-          <Text
-            variant="bodyMedium"
-            style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]}
-            numberOfLines={8}
-            selectable
-          >
+          <Text variant="bodyMedium" style={[styles.rawHexText, { fontSize: Math.round(12 * fontScale) }]} numberOfLines={8}>
             {truncateListText(rawHex)}
           </Text>
         </View>
       );
     };
 
-    const ripple = onPress ? { color: theme.colors.primary + '20' } : undefined;
-
-    const header = (
-      <Pressable
-        onPress={onPress ? handleNavigate : undefined}
-        android_ripple={ripple}
-        disabled={!onPress}
-      >
-        <View style={styles.cardHeader}>
-          <Text
-            variant="titleMedium"
-            style={[styles.addressLabel, { color: theme.colors.primary, flex: 1 }]}
-            numberOfLines={1}
-          >
-            {shortenAddress(item.address)}
-            {shortName ? (
-              <>
-                {' ('}
-                <Text style={{ color: theme.colors.secondary, fontWeight: '700' }}>{shortName}</Text>
-                )
-              </>
-            ) : null}
-          </Text>
-          <Text
-            variant="labelSmall"
-            style={[
-              styles.kindBadge,
-              { color: theme.colors.primary, borderColor: theme.colors.outline, fontSize: Math.round(10 * fontScale) },
-            ]}
-          >
-            {t(CONTENT_KIND_I18N_KEY[kind])}
-          </Text>
-        </View>
-      </Pressable>
-    );
-
-    const timeRow = (
-      <Pressable
-        onPress={onPress ? handleNavigate : undefined}
-        android_ripple={ripple}
-        disabled={!onPress}
-      >
-        <Text
-          variant="labelSmall"
-          style={[styles.timeText, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) }]}
-        >
-          {displayTime}
-        </Text>
-      </Pressable>
-    );
-
-    return (
+    const card = (
       <Card
         style={[
           styles.card,
@@ -146,12 +85,61 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
         mode="elevated"
       >
         <Card.Content style={styles.cardContent}>
-          {header}
+          <View style={styles.cardHeader}>
+            <Text
+              variant="titleMedium"
+              style={[styles.addressLabel, { color: theme.colors.primary, flex: 1 }]}
+              numberOfLines={1}
+            >
+              {shortenAddress(item.address)}
+              {shortName ? (
+                <>
+                  {' ('}
+                  <Text style={{ color: theme.colors.secondary, fontWeight: '700' }}>{shortName}</Text>
+                  )
+                </>
+              ) : null}
+            </Text>
+            <Text
+              variant="labelSmall"
+              style={[
+                styles.kindBadge,
+                { color: theme.colors.primary, borderColor: theme.colors.outline, fontSize: Math.round(10 * fontScale) },
+              ]}
+            >
+              {t(CONTENT_KIND_I18N_KEY[kind])}
+            </Text>
+          </View>
+
           {renderBody()}
-          {timeRow}
+
+          <Text
+            variant="labelSmall"
+            style={[styles.timeText, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) }]}
+          >
+            {displayTime}
+          </Text>
         </Card.Content>
       </Card>
     );
+
+    if (onPress) {
+      return (
+        <Pressable
+          onPress={() => {
+            if (wasRecentImagePress()) {
+              return;
+            }
+            onPress();
+          }}
+          android_ripple={{ color: theme.colors.primary + '20' }}
+        >
+          {card}
+        </Pressable>
+      );
+    }
+
+    return card;
   },
 );
 
