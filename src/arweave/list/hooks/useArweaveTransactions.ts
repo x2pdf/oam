@@ -53,6 +53,8 @@ function normalizeListItem(item: ArweaveListItem): ArweaveListItem {
     ...item,
     timestamp: toArweaveTimestampMs(item.timestamp),
     blockHeight: toArweaveBlockHeight(item.blockHeight),
+    fileName: item.fileName ?? '',
+    note: item.note ?? '',
   };
 }
 

@@ -85,6 +85,8 @@ export function mapTransactionToListItem(
     timestamp: toArweaveTimestampMs(tx.block?.timestamp),
     blockHeight: toArweaveBlockHeight(tx.block?.height),
     badgeLabel: mimeToBadgeLabel(contentType),
+    fileName,
+    note,
     contentItems,
   };
 }

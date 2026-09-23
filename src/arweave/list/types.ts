@@ -16,6 +16,10 @@ export interface ArweaveListItem {
   /** 区块高度；未确认 / 未知为 0。排序以 height 为主（与 GraphQL HEIGHT_DESC 一致）。 */
   blockHeight: number;
   badgeLabel: string;
+  /** 链上 File-Name 标签 */
+  fileName: string;
+  /** 链上 Note 标签 */
+  note: string;
   contentItems: ArweaveContentItem[];
 }
 

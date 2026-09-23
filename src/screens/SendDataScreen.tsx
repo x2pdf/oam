@@ -31,6 +31,7 @@ import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
 import { ContentItem, createJpegItem, createPngItem, createGifItem, createLinkItem } from '../mypayload';
 import { AddAttachmentModal } from '../components/AddAttachmentModal';
+import { SendDraftAttachmentRow } from '../components/SendDraftAttachmentRow';
 import { estimateSendFeeFromAddress, OAMPClient, getFeeSuggestions, FeeOption, FeeSuggestions, intrinsicGas } from '../oamp/client';
 import { BLACK_HOLE } from '../oamp/protocol';
 import {
@@ -1083,32 +1084,12 @@ export default function SendDataScreen() {
         </HelperText>
 
         {attachments.map((att, index) => (
-          <View
+          <SendDraftAttachmentRow
             key={`att-${index}`}
-            style={[
-              styles.attachmentItem,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.outline + (theme.dark ? '50' : '40'),
-              },
-            ]}
-          >
-            <View style={styles.attachmentContent}>
-              <View style={styles.attachmentInfo}>
-                <Text variant="bodySmall" numberOfLines={1}>
-                  {att.label} · {t(`send.attachmentType.${att.fileType}`)}
-                </Text>
-                <Text
-                  variant="bodySmall"
-                  numberOfLines={2}
-                  style={[styles.attachmentHref, { color: theme.colors.onSurfaceVariant }]}
-                >
-                  {wrapLongHex(att.href)}
-                </Text>
-              </View>
-              <IconButton icon="close" size={20} onPress={() => removeAttachment(index)} />
-            </View>
-          </View>
+            attachment={att}
+            wrapHref={wrapLongHex}
+            onRemove={() => removeAttachment(index)}
+          />
         ))}
 
         <Button
@@ -1848,29 +1829,6 @@ const styles = StyleSheet.create({
   imageInfo: {
     flex: 1,
     marginLeft: 12,
-  },
-  attachmentItem: {
-    marginBottom: 8,
-    borderWidth: 1,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  attachmentContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingLeft: 12,
-    paddingRight: 4,
-  },
-  attachmentInfo: {
-    flex: 1,
-    marginRight: 4,
-  },
-  attachmentHref: {
-    marginTop: 2,
-    fontFamily: 'monospace',
-    fontSize: 12,
-    lineHeight: 16,
   },
   shortcutRow: {
     flexDirection: 'row',

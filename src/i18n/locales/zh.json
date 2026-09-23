@@ -488,6 +488,8 @@
     "attachmentDefaultPdf": "PDF",
     "attachmentDefaultZip": "压缩包",
     "attachmentDefaultFile": "文件",
+    "attachmentSizeLoading": "大小…",
+    "attachmentSizeUnknown": "大小未知",
     "contentTitle": "内容",
     "recipientTitle": "发送至",
     "recipientSelf": "自己",

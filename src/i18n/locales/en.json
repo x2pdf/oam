@@ -488,6 +488,8 @@
     "attachmentDefaultPdf": "PDF",
     "attachmentDefaultZip": "Archive",
     "attachmentDefaultFile": "File",
+    "attachmentSizeLoading": "Size…",
+    "attachmentSizeUnknown": "Size unknown",
     "contentTitle": "Content",
     "recipientTitle": "Send to",
     "recipientSelf": "Myself",

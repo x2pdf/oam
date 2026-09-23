@@ -28,6 +28,10 @@ export default function ArweaveDataDetailScreen() {
   const [imageReloadToken, setImageReloadToken] = useState(0);
 
   const displayTime = useMemo(() => getArListDisplayTime(item.timestamp, t), [item.timestamp, t]);
+  const fileName = item.fileName ?? '';
+  const noteDisplay = (item.note ?? '').trim()
+    ? (item.note ?? '').trim()
+    : t('arweave.upload.noNote');
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -162,6 +166,24 @@ export default function ArweaveDataDetailScreen() {
 
           <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
             <Card.Content>
+              <View style={styles.metaRow}>
+                <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {t('arweave.upload.confirmFile')}
+                </Text>
+                <Text variant="bodyMedium" selectable>
+                  {fileName || '—'}
+                </Text>
+              </View>
+
+              <View style={styles.metaRow}>
+                <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {t('arweave.upload.noteLabel')}
+                </Text>
+                <Text variant="bodyMedium" selectable>
+                  {noteDisplay}
+                </Text>
+              </View>
+
               {displayTime ? (
                 <View style={styles.metaRow}>
                   <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>

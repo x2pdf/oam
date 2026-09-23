@@ -48,6 +48,10 @@ export function isImageMime(mime: string): boolean {
   return IMAGE_MIMES.has(mime.toLowerCase());
 }
 
+export function isImageAttachmentFileType(fileType: AttachmentFileType): boolean {
+  return isImageMime(FILE_TYPE_TO_MIME[fileType]);
+}
+
 export function shouldDownload(mime: string): boolean {
   const m = mime.toLowerCase();
   return m === 'application/pdf' || m === 'application/zip' || m === 'application/octet-stream';
