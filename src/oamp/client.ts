@@ -2,6 +2,7 @@ import {
   Wallet,
   formatEther,
   TransactionRequest,
+  type FeeData,
 } from "ethers";
 import { MessageType, CryptoScheme, OAMPMessage, DecryptedMessage, EncryptionContext } from "./types";
 import { serializeMessage, deserializeMessage, getMessageHeader, BLACK_HOLE } from "./protocol";
@@ -14,7 +15,8 @@ import {
   generateDeterministicNonce,
   generateNonce
 } from "./crypto";
-import { broadcastRawTx, withRpcFallback } from "../rpc/rpcClient";
+import { broadcastRawTx, createProvider, withRpcFallback } from "../rpc/rpcClient";
+import { RPC_NODES } from "../config/rpcConfig";
 
 export type SendMode = "broadcast" | "personal" | "unencrypted" | "p2p" | "raw";
 
@@ -162,32 +164,88 @@ async function estimateFeeEth(
   }, { noFatal: true });
 }
 
-export async function getFeeSuggestions(): Promise<FeeSuggestions> {
-  return withRpcFallback(async (provider) => {
-    const feeData = await provider.getFeeData();
-    const baseGasPrice = feeData.gasPrice ?? 0n;
-    const maxFee = feeData.maxFeePerGas ?? baseGasPrice;
-    const maxPriority = feeData.maxPriorityFeePerGas ?? 0n;
+function isZeroOrMissingPriority(feeData: FeeData): boolean {
+  const priority = feeData.maxPriorityFeePerGas;
+  return priority == null || priority === 0n;
+}
 
-    // A simple heuristic for suggestions
-    return {
-      slow: {
-        maxFeePerGas: (maxFee * 90n) / 100n,
-        maxPriorityFeePerGas: (maxPriority * 90n) / 100n,
-        level: "slow",
-      },
-      normal: {
-        maxFeePerGas: maxFee,
-        maxPriorityFeePerGas: maxPriority,
-        level: "normal",
-      },
-      fast: {
-        maxFeePerGas: (maxFee * 120n) / 100n,
-        maxPriorityFeePerGas: (maxPriority * 150n) / 100n,
-        level: "fast",
-      },
-    };
+function pickRandomRpcUrl(exclude: Set<string>): string | null {
+  const pool = RPC_NODES.filter((url) => !exclude.has(url));
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)] ?? null;
+}
+
+async function fetchFeeDataFromUrl(url: string): Promise<FeeData | null> {
+  const provider = createProvider(url);
+  try {
+    return await provider.getFeeData();
+  } catch (err) {
+    console.warn(`Fee data fetch via ${url} failed:`, err);
+    return null;
+  } finally {
+    try {
+      provider.destroy();
+    } catch {
+      // Ignore cleanup failures; request may already be settled.
+    }
+  }
+}
+
+function feeSuggestionsFrom(feeData: FeeData): FeeSuggestions {
+  const baseGasPrice = feeData.gasPrice ?? 0n;
+  const maxFee = feeData.maxFeePerGas ?? baseGasPrice;
+  const maxPriority = feeData.maxPriorityFeePerGas ?? 0n;
+
+  return {
+    slow: {
+      maxFeePerGas: (maxFee * 90n) / 100n,
+      maxPriorityFeePerGas: (maxPriority * 90n) / 100n,
+      level: "slow",
+    },
+    normal: {
+      maxFeePerGas: maxFee,
+      maxPriorityFeePerGas: maxPriority,
+      level: "normal",
+    },
+    fast: {
+      maxFeePerGas: (maxFee * 120n) / 100n,
+      maxPriorityFeePerGas: (maxPriority * 150n) / 100n,
+      level: "fast",
+    },
+  };
+}
+
+export async function getFeeSuggestions(): Promise<FeeSuggestions> {
+  const usedUrls = new Set<string>();
+  let chosen = await withRpcFallback(async (provider, url) => {
+    usedUrls.add(url);
+    return provider.getFeeData();
   }, { noFatal: true });
+
+  if (!isZeroOrMissingPriority(chosen)) {
+    return feeSuggestionsFrom(chosen);
+  }
+
+  const secondUrl = pickRandomRpcUrl(usedUrls);
+  if (secondUrl) {
+    usedUrls.add(secondUrl);
+    const second = await fetchFeeDataFromUrl(secondUrl);
+    if (second && !isZeroOrMissingPriority(second)) {
+      return feeSuggestionsFrom(second);
+    }
+    if (second) chosen = second;
+  }
+
+  const thirdUrl = pickRandomRpcUrl(usedUrls);
+  if (thirdUrl) {
+    usedUrls.add(thirdUrl);
+    const third = await fetchFeeDataFromUrl(thirdUrl);
+    if (third) {
+      return feeSuggestionsFrom(third);
+    }
+  }
+
+  return feeSuggestionsFrom(chosen);
 }
 
 /**
