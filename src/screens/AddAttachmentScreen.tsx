@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput as RNTextInput, View } from 'react-native';
+import {
+  Dimensions,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput as RNTextInput,
+  View,
+} from 'react-native';
 import { Button, HelperText, Text, TextInput, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -45,11 +54,15 @@ const LABEL_INPUT_PROPS = {
   importantForAutofill: 'no' as const,
 };
 
+const FOCUS_SCROLL_GAP = 16;
+const FOCUS_SCROLL_DELAY_MS = Platform.OS === 'ios' ? 250 : 100;
+
 type AttachmentUriInputProps = {
   label: string;
   placeholder: string;
   value: string;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
 };
 
 /** Isolated so label keystrokes do not re-render this multiline field (Fabric CJK IME on iOS/Android). */
@@ -58,6 +71,7 @@ const AttachmentUriInput = React.memo(function AttachmentUriInput({
   placeholder,
   value,
   onChangeText,
+  onFocus,
 }: AttachmentUriInputProps) {
   return (
     <TextInput
@@ -67,6 +81,7 @@ const AttachmentUriInput = React.memo(function AttachmentUriInput({
       value={value}
       onChangeText={onChangeText}
       {...URI_INPUT_PROPS}
+      onFocus={onFocus}
       style={styles.uriInput}
       contentStyle={styles.uriContent}
     />
@@ -78,6 +93,7 @@ type AttachmentLabelInputProps = {
   placeholder: string;
   resetKey: number;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
 };
 
 /**
@@ -90,6 +106,7 @@ const AttachmentLabelInput = React.memo(function AttachmentLabelInput({
   placeholder,
   resetKey,
   onChangeText,
+  onFocus,
 }: AttachmentLabelInputProps) {
   const draftRef = useRef('');
 
@@ -106,7 +123,13 @@ const AttachmentLabelInput = React.memo(function AttachmentLabelInput({
       defaultValue=""
       {...LABEL_INPUT_PROPS}
       render={(props) => {
-        const { value: _paperValue, onChangeText: paperOnChangeText, onBlur, ...rest } = props;
+        const {
+          value: _paperValue,
+          onChangeText: paperOnChangeText,
+          onBlur,
+          onFocus: paperOnFocus,
+          ...rest
+        } = props;
         return (
           <RNTextInput
             {...rest}
@@ -114,6 +137,10 @@ const AttachmentLabelInput = React.memo(function AttachmentLabelInput({
             onChangeText={(text) => {
               draftRef.current = text;
               onChangeText(text);
+            }}
+            onFocus={(e) => {
+              paperOnFocus?.(e);
+              onFocus?.();
             }}
             onBlur={(e) => {
               paperOnChangeText?.(draftRef.current);
@@ -173,6 +200,70 @@ export default function AddAttachmentScreen() {
   const [error, setError] = useState<string | null>(null);
   const [labelResetKey] = useState(0);
   const labelRef = useRef('');
+  const scrollRef = useRef<ScrollView>(null);
+  const uriWrapRef = useRef<View>(null);
+  const labelWrapRef = useRef<View>(null);
+  const focusedFieldRef = useRef<React.RefObject<View | null> | null>(null);
+  const keyboardHeightRef = useRef(0);
+  const scrollYRef = useRef(0);
+
+  const ensureFieldVisible = useCallback((fieldRef: React.RefObject<View | null> | null) => {
+    const node = fieldRef?.current;
+    if (!node) return;
+    node.measureInWindow((_x, y, _w, h) => {
+      const windowH = Dimensions.get('window').height;
+      const keyboardH =
+        keyboardHeightRef.current || Math.round(Keyboard.metrics()?.height ?? 0);
+      const visibleBottom = Platform.OS === 'ios' ? windowH - keyboardH : windowH;
+      const overflow = y + h + FOCUS_SCROLL_GAP - visibleBottom;
+      if (overflow > 0) {
+        scrollRef.current?.scrollTo({
+          y: Math.max(scrollYRef.current + overflow, 0),
+          animated: true,
+        });
+      }
+    });
+  }, []);
+
+  const scrollFieldIntoView = useCallback(
+    (fieldRef: React.RefObject<View | null>) => {
+      focusedFieldRef.current = fieldRef;
+      setTimeout(() => ensureFieldVisible(fieldRef), FOCUS_SCROLL_DELAY_MS);
+    },
+    [ensureFieldVisible],
+  );
+
+  const handleUriFocus = useCallback(() => {
+    scrollFieldIntoView(uriWrapRef);
+  }, [scrollFieldIntoView]);
+
+  const handleLabelFocus = useCallback(() => {
+    scrollFieldIntoView(labelWrapRef);
+  }, [scrollFieldIntoView]);
+
+  useEffect(() => {
+    const showEvents =
+      Platform.OS === 'ios' ? (['keyboardWillShow'] as const) : (['keyboardDidShow'] as const);
+    const hideEvents =
+      Platform.OS === 'ios'
+        ? (['keyboardWillHide', 'keyboardDidHide'] as const)
+        : (['keyboardDidHide'] as const);
+
+    const subscriptions = [
+      ...showEvents.map((event) =>
+        Keyboard.addListener(event, (e) => {
+          keyboardHeightRef.current = Math.round(e.endCoordinates.height);
+          requestAnimationFrame(() => ensureFieldVisible(focusedFieldRef.current));
+        }),
+      ),
+      ...hideEvents.map((event) =>
+        Keyboard.addListener(event, () => {
+          keyboardHeightRef.current = 0;
+        }),
+      ),
+    ];
+    return () => subscriptions.forEach((subscription) => subscription.remove());
+  }, [ensureFieldVisible]);
 
   const uriError = useMemo(() => {
     if (source === 'arweave-id' || !input.trim()) return null;
@@ -236,8 +327,12 @@ export default function AddAttachmentScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
+        ref={scrollRef}
         style={scrollFill}
         contentContainerStyle={[
           styles.content,
@@ -246,6 +341,10 @@ export default function AddAttachmentScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          scrollYRef.current = event.nativeEvent.contentOffset.y;
+        }}
       >
         <ListColumn>
           <Text variant="labelLarge" style={[styles.fieldLabel, { color: theme.colors.onSurface }]}>
@@ -283,12 +382,15 @@ export default function AddAttachmentScreen() {
             ))}
           </View>
 
-          <AttachmentUriInput
-            label={uriFieldLabel}
-            placeholder={placeholder}
-            value={input}
-            onChangeText={handleUriChange}
-          />
+          <View ref={uriWrapRef} collapsable={false}>
+            <AttachmentUriInput
+              label={uriFieldLabel}
+              placeholder={placeholder}
+              value={input}
+              onChangeText={handleUriChange}
+              onFocus={handleUriFocus}
+            />
+          </View>
           {source === 'arweave-id' && (
             <HelperText type="info" visible style={{ paddingHorizontal: 0 }}>
               {t('send.attachmentIdHint')}
@@ -298,12 +400,15 @@ export default function AddAttachmentScreen() {
             {error || uriError || ' '}
           </HelperText>
 
-          <AttachmentLabelInput
-            resetKey={labelResetKey}
-            label={t('send.attachmentLabel')}
-            placeholder={t('send.attachmentLabelPlaceholder')}
-            onChangeText={handleLabelChange}
-          />
+          <View ref={labelWrapRef} collapsable={false}>
+            <AttachmentLabelInput
+              resetKey={labelResetKey}
+              label={t('send.attachmentLabel')}
+              placeholder={t('send.attachmentLabelPlaceholder')}
+              onChangeText={handleLabelChange}
+              onFocus={handleLabelFocus}
+            />
+          </View>
 
           <View style={styles.buttonGroup}>
             <Button mode="contained" onPress={handleConfirm} style={styles.button}>
@@ -315,7 +420,7 @@ export default function AddAttachmentScreen() {
           </View>
         </ListColumn>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
