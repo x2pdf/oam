@@ -7,6 +7,7 @@ type Props = {
   items: ContentItem[];
   selectable?: boolean;
   truncate?: boolean;
+  cacheMap?: Record<string, string>;
 };
 
 /** OAMP / 富文本正文：列表卡片与数据详情页共用，保证图片宽度自适应布局一致。 */

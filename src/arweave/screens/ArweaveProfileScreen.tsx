@@ -50,7 +50,7 @@ export default function ArweaveProfileScreen() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const arProfile = state.arProfile;
-  const { state: txState, refresh, loadMore, imageReloadToken } = useArweaveTransactions(
+  const { state: txState, refresh, loadMore } = useArweaveTransactions(
     arProfile?.address,
   );
 
@@ -95,10 +95,9 @@ export default function ArweaveProfileScreen() {
         item={item}
         cardWidth={cardWidth}
         onPress={() => handleItemPress(item)}
-        imageReloadToken={imageReloadToken}
       />
     ),
-    [cardWidth, handleItemPress, imageReloadToken],
+    [cardWidth, handleItemPress],
   );
 
   const keyExtractor = useCallback((item: ArweaveListItem) => item.id, []);

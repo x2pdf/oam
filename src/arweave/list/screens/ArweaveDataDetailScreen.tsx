@@ -67,7 +67,13 @@ export default function ArweaveDataDetailScreen() {
 
   const renderBody = () => {
     if (!item.contentItems.length) return null;
-    return <ArweaveContentBody items={item.contentItems} imageReloadToken={imageReloadToken} />;
+    return (
+      <ArweaveContentBody
+        items={item.contentItems}
+        imageReloadToken={imageReloadToken}
+        cacheMap={item.cacheMap}
+      />
+    );
   };
 
   return (

@@ -141,8 +141,8 @@ export const FOLLOWING_BLOCK_FETCH_TIMEOUT_MS = 20000;
 /** 关注页按地址拉取时的并发限制 (每秒请求数) */
 export const FOLLOWING_ADDRESS_FETCH_RATE_LIMIT = 5;
 
-/** 远程图片单次 fetch 超时（每个候选地址） */
-export const REMOTE_IMAGE_TIMEOUT_MS = 60000;
+/** 远程图片单次 fetch 超时（每个候选地址）。有本地文件时不出网，不堵列表。 */
+export const REMOTE_IMAGE_TIMEOUT_MS = 15000;
 
 /** 非 Arweave 远程图：同一 URL 最多尝试次数 */
 export const REMOTE_IMAGE_RETRY_PER_URL = 2;

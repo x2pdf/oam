@@ -61,6 +61,10 @@ export function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
 }
 
+export function isLocalImageUri(uri: string): boolean {
+  return uri.startsWith('data:') || uri.startsWith('file:') || uri.startsWith('blob:');
+}
+
 export function normalizeArweaveId(raw: string): string | null {
   let id = raw.trim();
   if (id.toLowerCase().startsWith('ar://')) {

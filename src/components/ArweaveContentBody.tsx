@@ -7,6 +7,7 @@ type Props = {
   items: ArweaveContentItem[];
   truncate?: boolean;
   imageReloadToken?: number;
+  cacheMap?: Record<string, string>;
 };
 
 /** Arweave 富文本正文：列表卡片与数据详情页共用。 */

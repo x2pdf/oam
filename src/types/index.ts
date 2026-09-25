@@ -111,6 +111,8 @@ export interface InputDataItem {
   contentKind?: ContentKind;
   oampItems?: ContentItem[];
   textContent?: string;
+  /** key = 文本里的占位符原文，value = 本机全路径，可直接给 Image */
+  cacheMap?: Record<string, string>;
 }
 
 /** 本地收藏条目（完整数据快照 + 收藏时间） */

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { ActivityIndicator, Snackbar, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { getImageRendererAdapter, peekCachedRemoteImageUri, saveImageToAlbum } from '../adapter';
+import { getImageRendererAdapter, peekCachedImagePath, saveImageToAlbum } from '../adapter';
 import { useCachedRemoteImage } from '../hooks/useCachedRemoteImage';
 import { isHttpUrl } from '../utils/attachment';
 
@@ -44,7 +44,7 @@ type Props = {
 let openLightbox: ((uri: string) => void) | null = null;
 
 export function openImageLightbox(uri: string) {
-  const cached = isHttpUrl(uri) ? peekCachedRemoteImageUri(uri) : null;
+  const cached = isHttpUrl(uri) ? peekCachedImagePath(uri) : null;
   openLightbox?.(cached ?? uri);
 }
 

@@ -1,35 +1,27 @@
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
 import {
   ARWEAVE_GATEWAYS,
   REMOTE_IMAGE_RETRY_PER_URL,
   REMOTE_IMAGE_TIMEOUT_MS,
 } from '../constants';
 import { fetchImageWithTimeout } from '../datasource/fetchWithTimeout';
-import { ContentItem } from '../mypayload';
-import { extractArweaveIdFromUri, isHttpUrl, isImageMime } from '../utils/attachment';
-
-const CACHE_FOLDER = 'oam-remote-images/';
-const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'avif', 'jxl'] as const;
+import { extractArweaveIdFromUri, isHttpUrl } from '../utils/attachment';
+import {
+  clearCacheMap,
+  peekCachedImagePath,
+  removeCacheMap,
+  upsertCacheMap,
+} from './cacheMapService';
+import {
+  clearRemoteImageStore,
+  countRemoteImageStore,
+  deleteLocalFilesByPlaceholder,
+  findLocalFileByPlaceholder,
+  localFileExists,
+  writeLocalFile,
+} from './remoteImageStore';
 
 const inFlight = new Map<string, Promise<string>>();
-const webBlobCache = new Map<string, string>();
-/** Native: http(s) URL → cached file:// URI after first resolve (for sync peek). */
-const nativeResolvedUriByUrl = new Map<string, string>();
-
-function hashString(value: string): string {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
-    hash |= 0;
-  }
-  return (hash >>> 0).toString(16);
-}
-
-function cacheKeyFor(url: string): string {
-  const arId = extractArweaveIdFromUri(url);
-  return arId ?? hashString(url);
-}
 
 export function expandCandidateUrls(url: string): string[] {
   const arId = extractArweaveIdFromUri(url);
@@ -65,112 +57,6 @@ function resolveImageMeta(
   if (path.endsWith('.avif')) return { mime: 'image/avif', ext: 'avif' };
   if (path.endsWith('.jxl')) return { mime: 'image/jxl', ext: 'jxl' };
   return { mime: 'image/jpeg', ext: 'jpg' };
-}
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  const chunk = 0x2000;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += chunk) {
-    const slice = bytes.subarray(i, i + chunk);
-    binary += String.fromCharCode.apply(null, Array.from(slice));
-  }
-  if (typeof btoa !== 'function') {
-    throw new Error('Base64 encoding is not available');
-  }
-  return btoa(binary);
-}
-
-function toFileUri(path: string): string {
-  if (path.startsWith('file:')) {
-    return path;
-  }
-  return `file://${path.replace(/\\/g, '/')}`;
-}
-
-async function ensureRemoteCacheFolder(): Promise<string> {
-  const cacheDir = FileSystem.cacheDirectory;
-  if (!cacheDir) {
-    throw new Error('Cache directory is not available');
-  }
-
-  const folder = `${cacheDir}${CACHE_FOLDER}`;
-  const folderInfo = await FileSystem.getInfoAsync(folder);
-  if (!folderInfo.exists) {
-    await FileSystem.makeDirectoryAsync(folder, { intermediates: true });
-  }
-  return folder;
-}
-
-async function findCachedFile(
-  cacheKey: string,
-  preferredExt?: string,
-): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    return webBlobCache.get(cacheKey) ?? null;
-  }
-
-  const folder = await ensureRemoteCacheFolder();
-
-  // Prefer the extension matching the expected MIME type to avoid returning
-  // stale files cached under a wrong extension (e.g. PNG data saved as .jpg).
-  if (preferredExt) {
-    const preferredPath = `${folder}${cacheKey}.${preferredExt}`;
-    const info = await FileSystem.getInfoAsync(preferredPath);
-    if (info.exists) {
-      return toFileUri(preferredPath);
-    }
-  }
-
-  for (const ext of IMAGE_EXTENSIONS) {
-    if (ext === preferredExt) continue;
-    const path = `${folder}${cacheKey}.${ext}`;
-    const info = await FileSystem.getInfoAsync(path);
-    if (info.exists) {
-      return toFileUri(path);
-    }
-  }
-  return null;
-}
-
-async function deleteCachedFile(cacheKey: string, exceptExt?: string): Promise<void> {
-  if (Platform.OS === 'web') {
-    const blobUri = webBlobCache.get(cacheKey);
-    if (blobUri) {
-      URL.revokeObjectURL(blobUri);
-      webBlobCache.delete(cacheKey);
-    }
-    return;
-  }
-
-  const folder = await ensureRemoteCacheFolder();
-  for (const ext of IMAGE_EXTENSIONS) {
-    if (ext === exceptExt) continue;
-    const path = `${folder}${cacheKey}.${ext}`;
-    const info = await FileSystem.getInfoAsync(path);
-    if (info.exists) {
-      await FileSystem.deleteAsync(path, { idempotent: true });
-    }
-  }
-}
-
-async function writeCache(
-  cacheKey: string,
-  bytes: Uint8Array,
-  meta: { mime: string; ext: string },
-): Promise<string> {
-  if (Platform.OS === 'web') {
-    const blob = new Blob([new Uint8Array(bytes)], { type: meta.mime });
-    const objectUrl = URL.createObjectURL(blob);
-    webBlobCache.set(cacheKey, objectUrl);
-    return objectUrl;
-  }
-
-  const folder = await ensureRemoteCacheFolder();
-  const path = `${folder}${cacheKey}.${meta.ext}`;
-  await FileSystem.writeAsStringAsync(path, uint8ToBase64(bytes), {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-  return toFileUri(path);
 }
 
 function isLikelyImageResponse(mime: string, url: string): boolean {
@@ -248,27 +134,17 @@ async function fetchImageBytes(
   throw new Error('Response is not an image');
 }
 
-async function downloadRemoteImage(url: string, mimeHint?: string): Promise<string> {
-  const cacheKey = cacheKeyFor(url);
-  const preferredExt = mimeHint ? resolveImageMeta(mimeHint, url).ext : undefined;
-  const cached = await findCachedFile(cacheKey, preferredExt);
-  if (cached) {
-    return cached;
-  }
-
-  // Drop stale files saved under a wrong extension so they won't be returned
-  // again on the next reload.
-  await deleteCachedFile(cacheKey, preferredExt);
-
-  const candidates = expandCandidateUrls(url);
+async function downloadRemoteImage(placeholder: string, mimeHint?: string): Promise<string> {
+  const candidates = expandCandidateUrls(placeholder);
   let lastError: Error | null = null;
 
   for (const candidate of candidates) {
     try {
       const { bytes, mime } = await fetchImageBytes(candidate, mimeHint);
-      const meta = resolveImageMeta(mime, candidate);
-      const local = await writeCache(cacheKey, bytes, meta);
-      nativeResolvedUriByUrl.set(url, local);
+      const sniffed = sniffImageMeta(bytes);
+      const meta = sniffed ?? resolveImageMeta(mime, candidate);
+      const local = await writeLocalFile(placeholder, bytes, meta.ext);
+      await upsertCacheMap(placeholder, local);
       return local;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -278,23 +154,15 @@ async function downloadRemoteImage(url: string, mimeHint?: string): Promise<stri
   throw lastError ?? new Error('Failed to load remote image');
 }
 
-/** 同步读取已缓存的远程图 URI（Web blob 缓存）；未命中返回 null。 */
-export function peekCachedRemoteImageUri(uri: string): string | null {
-  if (!uri || !isHttpUrl(uri)) {
-    return null;
-  }
-  if (Platform.OS === 'web') {
-    return webBlobCache.get(cacheKeyFor(uri)) ?? null;
-  }
-  return nativeResolvedUriByUrl.get(uri) ?? null;
-}
-
 /**
- * Web：浏览器打开图片 URL 不经过 CORS；JS fetch 常被网关 CORS 拦下。
- * 因此 Web 直接返回 https 地址给 img，与「点到浏览器能看」一致。
- * Native：仍下载到本地缓存，并在多网关间回退。
+ * Web：直接返回 https，不写本地文件。
+ * Native：hintPath / 词干文件优先，没有才下载到文档目录。
  */
-export async function resolveRemoteImageUri(uri: string, mimeHint?: string): Promise<string> {
+export async function resolveRemoteImageUri(
+  uri: string,
+  mimeHint?: string,
+  hintPath?: string,
+): Promise<string> {
   if (!uri) {
     throw new Error('Empty URI');
   }
@@ -310,107 +178,49 @@ export async function resolveRemoteImageUri(uri: string, mimeHint?: string): Pro
     return candidates[0] ?? uri;
   }
 
-  const cacheKey = cacheKeyFor(uri);
-  const preferredExt = mimeHint ? resolveImageMeta(mimeHint, uri).ext : undefined;
-  const cached = await findCachedFile(cacheKey, preferredExt);
-  if (cached) {
-    nativeResolvedUriByUrl.set(uri, cached);
-    return cached;
+  if (hintPath && (await localFileExists(hintPath))) {
+    await upsertCacheMap(uri, hintPath);
+    return hintPath;
   }
 
-  const existing = inFlight.get(cacheKey);
+  const peeked = peekCachedImagePath(uri);
+  if (peeked && peeked !== hintPath && (await localFileExists(peeked))) {
+    await upsertCacheMap(uri, peeked);
+    return peeked;
+  }
+
+  const existing = await findLocalFileByPlaceholder(uri);
   if (existing) {
+    await upsertCacheMap(uri, existing);
     return existing;
   }
 
+  const inflight = inFlight.get(uri);
+  if (inflight) {
+    return inflight;
+  }
+
   const promise = downloadRemoteImage(uri, mimeHint).finally(() => {
-    inFlight.delete(cacheKey);
+    inFlight.delete(uri);
   });
-  inFlight.set(cacheKey, promise);
+  inFlight.set(uri, promise);
   return promise;
 }
 
-/** 删除本地/内存缓存并取消进行中的下载，用于图片解码失败后强制重试。 */
+/** 删除该占位对应的本地文件并取消进行中的下载，用于解码失败后强制重试。 */
 export async function invalidateRemoteImageCache(uri: string): Promise<void> {
   if (!uri || !isHttpUrl(uri)) return;
-  const cacheKey = cacheKeyFor(uri);
-  nativeResolvedUriByUrl.delete(uri);
-  inFlight.delete(cacheKey);
-  await deleteCachedFile(cacheKey);
+  inFlight.delete(uri);
+  await removeCacheMap(uri);
+  await deleteLocalFilesByPlaceholder(uri);
 }
 
-/** 统计本地远程图片缓存文件数量（Web 返回内存 blob 数）。 */
 export async function getRemoteImageCacheCount(): Promise<number> {
-  if (Platform.OS === 'web') {
-    return webBlobCache.size;
-  }
-
-  const folder = await ensureRemoteCacheFolder();
-  const folderInfo = await FileSystem.getInfoAsync(folder);
-  if (!folderInfo.exists) {
-    return 0;
-  }
-  const names = await FileSystem.readDirectoryAsync(folder);
-  return names.filter((name) =>
-    IMAGE_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(`.${ext}`)),
-  ).length;
+  return countRemoteImageStore();
 }
 
-/** 清空全部远程图片本地/内存缓存。 */
 export async function clearRemoteImageCache(): Promise<void> {
-  if (Platform.OS === 'web') {
-    for (const uri of webBlobCache.values()) {
-      URL.revokeObjectURL(uri);
-    }
-    webBlobCache.clear();
-    return;
-  }
-
-  const folder = await ensureRemoteCacheFolder();
-  const info = await FileSystem.getInfoAsync(folder);
-  if (info.exists) {
-    await FileSystem.deleteAsync(folder, { idempotent: true });
-  }
-  nativeResolvedUriByUrl.clear();
   inFlight.clear();
-}
-
-/** 后台预取单张远程图片，成功后会写入本地/内存缓存。 */
-export function prefetchRemoteImage(uri: string, mimeHint?: string): void {
-  if (Platform.OS === 'web') {
-    return;
-  }
-  if (!isHttpUrl(uri)) {
-    return;
-  }
-  resolveRemoteImageUri(uri, mimeHint).catch(() => {});
-}
-
-/** 后台预取 OAMP 内容中的远程图片链接，成功后会写入本地/内存缓存。 */
-export function prefetchRemoteImagesFromItems(items: ContentItem[]): void {
-  if (Platform.OS === 'web') {
-    return;
-  }
-  for (const item of items) {
-    if (item.type === 'link' && isImageMime(item.mime) && isHttpUrl(item.href)) {
-      prefetchRemoteImage(item.href, item.mime);
-      continue;
-    }
-    if (item.type === 'image' && isHttpUrl(item.data)) {
-      prefetchRemoteImage(item.data);
-    }
-  }
-}
-
-export function revokeRemoteImageUri(uri: string): void {
-  if (!uri.startsWith('blob:')) {
-    return;
-  }
-  URL.revokeObjectURL(uri);
-  for (const [key, cachedUri] of webBlobCache.entries()) {
-    if (cachedUri === uri) {
-      webBlobCache.delete(key);
-      break;
-    }
-  }
+  await clearCacheMap();
+  await clearRemoteImageStore();
 }

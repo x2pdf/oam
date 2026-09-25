@@ -141,7 +141,7 @@ export default function InputDataDetailScreen() {
     }
 
     if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-      return <OampContentBody items={item.oampItems} selectable />;
+      return <OampContentBody items={item.oampItems} selectable cacheMap={item.cacheMap} />;
     }
 
     if (kind === 'UTF-8' && item.textContent) {

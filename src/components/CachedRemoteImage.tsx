@@ -18,6 +18,8 @@ type Props = PlatformImageProps & {
   onDisplayUri?: (resolvedUri: string) => void;
   /** 变化时即使上次失败也会重新拉取远程图 */
   reloadToken?: number;
+  cacheMap?: Record<string, string>;
+  onCacheMapped?: (placeholder: string, path: string) => void;
 };
 
 export const CachedRemoteImage: React.FC<Props> = ({
@@ -33,14 +35,17 @@ export const CachedRemoteImage: React.FC<Props> = ({
   onLoadDimensions,
   onDisplayUri,
   reloadToken,
+  cacheMap,
+  onCacheMapped,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { displayUri, loading, failed, retry, invalidate } = useCachedRemoteImage(
-    uri,
-    mimeType,
+  const { displayUri, loading, failed, retry, invalidate } = useCachedRemoteImage(uri, {
+    mimeHint: mimeType,
     reloadToken,
-  );
+    cacheMap,
+    onCacheMapped,
+  });
   const [decodeRetries, setDecodeRetries] = useState(0);
 
   useEffect(() => {
@@ -60,8 +65,6 @@ export const CachedRemoteImage: React.FC<Props> = ({
   }, [displayUri, onDisplayUri]);
 
   const handleImageError = useCallback(async () => {
-    // Native Image decoded the cached file unsuccessfully. Drop the cache and
-    // try once more automatically before giving up and falling back to link.
     if (uri && decodeRetries < MAX_DECODE_RETRIES) {
       setDecodeRetries((n) => n + 1);
       await invalidate().catch(() => {});
@@ -74,7 +77,7 @@ export const CachedRemoteImage: React.FC<Props> = ({
     return null;
   }
 
-  if (loading || !displayUri) {
+  if (!displayUri) {
     return (
       <View
         style={[
@@ -84,13 +87,17 @@ export const CachedRemoteImage: React.FC<Props> = ({
           { backgroundColor: theme.dark ? '#262626' : '#F5F5F5' },
         ]}
       >
-        <ActivityIndicator size="small" color={theme.colors.primary} />
-        <Text
-          variant="bodySmall"
-          style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}
-        >
-          {t('detail.loadingImage')}
-        </Text>
+        {loading ? (
+          <>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Text
+              variant="bodySmall"
+              style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}
+            >
+              {t('detail.loadingImage')}
+            </Text>
+          </>
+        ) : null}
       </View>
     );
   }

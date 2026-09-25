@@ -47,7 +47,7 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
 
     const renderBody = () => {
       if (kind === 'OAMP' && Array.isArray(item.oampItems) && item.oampItems.length > 0) {
-        return <OampContentBody items={item.oampItems} truncate />;
+        return <OampContentBody items={item.oampItems} truncate cacheMap={item.cacheMap} />;
       }
 
       if (kind === 'UTF-8' && item.textContent) {

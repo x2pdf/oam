@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { prefetchRemoteImage } from '../../../adapter/remoteImageLoader';
-import { isHttpUrl } from '../../../utils/attachment';
+import { hydrateCacheMap } from '../../../adapter/cacheMapService';
+import { collectImagePlaceholders } from '../../../adapter/remoteImageStore';
 import { fetchOwnerTransactions } from '../api/graphql';
 import { arweaveListCacheService } from '../cache/cacheService';
 import { ARWEAVE_GRAPHQL_PAGE_SIZE } from '../constants';
@@ -14,7 +14,6 @@ import {
   toArweaveTimestampMs,
 } from '../mapToListItem';
 import { ArweaveListItem } from '../types';
-import { isImageMime } from '../utils/mime';
 
 export interface ArweaveTransactionsState {
   data: ArweaveListItem[];
@@ -86,23 +85,16 @@ function mergeUniqueItems(existing: ArweaveListItem[], incoming: ArweaveListItem
   return Array.from(map.values()).sort(compareArweaveListItems);
 }
 
-function prefetchImagesForItems(items: ArweaveListItem[]): void {
-  if (Platform.OS === 'web') {
-    return;
+async function attachCacheMaps(items: ArweaveListItem[]): Promise<ArweaveListItem[]> {
+  if (Platform.OS === 'web' || items.length === 0) {
+    return items;
   }
-  for (const item of items) {
-    for (const content of item.contentItems) {
-      if (content.type === 'image' && isHttpUrl(content.data)) {
-        prefetchRemoteImage(content.data, content.mime);
-      } else if (
-        content.type === 'link' &&
-        isImageMime(content.mime) &&
-        isHttpUrl(content.href)
-      ) {
-        prefetchRemoteImage(content.href, content.mime);
-      }
-    }
-  }
+  return Promise.all(
+    items.map(async (item) => ({
+      ...item,
+      cacheMap: await hydrateCacheMap(collectImagePlaceholders(item.contentItems)),
+    })),
+  );
 }
 
 async function readCachePage(owner: string, offset: number): Promise<{
@@ -159,7 +151,6 @@ async function fetchDisplayablePage(
 
 export function useArweaveTransactions(address: string | undefined) {
   const [state, setState] = useState<ArweaveTransactionsState>(initialState);
-  const [imageReloadToken, setImageReloadToken] = useState(0);
   const cursorRef = useRef<string | null>(null);
   const dataLengthRef = useRef(0);
   const addressRef = useRef(address);
@@ -168,10 +159,6 @@ export function useArweaveTransactions(address: string | undefined) {
   dataLengthRef.current = state.data.length;
 
   const isCurrentRequest = useCallback((requestId: number) => requestIdRef.current === requestId, []);
-
-  const bumpImageReloadToken = useCallback(() => {
-    setImageReloadToken((n) => n + 1);
-  }, []);
 
   const applyNetworkResult = useCallback(
     async (
@@ -185,27 +172,27 @@ export function useArweaveTransactions(address: string | undefined) {
       if (!isCurrentRequest(requestId)) return;
 
       cursorRef.current = endCursor;
-      await arweaveListCacheService.saveItems(owner, mapped);
+      await arweaveListCacheService.saveItems(
+        owner,
+        mapped.map(({ cacheMap: _cacheMap, ...rest }) => rest),
+      );
 
+      if (!isCurrentRequest(requestId)) return;
+
+      const withMaps = await attachCacheMaps(mapped);
       if (!isCurrentRequest(requestId)) return;
 
       setState((prev) => ({
         ...prev,
-        data: mergeUniqueItems(prev.data, mapped),
+        data: mergeUniqueItems(prev.data, withMaps),
         loading: false,
         refreshing: false,
         loadingMore: false,
         hasMore: hasNextPage,
         error: null,
       }));
-
-      prefetchImagesForItems(mapped);
-
-      if (mode === 'initial' || mode === 'refresh') {
-        bumpImageReloadToken();
-      }
     },
-    [bumpImageReloadToken, isCurrentRequest],
+    [isCurrentRequest],
   );
 
   const applyCacheFallback = useCallback(
@@ -221,16 +208,18 @@ export function useArweaveTransactions(address: string | undefined) {
       if (!isCurrentRequest(requestId)) return false;
       if (items.length === 0) return false;
 
+      const withMaps = await attachCacheMaps(items);
+      if (!isCurrentRequest(requestId)) return false;
+
       setState((prev) => ({
         ...prev,
-        data: mode === 'more' ? mergeUniqueItems(prev.data, items) : mergeUniqueItems([], items),
+        data: mode === 'more' ? mergeUniqueItems(prev.data, withMaps) : mergeUniqueItems([], withMaps),
         loading: false,
         refreshing: false,
         loadingMore: false,
         hasMore,
         error: null,
       }));
-      prefetchImagesForItems(items);
       return true;
     },
     [isCurrentRequest],
@@ -264,9 +253,6 @@ export function useArweaveTransactions(address: string | undefined) {
         if (mode !== 'more' && mapped.length === 0) {
           const usedCache = await applyCacheFallback(owner, mode, requestId);
           if (usedCache || !isCurrentRequest(requestId)) {
-            if (isCurrentRequest(requestId) && (mode === 'initial' || mode === 'refresh')) {
-              bumpImageReloadToken();
-            }
             return;
           }
 
@@ -290,9 +276,6 @@ export function useArweaveTransactions(address: string | undefined) {
               error: null,
             };
           });
-          if (mode === 'initial' || mode === 'refresh') {
-            bumpImageReloadToken();
-          }
           return;
         }
 
@@ -318,7 +301,7 @@ export function useArweaveTransactions(address: string | undefined) {
         }
       }
     },
-    [applyCacheFallback, applyNetworkResult, bumpImageReloadToken, isCurrentRequest],
+    [applyCacheFallback, applyNetworkResult, isCurrentRequest],
   );
 
   const initializeFromCache = useCallback(
@@ -327,14 +310,16 @@ export function useArweaveTransactions(address: string | undefined) {
         const { items, hasMore } = await readCachePage(owner, 0);
         if (!isCurrentRequest(requestId) || items.length === 0) return;
 
+        const withMaps = await attachCacheMaps(items);
+        if (!isCurrentRequest(requestId)) return;
+
         setState((prev) => ({
           ...prev,
-          data: mergeUniqueItems([], items),
+          data: mergeUniqueItems([], withMaps),
           loading: false,
           hasMore,
           error: null,
         }));
-        prefetchImagesForItems(items);
       } catch (e) {
         console.warn('Failed to initialize Arweave list from cache:', e);
       }
@@ -387,5 +372,5 @@ export function useArweaveTransactions(address: string | undefined) {
     }, [refresh]),
   );
 
-  return { state, refresh, loadMore, imageReloadToken };
+  return { state, refresh, loadMore };
 }

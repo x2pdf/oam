@@ -1,4 +1,5 @@
-import { prefetchRemoteImagesFromItems } from '../adapter/remoteImageLoader';
+import { collectImagePlaceholders } from '../adapter/remoteImageStore';
+import { hydrateCacheMap } from '../adapter/cacheMapService';
 import { ContentKind, InputDataItem } from '../types';
 import { parseHexToBytes } from './hex';
 import { tryOampFilter } from './oampFilter';
@@ -12,6 +13,7 @@ function markRaw(item: InputDataItem): InputDataItem {
     contentKind: 'RAW',
     oampItems: undefined,
     textContent: undefined,
+    cacheMap: undefined,
     description: item.description || toRawHex(item.rawInput),
   };
 }
@@ -21,12 +23,13 @@ async function classifyItem(item: InputDataItem, ctx: PipelineContext): Promise<
     const oamp = await tryOampFilter(item, ctx);
 
     if (oamp.kind === 'OAMP') {
-      prefetchRemoteImagesFromItems(oamp.items);
+      const cacheMap = await hydrateCacheMap(collectImagePlaceholders(oamp.items));
       return {
         ...item,
         contentKind: 'OAMP',
         oampItems: oamp.items,
         textContent: undefined,
+        cacheMap,
       };
     }
 
@@ -36,6 +39,7 @@ async function classifyItem(item: InputDataItem, ctx: PipelineContext): Promise<
         contentKind: 'OAMP_ENCRYPTED',
         oampItems: undefined,
         textContent: undefined,
+        cacheMap: undefined,
       };
     }
 
@@ -48,6 +52,7 @@ async function classifyItem(item: InputDataItem, ctx: PipelineContext): Promise<
           contentKind: 'UTF-8',
           textContent: text,
           oampItems: undefined,
+          cacheMap: undefined,
         };
       }
     }

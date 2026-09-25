@@ -150,6 +150,14 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
   await database.execAsync(`
     INSERT OR IGNORE INTO global_settings (key, value) VALUES ('default_limit', '100');
   `);
+
+  await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS image_cache_map (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      placeholder TEXT NOT NULL UNIQUE,
+      localPath TEXT NOT NULL
+    );
+  `);
 }
 
 /**

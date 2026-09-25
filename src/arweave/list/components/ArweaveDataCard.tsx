@@ -26,7 +26,12 @@ export const ArweaveDataCard: React.FC<ArweaveDataCardProps> = React.memo(
     const renderBody = () => {
       if (!item.contentItems.length) return null;
       return (
-        <ArweaveContentBody items={item.contentItems} truncate imageReloadToken={imageReloadToken} />
+        <ArweaveContentBody
+          items={item.contentItems}
+          truncate
+          cacheMap={item.cacheMap}
+          imageReloadToken={imageReloadToken}
+        />
       );
     };
 

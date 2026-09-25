@@ -21,6 +21,8 @@ export interface ArweaveListItem {
   /** 链上 Note 标签 */
   note: string;
   contentItems: ArweaveContentItem[];
+  /** key = 文本里的占位符原文，value = 本机全路径，可直接给 Image */
+  cacheMap?: Record<string, string>;
 }
 
 export interface ArweaveGraphQLTag {

@@ -15,12 +15,14 @@ interface Props {
   items: ArweaveContentItem[];
   truncate?: boolean;
   imageReloadToken?: number;
+  cacheMap?: Record<string, string>;
 }
 
 export const ArweaveContentRenderer: React.FC<Props> = ({
   items,
   truncate = false,
   imageReloadToken,
+  cacheMap,
 }) => {
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
@@ -74,6 +76,7 @@ export const ArweaveContentRenderer: React.FC<Props> = ({
               label={truncate ? truncateListText(label) : label}
               download={shouldDownload(mime)}
               reloadToken={imageReloadToken}
+              cacheMap={cacheMap}
               onOpen={() => handleOpenUrl(item.data)}
               onSaveImage={() => handleSaveImage(item.data)}
             />
@@ -89,6 +92,7 @@ export const ArweaveContentRenderer: React.FC<Props> = ({
               label={label}
               download={item.download}
               reloadToken={imageReloadToken}
+              cacheMap={cacheMap}
               tryImage={isImageMime(item.mime)}
               onOpen={() => handleOpenUrl(item.href)}
               onSaveImage={() => handleSaveImage(item.href)}
@@ -117,6 +121,7 @@ function ImageOrExternalLink({
   label,
   download,
   reloadToken,
+  cacheMap,
   tryImage = true,
   onOpen,
   onSaveImage,
@@ -126,6 +131,7 @@ function ImageOrExternalLink({
   label: string;
   download?: boolean;
   reloadToken?: number;
+  cacheMap?: Record<string, string>;
   tryImage?: boolean;
   onOpen: () => void;
   onSaveImage: () => void;
@@ -146,6 +152,7 @@ function ImageOrExternalLink({
         uri={uri}
         mimeType={mime}
         reloadToken={reloadToken}
+        cacheMap={cacheMap}
         onPressWithUri={(resolvedUri) => openImageLightbox(resolvedUri)}
         onLongPress={onSaveImage}
         onError={() => setImageFailed(true)}

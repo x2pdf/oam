@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { getImageRendererAdapter, peekCachedRemoteImageUri } from '../adapter';
+import { getImageRendererAdapter, peekCachedImagePath } from '../adapter';
 import { PlatformImageProps } from '../adapter/ImageRendererAdapter';
 import { useImageAspectRatio } from '../hooks/useImageAspectRatio';
 import { isHttpUrl } from '../utils/attachment';
@@ -29,6 +29,7 @@ export type ContentCardImageProps = {
   onError?: () => void;
   /** 变化时即使上次失败也会重新拉取远程图 */
   reloadToken?: number;
+  cacheMap?: Record<string, string>;
 };
 
 function estimateContentWidth(screenWidth: number, screenHeight: number): number {
@@ -72,19 +73,19 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
   onLongPress,
   onError,
   reloadToken,
+  cacheMap,
 }) => {
   const theme = useTheme();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [resolvedUri, setResolvedUri] = useState<string | null>(() =>
-    isHttpUrl(uri) ? peekCachedRemoteImageUri(uri) : null,
+    isHttpUrl(uri) ? peekCachedImagePath(uri) || cacheMap?.[uri] : null,
   );
 
   const aspectCandidates = useMemo(() => {
-    // 优先用已解析的本地文件探测宽高，避免冷启动时用远程 URL 再下一次。
     if (resolvedUri && resolvedUri !== uri) {
-      return [resolvedUri, uri];
+      return [resolvedUri];
     }
-    return [uri];
+    return [];
   }, [uri, resolvedUri]);
 
   const [loadedAspectRatio, setLoadedAspectRatio] = useState<number | null>(() =>
@@ -92,8 +93,8 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
   );
 
   useEffect(() => {
-    setResolvedUri(isHttpUrl(uri) ? peekCachedRemoteImageUri(uri) : null);
-  }, [uri]);
+    setResolvedUri(isHttpUrl(uri) ? peekCachedImagePath(uri) || cacheMap?.[uri] : null);
+  }, [uri, cacheMap]);
 
   useEffect(() => {
     const cached = pickCachedAspectRatio(aspectCandidates);
@@ -167,6 +168,7 @@ export const ContentCardImage: React.FC<ContentCardImageProps> = ({
       onDisplayUri={handleDisplayUri}
       onLoadDimensions={handleLoadDimensions}
       reloadToken={reloadToken}
+      cacheMap={cacheMap}
     />
   ) : (
     <PlatformImage

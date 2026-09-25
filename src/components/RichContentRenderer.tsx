@@ -16,9 +16,15 @@ interface Props {
   items: ContentItem[];
   selectable?: boolean;
   truncate?: boolean;
+  cacheMap?: Record<string, string>;
 }
 
-export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false, truncate = false }) => {
+export const RichContentRenderer: React.FC<Props> = ({
+  items,
+  selectable = false,
+  truncate = false,
+  cacheMap,
+}) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
@@ -82,6 +88,7 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
                 href={item.data}
                 mime="image/png"
                 label={item.alt || item.data}
+                cacheMap={cacheMap}
                 onOpen={() => handleOpenUrl(item.data)}
                 onSaveImage={() => handleSaveImage(item.data)}
               />
@@ -104,6 +111,7 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
               mime={item.mime}
               label={item.label}
               download={item.download}
+              cacheMap={cacheMap}
               onOpen={() => handleOpenUrl(item.href)}
               onSaveImage={() => handleSaveImage(item.href)}
             />
@@ -130,6 +138,7 @@ function LinkAttachment({
   mime,
   label,
   download,
+  cacheMap,
   onOpen,
   onSaveImage,
 }: {
@@ -137,6 +146,7 @@ function LinkAttachment({
   mime: string;
   label: string;
   download?: boolean;
+  cacheMap?: Record<string, string>;
   onOpen: () => void;
   onSaveImage: () => void;
 }) {
@@ -151,6 +161,7 @@ function LinkAttachment({
       <ContentCardImage
         uri={href}
         mimeType={mime}
+        cacheMap={cacheMap}
         onPressWithUri={(resolvedUri) => openImageLightbox(resolvedUri)}
         onLongPress={onSaveImage}
         onError={() => setImageFailed(true)}

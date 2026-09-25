@@ -5,6 +5,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import './src/i18n'; // Initialize i18n
 import { initArweaveCacheDatabase } from './src/arweave/list/cache/database';
 import { initDatabase } from './src/storage/database';
+import { loadCacheMap } from './src/adapter/cacheMapService';
+import { getRemoteImageRoot } from './src/adapter/remoteImageStore';
+import { Platform } from 'react-native';
 import { AppProvider, useAppContext } from './src/context/AppContext';
 import { ThemeProvider, useThemePreference } from './src/context/ThemeContext';
 import { WalletSessionProvider } from './src/wallet/WalletSessionContext';
@@ -51,6 +54,10 @@ export default function App() {
     void (async () => {
       try {
         await initDatabase();
+        await loadCacheMap();
+        if (Platform.OS !== 'web') {
+          await getRemoteImageRoot().catch(() => {});
+        }
         await initArweaveCacheDatabase();
       } catch (e) {
         console.warn('Failed to initialize cache database:', e);

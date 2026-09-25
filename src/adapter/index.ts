@@ -11,9 +11,16 @@ export { openUrl } from './openUrl';
 export {
   resolveRemoteImageUri,
   expandCandidateUrls,
-  peekCachedRemoteImageUri,
-  prefetchRemoteImagesFromItems,
+  clearRemoteImageCache,
+  getRemoteImageCacheCount,
 } from './remoteImageLoader';
+export { peekCachedImagePath, hydrateCacheMap } from './cacheMapService';
+export {
+  collectImagePlaceholders,
+  peekLocalFileByPlaceholder,
+  clearRemoteImageStore,
+  countRemoteImageStore,
+} from './remoteImageStore';
 
 export function getImagePickerAdapter(): IImagePickerAdapter {
   if (Platform.OS === 'android') {
