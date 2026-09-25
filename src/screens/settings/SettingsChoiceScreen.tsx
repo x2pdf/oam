@@ -1,12 +1,11 @@
 import React, { useCallback } from 'react';
-import { StyleSheet } from 'react-native';
-import { RadioButton } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useThemePreference, ThemeMode, FONT_SCALE_PRESETS } from '../../context/ThemeContext';
 import { LANGUAGE_KEY } from '../../i18n';
 import { RootStackParamList } from '../../types';
+import { RadioChoiceList } from '../../components/RadioChoiceList';
 import { SettingsPageShell } from './SettingsPageShell';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SettingsChoice'>;
@@ -28,10 +27,16 @@ export default function SettingsChoiceScreen({ route }: Props) {
   if (type === 'language') {
     return (
       <SettingsPageShell>
-        <RadioButton.Group onValueChange={changeLanguage} value={currentLanguage}>
-          <RadioButton.Item label="简体中文" value="zh" style={styles.radioItem} />
-          <RadioButton.Item label="English" value="en" style={styles.radioItem} />
-        </RadioButton.Group>
+        <RadioChoiceList
+          value={currentLanguage}
+          onValueChange={(lng) => {
+            void changeLanguage(lng);
+          }}
+          options={[
+            { value: 'zh', label: '简体中文' },
+            { value: 'en', label: 'English' },
+          ]}
+        />
       </SettingsPageShell>
     );
   }
@@ -39,44 +44,33 @@ export default function SettingsChoiceScreen({ route }: Props) {
   if (type === 'appearance') {
     return (
       <SettingsPageShell>
-        <RadioButton.Group
-          onValueChange={(value) => {
-            void setThemeMode(value as ThemeMode);
-          }}
+        <RadioChoiceList
           value={themeMode}
-        >
-          <RadioButton.Item label={t('profile.themeAuto')} value="auto" style={styles.radioItem} />
-          <RadioButton.Item label={t('profile.themeLight')} value="light" style={styles.radioItem} />
-          <RadioButton.Item label={t('profile.themeDark')} value="dark" style={styles.radioItem} />
-        </RadioButton.Group>
+          onValueChange={(next) => {
+            void setThemeMode(next as ThemeMode);
+          }}
+          options={[
+            { value: 'auto', label: t('profile.themeAuto') },
+            { value: 'light', label: t('profile.themeLight') },
+            { value: 'dark', label: t('profile.themeDark') },
+          ]}
+        />
       </SettingsPageShell>
     );
   }
 
   return (
     <SettingsPageShell>
-      <RadioButton.Group
-        onValueChange={(value) => {
-          void setFontScale(parseFloat(value));
-        }}
+      <RadioChoiceList
         value={String(fontScale)}
-      >
-        {FONT_SCALE_PRESETS.map((preset) => (
-          <RadioButton.Item
-            key={preset.value}
-            label={t(preset.labelKey)}
-            value={String(preset.value)}
-            style={styles.radioItem}
-          />
-        ))}
-      </RadioButton.Group>
+        onValueChange={(next) => {
+          void setFontScale(parseFloat(next));
+        }}
+        options={FONT_SCALE_PRESETS.map((preset) => ({
+          value: String(preset.value),
+          label: t(preset.labelKey),
+        }))}
+      />
     </SettingsPageShell>
   );
 }
-
-const styles = StyleSheet.create({
-  radioItem: {
-    paddingHorizontal: 0,
-    borderRadius: 8,
-  },
-});

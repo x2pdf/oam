@@ -12,7 +12,6 @@ import {
   TextInput,
   Snackbar,
   ActivityIndicator,
-  RadioButton,
   HelperText,
   Searchbar,
 } from 'react-native-paper';
@@ -22,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getHeaderChrome } from '../theme';
+import { RadioChoiceList } from '../components/RadioChoiceList';
 import { unlockSession, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR, PASSWORD_LOCKED_ERROR } from '../wallet/session';
 import { usePasswordLockRemaining } from '../wallet/WalletSessionContext';
 import { isAddress, parseEther, formatEther, parseUnits, formatUnits, Wallet } from 'ethers';
@@ -1207,23 +1207,16 @@ export default function SendDataScreen() {
             >
               {t('send.encryptOption')}
             </Text>
-            <RadioButton.Group
-              onValueChange={(value) => handleEncryptChange(value === 'yes')}
+            <RadioChoiceList
               value={encryptEnabled ? 'yes' : 'no'}
-            >
-              <RadioButton.Item
-                label={t('send.encryptNo')}
-                value="no"
-                style={styles.radioItem}
-                labelStyle={[styles.radioLabel, { fontSize: Math.round(14 * fontScale) }]}
-              />
-              <RadioButton.Item
-                label={t('send.encryptYes')}
-                value="yes"
-                style={styles.radioItem}
-                labelStyle={[styles.radioLabel, { fontSize: Math.round(14 * fontScale) }]}
-              />
-            </RadioButton.Group>
+              onValueChange={(next) => handleEncryptChange(next === 'yes')}
+              options={[
+                { value: 'no', label: t('send.encryptNo') },
+                { value: 'yes', label: t('send.encryptYes') },
+              ]}
+              itemStyle={styles.radioItem}
+              labelStyle={[styles.radioLabel, { fontSize: Math.round(14 * fontScale) }]}
+            />
           </View>
         )}
 
