@@ -1,15 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Keyboard,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-} from 'react-native';
-import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
+import { Keyboard, Platform, StyleSheet, useWindowDimensions } from 'react-native';
+import { Modal, Portal, useTheme } from 'react-native-paper';
 import { isDesktopOs } from '../theme/layout';
 import { getModalSurfaceColor } from '../theme';
+import { AppModalContent, type AppModalAction } from './AppModalContent';
+
+export type { AppModalAction };
 
 const KEYBOARD_BOTTOM_PADDING = 16;
 
@@ -17,16 +13,6 @@ function readKeyboardHeight(): number {
   const metrics = Keyboard.metrics();
   return metrics?.height ? Math.round(metrics.height) : 0;
 }
-
-export type AppModalAction = {
-  label: string;
-  onPress: () => void | Promise<void>;
-  mode?: 'text' | 'contained' | 'outlined';
-  loading?: boolean;
-  disabled?: boolean;
-  textColor?: string;
-  style?: any;
-};
 
 type AppModalProps = {
   visible: boolean;
@@ -51,9 +37,6 @@ export function AppModal({
   const { width, height } = useWindowDimensions();
   const centered = isDesktopOs() && width > height;
   const modalWidth = width * 0.4;
-  const lastIndex = (actions?.length ?? 0) - 1;
-  const hasActions = !!actions && actions.length > 0;
-  const stacked = (actions?.length ?? 0) >= 3;
 
   // Avoid KeyboardAvoidingView inside a vertically-centered Modal: padding changes
   // content height → Modal recenters → KAV recalculates → visible jitter loop.
@@ -143,22 +126,6 @@ export function AppModal({
       }
     : { backgroundColor: getModalSurfaceColor(theme.colors, false) };
 
-  const body = children ? (
-    scrollable ? (
-      <ScrollView
-        style={[styles.scroll, { maxHeight: scrollMaxHeight }]}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets={false}
-      >
-        {children}
-      </ScrollView>
-    ) : (
-      <View style={hasActions ? styles.body : undefined}>{children}</View>
-    )
-  ) : null;
-
   return (
     <Portal>
       <Modal
@@ -177,29 +144,15 @@ export function AppModal({
           },
         ]}
       >
-        <View style={styles.modalInner}>
-          <Text variant="titleMedium" style={styles.modalTitle}>
-            {title}
-          </Text>
-          {body}
-          {hasActions ? (
-            <View style={[styles.modalButtons, stacked && styles.modalButtonsStacked]}>
-              {actions.map((action, index) => (
-                <Button
-                  key={`${action.label}-${index}`}
-                  mode={action.mode ?? (index === lastIndex ? 'contained' : 'text')}
-                  onPress={() => handleActionPress(action)}
-                  loading={action.loading}
-                  disabled={action.disabled}
-                  textColor={action.textColor}
-                  style={[styles.modalButton, action.style, stacked && styles.modalButtonStacked]}
-                >
-                  {action.label}
-                </Button>
-              ))}
-            </View>
-          ) : null}
-        </View>
+        <AppModalContent
+          title={title}
+          actions={actions}
+          scrollable={scrollable}
+          scrollMaxHeight={scrollMaxHeight}
+          onActionPress={handleActionPress}
+        >
+          {children}
+        </AppModalContent>
       </Modal>
     </Portal>
   );
@@ -215,44 +168,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     maxWidth: '100%',
     overflow: 'hidden',
-  },
-  modalInner: {
-    width: '100%',
-    flexShrink: 1,
-  },
-  body: {
-    marginBottom: 16,
-    maxWidth: '100%',
-    overflow: 'hidden',
-  },
-  modalTitle: {
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  scroll: {
-    marginBottom: 16,
-  },
-  scrollContent: {
-    paddingBottom: 4,
-    paddingRight: 8,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  modalButtonsStacked: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: 8,
-  },
-  modalButton: {
-    marginLeft: 0,
-    borderRadius: 8,
-  },
-  modalButtonStacked: {
-    marginLeft: 0,
-    width: '100%',
   },
 });

@@ -8,32 +8,20 @@ import {
   Button,
   useTheme,
   IconButton,
-  TextInput,
   Avatar,
-  RadioButton,
   Snackbar,
   ActivityIndicator,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../context/AppContext';
-import { useThemePreference, ThemeMode, FONT_SCALE_PRESETS } from '../context/ThemeContext';
+import { useThemePreference, FONT_SCALE_PRESETS } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
-import { LANGUAGE_KEY } from '../i18n';
 import { CopyableAddress } from '../components/CopyableAddress';
-import { AppModal } from '../components/AppModal';
-import { useModalListRowStyle } from '../theme/surfaces';
 import { withRpcFallback } from '../rpc/rpcClient';
 import { fetchEthUsdPrice, formatUsd } from '../rpc/ethPrice';
-import { dataSourceManager } from '../datasource/DataSourceManager';
-import { useDataSourceConnectivityProbe } from '../hooks/useDataSourceConnectivityProbe';
-import {
-  getHomeTabOrder,
-  normalizeHomeTabWeights,
-  type HomeTabId,
-} from '../constants';
+import { getHomeTabOrder, type HomeTabId } from '../constants';
 import { formatEther } from 'ethers';
 import appConfig from '../../app.json';
 
@@ -78,24 +66,12 @@ function getPlatformLabel(t: (key: string) => string): string {
 
 export default function ProfileScreen() {
   const theme = useTheme();
-  const modalListRowStyle = useModalListRowStyle();
   const navigation = useNavigation<NavProp>();
-  const { state, setApiKey, setDataSourceWeights, setHomeTabWeights } = useAppContext();
-  const { themeMode, setThemeMode, fontScale, setFontScale } = useThemePreference();
+  const { state } = useAppContext();
+  const { themeMode, fontScale } = useThemePreference();
   const { t, i18n } = useTranslation();
   const { listContentStyle } = useListColumnLayout();
 
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isLanguageDialogVisible, setIsLanguageDialogVisible] = useState(false);
-  const [isThemeDialogVisible, setIsThemeDialogVisible] = useState(false);
-  const [isFontSizeDialogVisible, setIsFontSizeDialogVisible] = useState(false);
-  const [isWeightModalVisible, setIsWeightModalVisible] = useState(false);
-  const [isHomeTabWeightModalVisible, setIsHomeTabWeightModalVisible] = useState(false);
-  const [tempApiKey, setTempApiKey] = useState('');
-  const [localWeights, setLocalWeights] = useState<Record<string, number>>({});
-  const [localHomeTabWeights, setLocalHomeTabWeights] = useState<Record<HomeTabId, number>>(
-    normalizeHomeTabWeights(),
-  );
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [balanceEth, setBalanceEth] = useState<string | null>(null);
   const [balanceUsd, setBalanceUsd] = useState<string | null>(null);
@@ -105,116 +81,12 @@ export default function ProfileScreen() {
   const currentLanguage = i18n.language?.startsWith('zh') ? 'zh' : 'en';
   const platformLabel = useMemo(() => getPlatformLabel(t), [t]);
 
-  const showLanguageDialog = useCallback(() => {
-    setIsLanguageDialogVisible(true);
-  }, []);
-
-  const hideLanguageDialog = useCallback(() => {
-    setIsLanguageDialogVisible(false);
-  }, []);
-
-  const showThemeDialog = useCallback(() => {
-    setIsThemeDialogVisible(true);
-  }, []);
-
-  const hideThemeDialog = useCallback(() => {
-    setIsThemeDialogVisible(false);
-  }, []);
-
-  const showFontSizeDialog = useCallback(() => {
-    setIsFontSizeDialogVisible(true);
-  }, []);
-
-  const hideFontSizeDialog = useCallback(() => {
-    setIsFontSizeDialogVisible(false);
-  }, []);
-
-  const changeLanguage = useCallback(async (lng: string) => {
-    await i18n.changeLanguage(lng);
-    await AsyncStorage.setItem(LANGUAGE_KEY, lng);
-    hideLanguageDialog();
-  }, [i18n, hideLanguageDialog]);
-
-  const changeTheme = useCallback(async (mode: ThemeMode) => {
-    await setThemeMode(mode);
-    hideThemeDialog();
-  }, [setThemeMode, hideThemeDialog]);
-
-  const changeFontScale = useCallback(async (scale: number) => {
-    await setFontScale(scale);
-    hideFontSizeDialog();
-  }, [setFontScale, hideFontSizeDialog]);
-
-  const sources = useMemo(() => dataSourceManager.getSources(), []);
-
-  const dataSourceProbeByName = useDataSourceConnectivityProbe(
-    isWeightModalVisible,
-    sources,
-    state.profile?.address,
-    state.apiKey ?? '',
-  );
-
-  const showWeightModal = useCallback(() => {
-    const currentWeights = sources.reduce((acc, s) => {
-      acc[s.name] = state.dataSourceWeights[s.name] ?? s.weight;
-      return acc;
-    }, {} as Record<string, number>);
-    setLocalWeights(currentWeights);
-    setIsWeightModalVisible(true);
-  }, [sources, state.dataSourceWeights]);
-
-  const hideWeightModal = useCallback(() => {
-    setIsWeightModalVisible(false);
-  }, []);
-
-  const handleSaveWeights = useCallback(async () => {
-    await setDataSourceWeights(localWeights);
-    hideWeightModal();
-  }, [localWeights, setDataSourceWeights, hideWeightModal]);
-
-  const showHomeTabWeightModal = useCallback(() => {
-    setLocalHomeTabWeights(normalizeHomeTabWeights(state.homeTabWeights));
-    setIsHomeTabWeightModalVisible(true);
-  }, [state.homeTabWeights]);
-
-  const hideHomeTabWeightModal = useCallback(() => {
-    setIsHomeTabWeightModalVisible(false);
-  }, []);
-
-  const handleSaveHomeTabWeights = useCallback(async () => {
-    await setHomeTabWeights(normalizeHomeTabWeights(localHomeTabWeights));
-    hideHomeTabWeightModal();
-  }, [localHomeTabWeights, setHomeTabWeights, hideHomeTabWeightModal]);
-
   const homeTabOrderPreview = useMemo(
     () => getHomeTabOrder(state.homeTabWeights)
       .map((id) => t(HOME_TAB_LABEL_KEYS[id]))
       .join(' · '),
     [state.homeTabWeights, t],
   );
-
-  const modalHomeTabOrder = useMemo(
-    () => getHomeTabOrder(localHomeTabWeights),
-    [localHomeTabWeights],
-  );
-
-  const updateLocalWeight = (name: string, val: string) => {
-    const num = parseInt(val, 10);
-    if (!isNaN(num)) {
-      setLocalWeights((prev) => ({ ...prev, [name]: num }));
-    } else if (val === '') {
-      setLocalWeights((prev) => ({ ...prev, [name]: 0 }));
-    }
-  };
-
-  const updateLocalHomeTabWeight = (id: HomeTabId, val: string) => {
-    const num = parseInt(val, 10);
-    if (!isNaN(num)) {
-      setLocalHomeTabWeights((prev) => ({ ...prev, [id]: num }));
-    } else if (val === '') {
-      setLocalHomeTabWeights((prev) => ({ ...prev, [id]: 1 }));
-    }
-  };
 
   const currentFontScaleLabel = useMemo(() => {
     const preset = FONT_SCALE_PRESETS.find((p) => p.value === fontScale)
@@ -235,20 +107,6 @@ export default function ProfileScreen() {
       });
     }
   }, [navigation, state.profile]);
-
-  const showApiKeyModal = useCallback(() => {
-    setTempApiKey(state.apiKey || '');
-    setIsModalVisible(true);
-  }, [state.apiKey]);
-
-  const hideApiKeyModal = useCallback(() => {
-    setIsModalVisible(false);
-  }, []);
-
-  const handleSaveApiKey = useCallback(async () => {
-    await setApiKey(tempApiKey.trim());
-    hideApiKeyModal();
-  }, [tempApiKey, setApiKey, hideApiKeyModal]);
 
   const showCopiedSnackbar = useCallback(() => {
     setSnackbarVisible(true);
@@ -532,7 +390,7 @@ export default function ProfileScreen() {
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
           mode="elevated"
-          onPress={showThemeDialog}
+          onPress={() => navigation.navigate('SettingsChoice', { type: 'appearance' })}
         >
           <Card.Content style={styles.cardContent}>
             <View style={styles.row}>
@@ -557,7 +415,7 @@ export default function ProfileScreen() {
                     : t('profile.themeLight')}
                 </Text>
               </View>
-              <IconButton icon="chevron-right" onPress={showThemeDialog} />
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('SettingsChoice', { type: 'appearance' })} />
             </View>
           </Card.Content>
         </Card>
@@ -567,7 +425,7 @@ export default function ProfileScreen() {
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
           mode="elevated"
-          onPress={showHomeTabWeightModal}
+          onPress={() => navigation.navigate('HomeTabWeights')}
         >
           <Card.Content style={styles.cardContent}>
             <View style={styles.row}>
@@ -588,7 +446,7 @@ export default function ProfileScreen() {
                   {homeTabOrderPreview}
                 </Text>
               </View>
-              <IconButton icon="chevron-right" onPress={showHomeTabWeightModal} />
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('HomeTabWeights')} />
             </View>
           </Card.Content>
         </Card>
@@ -598,7 +456,7 @@ export default function ProfileScreen() {
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
           mode="elevated"
-          onPress={showWeightModal}
+          onPress={() => navigation.navigate('DataSourceWeights')}
         >
           <Card.Content style={styles.cardContent}>
             <View style={styles.row}>
@@ -613,7 +471,7 @@ export default function ProfileScreen() {
                   {t('profile.dataSourceWeights')}
                 </Text>
               </View>
-              <IconButton icon="chevron-right" onPress={showWeightModal} />
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('DataSourceWeights')} />
             </View>
           </Card.Content>
         </Card>
@@ -654,7 +512,7 @@ export default function ProfileScreen() {
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
           mode="elevated"
-          onPress={showApiKeyModal}
+          onPress={() => navigation.navigate('ApiKeySettings')}
         >
           <Card.Content style={styles.cardContent}>
             <View style={styles.row}>
@@ -677,7 +535,7 @@ export default function ProfileScreen() {
                     : t('profile.addApiKey')}
                 </Text>
               </View>
-              <IconButton icon="chevron-right" onPress={showApiKeyModal} />
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('ApiKeySettings')} />
             </View>
           </Card.Content>
         </Card>
@@ -687,7 +545,7 @@ export default function ProfileScreen() {
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
           mode="elevated"
-          onPress={showFontSizeDialog}
+          onPress={() => navigation.navigate('SettingsChoice', { type: 'fontSize' })}
         >
           <Card.Content style={styles.cardContent}>
             <View style={styles.row}>
@@ -708,7 +566,7 @@ export default function ProfileScreen() {
                   {currentFontScaleLabel}
                 </Text>
               </View>
-              <IconButton icon="chevron-right" onPress={showFontSizeDialog} />
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('SettingsChoice', { type: 'fontSize' })} />
             </View>
           </Card.Content>
         </Card>
@@ -718,7 +576,7 @@ export default function ProfileScreen() {
         <Card
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
           mode="elevated"
-          onPress={showLanguageDialog}
+          onPress={() => navigation.navigate('SettingsChoice', { type: 'language' })}
         >
           <Card.Content style={styles.cardContent}>
             <View style={styles.row}>
@@ -739,7 +597,7 @@ export default function ProfileScreen() {
                   {currentLanguage === 'zh' ? '简体中文' : 'English'}
                 </Text>
               </View>
-              <IconButton icon="chevron-right" onPress={showLanguageDialog} />
+              <IconButton icon="chevron-right" onPress={() => navigation.navigate('SettingsChoice', { type: 'language' })} />
             </View>
           </Card.Content>
         </Card>
@@ -850,211 +708,6 @@ export default function ProfileScreen() {
         </ListColumn>
       </ScrollView>
 
-      <AppModal
-        visible={isModalVisible}
-        onDismiss={hideApiKeyModal}
-        title={t('profile.setApiKeyTitle')}
-        actions={[
-          { label: t('common.cancel'), onPress: hideApiKeyModal },
-          { label: t('common.save'), onPress: handleSaveApiKey },
-        ]}
-      >
-        <TextInput
-          label="API Key"
-          value={tempApiKey}
-          onChangeText={setTempApiKey}
-          mode="outlined"
-          multiline
-          numberOfLines={3}
-          scrollEnabled={false}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="off"
-          spellCheck={false}
-          style={styles.apiKeyInput}
-          contentStyle={[
-            styles.apiKeyInputContent,
-            { fontSize: Math.round(13 * fontScale) },
-            Platform.OS === 'web'
-              ? ({ wordBreak: 'break-all', overflowWrap: 'anywhere' } as object)
-              : null,
-          ]}
-        />
-      </AppModal>
-
-      <AppModal
-        visible={isLanguageDialogVisible}
-        onDismiss={hideLanguageDialog}
-        title={t('profile.selectLanguage')}
-        actions={[{ label: t('common.cancel'), onPress: hideLanguageDialog }]}
-      >
-        <RadioButton.Group
-          onValueChange={changeLanguage}
-          value={currentLanguage}
-        >
-          <RadioButton.Item
-            label="简体中文"
-            value="zh"
-            style={[styles.radioItem, modalListRowStyle]}
-          />
-          <RadioButton.Item
-            label="English"
-            value="en"
-            style={[styles.radioItem, modalListRowStyle]}
-          />
-        </RadioButton.Group>
-      </AppModal>
-
-      <AppModal
-        visible={isThemeDialogVisible}
-        onDismiss={hideThemeDialog}
-        title={t('profile.selectAppearance')}
-        actions={[{ label: t('common.cancel'), onPress: hideThemeDialog }]}
-      >
-        <RadioButton.Group
-          onValueChange={(value) => changeTheme(value as ThemeMode)}
-          value={themeMode}
-        >
-          <RadioButton.Item
-            label={t('profile.themeAuto')}
-            value="auto"
-            style={[styles.radioItem, modalListRowStyle]}
-          />
-          <RadioButton.Item
-            label={t('profile.themeLight')}
-            value="light"
-            style={[styles.radioItem, modalListRowStyle]}
-          />
-          <RadioButton.Item
-            label={t('profile.themeDark')}
-            value="dark"
-            style={[styles.radioItem, modalListRowStyle]}
-          />
-        </RadioButton.Group>
-      </AppModal>
-
-      <AppModal
-        visible={isFontSizeDialogVisible}
-        onDismiss={hideFontSizeDialog}
-        title={t('profile.selectFontSize')}
-        actions={[{ label: t('common.cancel'), onPress: hideFontSizeDialog }]}
-      >
-        <RadioButton.Group
-          onValueChange={(value) => changeFontScale(parseFloat(value))}
-          value={String(fontScale)}
-        >
-          {FONT_SCALE_PRESETS.map((preset) => (
-            <RadioButton.Item
-              key={preset.value}
-              label={t(preset.labelKey)}
-              value={String(preset.value)}
-              style={[styles.radioItem, modalListRowStyle]}
-            />
-          ))}
-        </RadioButton.Group>
-      </AppModal>
-
-      <AppModal
-        visible={isWeightModalVisible}
-        onDismiss={hideWeightModal}
-        title={t('profile.editDataSourceWeights')}
-        actions={[
-          { label: t('common.cancel'), onPress: hideWeightModal },
-          { label: t('common.save'), onPress: handleSaveWeights },
-        ]}
-      >
-        <ScrollView style={{ maxHeight: 400 }}>
-          {sources.map((source) => {
-            const missingApiKey = source.requiresApiKey && !source.apiKey;
-            return (
-              <View key={source.name} style={[modalListRowStyle, styles.weightItem]}>
-                <View style={styles.weightHeader}>
-                  <View style={styles.weightHeaderLeft}>
-                    <Text variant="titleSmall" style={{ color: theme.colors.onSurface }}>
-                      {source.name}
-                    </Text>
-                    {missingApiKey && (
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontSize: 10 }}>
-                        ({t('profile.inactiveSource')})
-                      </Text>
-                    )}
-                  </View>
-                  <Text
-                    variant="bodySmall"
-                    style={{ color: theme.colors.onSurfaceVariant, flexShrink: 0, marginLeft: 8 }}
-                  >
-                    {(() => {
-                      const probe = dataSourceProbeByName[source.name];
-                      if (missingApiKey || probe?.kind === 'unconfigured') {
-                        return t('profile.dataSourceUnconfigured');
-                      }
-                      if (probe?.kind === 'ok') {
-                        return t('profile.dataSourceNetworkLatency', { ms: probe.latencyMs });
-                      }
-                      if (probe?.kind === 'timeout') {
-                        return t('profile.dataSourceNetworkTimeout');
-                      }
-                      return t('profile.dataSourceNetworkChecking');
-                    })()}
-                  </Text>
-                </View>
-                <TextInput
-                  mode="outlined"
-                  dense
-                  label={t('profile.weightLabel')}
-                  value={String(localWeights[source.name] ?? source.weight)}
-                  onChangeText={(val) => updateLocalWeight(source.name, val)}
-                  keyboardType="numeric"
-                  style={styles.weightInput}
-                />
-                {missingApiKey && (
-                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, marginTop: 2 }}>
-                    {t('profile.requiresKeyHint')}
-                  </Text>
-                )}
-              </View>
-            );
-          })}
-          <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-            {t('profile.weightHint')}
-          </Text>
-        </ScrollView>
-      </AppModal>
-
-      <AppModal
-        visible={isHomeTabWeightModalVisible}
-        onDismiss={hideHomeTabWeightModal}
-        title={t('profile.editHomeTabWeights')}
-        actions={[
-          { label: t('common.cancel'), onPress: hideHomeTabWeightModal },
-          { label: t('common.save'), onPress: handleSaveHomeTabWeights },
-        ]}
-      >
-        <ScrollView style={{ maxHeight: 400 }}>
-          {modalHomeTabOrder.map((id) => (
-            <View key={id} style={[modalListRowStyle, styles.weightItem]}>
-              <View style={styles.weightHeader}>
-                <Text variant="titleSmall" style={{ color: theme.colors.onSurface }}>
-                  {t(HOME_TAB_LABEL_KEYS[id])}
-                </Text>
-              </View>
-              <TextInput
-                mode="outlined"
-                dense
-                label={t('profile.weightLabel')}
-                value={String(localHomeTabWeights[id])}
-                onChangeText={(val) => updateLocalHomeTabWeight(id, val)}
-                keyboardType="numeric"
-                style={styles.weightInput}
-              />
-            </View>
-          ))}
-          <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-            {t('profile.homeTabWeightHint')}
-          </Text>
-        </ScrollView>
-      </AppModal>
-
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -1124,10 +777,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     gap: 2,
   },
-  radioItem: {
-    paddingHorizontal: 0,
-    borderRadius: 8,
-  },
   balanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1137,34 +786,5 @@ const styles = StyleSheet.create({
     margin: 0,
     marginLeft: 4,
     padding: 0,
-  },
-  weightItem: {
-    marginBottom: 16,
-  },
-  weightHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  weightHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  weightInput: {
-    height: 40,
-  },
-  apiKeyInput: {
-    width: '100%',
-    maxWidth: '100%',
-  },
-  apiKeyInputContent: {
-    minHeight: 56,
-    textAlignVertical: 'top',
-    paddingTop: 8,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });

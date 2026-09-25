@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, TextInput as RNTextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput as RNTextInput, View } from 'react-native';
 import { Button, HelperText, Text, TextInput, useTheme } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
-import { AppModal } from './AppModal';
-import { SendDraftAttachment } from '../types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
+import { RootStackParamList } from '../types';
 import {
   ATTACHMENT_FILE_TYPES,
   AttachmentFileType,
@@ -13,15 +17,11 @@ import {
   resolveAttachmentHref,
 } from '../utils/attachment';
 
-type Props = {
-  visible: boolean;
-  onDismiss: () => void;
-  onConfirm: (attachment: SendDraftAttachment) => void;
-};
+type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 /**
  * Always use the default keyboard for URI/ID fields.
- * - iOS: `url` is ASCII-only and can stick on the next field in the same modal.
+ * - iOS: `url` is ASCII-only and can stick on the next field.
  * - Android: `url` maps to TYPE_TEXT_VARIATION_URI; OEM keyboards may still
  *   prefer Latin layout, and sibling re-renders can interrupt CJK IME on Fabric.
  */
@@ -161,25 +161,18 @@ function SelectionChipButton({ selected, onPress, label, icon }: SelectionChipBu
   );
 }
 
-export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
+export default function AddAttachmentScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const navigation = useNavigation<NavProp>();
+  const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
   const [source, setSource] = useState<AttachmentSource>('arweave-id');
   const [fileType, setFileType] = useState<AttachmentFileType>('other');
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [labelResetKey, setLabelResetKey] = useState(0);
+  const [labelResetKey] = useState(0);
   const labelRef = useRef('');
-
-  useEffect(() => {
-    if (!visible) return;
-    setSource('arweave-id');
-    setFileType('other');
-    setInput('');
-    labelRef.current = '';
-    setError(null);
-    setLabelResetKey((key) => key + 1);
-  }, [visible]);
 
   const uriError = useMemo(() => {
     if (source === 'arweave-id' || !input.trim()) return null;
@@ -204,9 +197,6 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
     labelRef.current = value;
   }, []);
 
-  const attachmentLabelText = t('send.attachmentLabel');
-  const attachmentLabelPlaceholder = t('send.attachmentLabelPlaceholder');
-
   const handleConfirm = () => {
     const trimmedInput = input.trim();
     if (trimmedInput !== input) setInput(trimmedInput);
@@ -227,86 +217,115 @@ export function AddAttachmentModal({ visible, onDismiss, onConfirm }: Props) {
 
     const mime = FILE_TYPE_TO_MIME[fileType];
     const trimmedLabel = labelRef.current.trim();
-    onConfirm({
-      source,
-      fileType,
-      input: trimmedInput,
-      href: resolved.href,
-      mime,
-      label: trimmedLabel || t(defaultLabelI18nKey(fileType)),
-      arId: resolved.arId,
+    navigation.navigate({
+      name: 'SendData',
+      params: {
+        pendingAttachment: {
+          source,
+          fileType,
+          input: trimmedInput,
+          href: resolved.href,
+          mime,
+          label: trimmedLabel || t(defaultLabelI18nKey(fileType)),
+          arId: resolved.arId,
+        },
+        pendingAttachmentNonce: Date.now(),
+      },
+      merge: true,
     });
   };
 
   return (
-    <AppModal
-      visible={visible}
-      title={t('send.addAttachment')}
-      onDismiss={onDismiss}
-      scrollable
-      actions={[
-        { label: t('common.cancel'), onPress: onDismiss, mode: 'text' },
-        { label: t('common.confirm'), onPress: handleConfirm, mode: 'contained' },
-      ]}
-    >
-      <Text variant="labelLarge" style={[styles.fieldLabel, { color: theme.colors.onSurface }]}>
-        {t('send.attachmentSource')}
-      </Text>
-      <View style={styles.chipWrap}>
-        {SOURCE_OPTIONS.map((opt) => (
-          <SelectionChipButton
-            key={opt.value}
-            selected={source === opt.value}
-            icon={opt.icon}
-            onPress={() => {
-              setSource(opt.value);
-              setError(null);
-            }}
-            label={t(opt.labelKey)}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        style={scrollFill}
+        contentContainerStyle={[
+          styles.content,
+          listContentStyle,
+          { paddingBottom: insets.bottom + 24 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <ListColumn>
+          <Text variant="labelLarge" style={[styles.fieldLabel, { color: theme.colors.onSurface }]}>
+            {t('send.attachmentSource')}
+          </Text>
+          <View style={styles.chipWrap}>
+            {SOURCE_OPTIONS.map((opt) => (
+              <SelectionChipButton
+                key={opt.value}
+                selected={source === opt.value}
+                icon={opt.icon}
+                onPress={() => {
+                  setSource(opt.value);
+                  setError(null);
+                }}
+                label={t(opt.labelKey)}
+              />
+            ))}
+          </View>
+
+          <Text
+            variant="labelLarge"
+            style={[styles.fieldLabel, styles.section, { color: theme.colors.onSurface }]}
+          >
+            {t('send.attachmentFileType')}
+          </Text>
+          <View style={styles.chipWrap}>
+            {ATTACHMENT_FILE_TYPES.map((type) => (
+              <SelectionChipButton
+                key={type}
+                selected={fileType === type}
+                onPress={() => setFileType(type)}
+                label={t(`send.attachmentType.${type}`)}
+              />
+            ))}
+          </View>
+
+          <AttachmentUriInput
+            label={uriFieldLabel}
+            placeholder={placeholder}
+            value={input}
+            onChangeText={handleUriChange}
           />
-        ))}
-      </View>
+          {source === 'arweave-id' && (
+            <HelperText type="info" visible style={{ paddingHorizontal: 0 }}>
+              {t('send.attachmentIdHint')}
+            </HelperText>
+          )}
+          <HelperText type="error" visible={!!(error || uriError)}>
+            {error || uriError || ' '}
+          </HelperText>
 
-      <Text variant="labelLarge" style={[styles.fieldLabel, styles.section, { color: theme.colors.onSurface }]}>
-        {t('send.attachmentFileType')}
-      </Text>
-      <View style={styles.chipWrap}>
-        {ATTACHMENT_FILE_TYPES.map((type) => (
-          <SelectionChipButton
-            key={type}
-            selected={fileType === type}
-            onPress={() => setFileType(type)}
-            label={t(`send.attachmentType.${type}`)}
+          <AttachmentLabelInput
+            resetKey={labelResetKey}
+            label={t('send.attachmentLabel')}
+            placeholder={t('send.attachmentLabelPlaceholder')}
+            onChangeText={handleLabelChange}
           />
-        ))}
-      </View>
 
-      <AttachmentUriInput
-        label={uriFieldLabel}
-        placeholder={placeholder}
-        value={input}
-        onChangeText={handleUriChange}
-      />
-      {source === 'arweave-id' && (
-        <HelperText type="info" visible style={{ paddingHorizontal: 0 }}>
-          {t('send.attachmentIdHint')}
-        </HelperText>
-      )}
-      <HelperText type="error" visible={!!(error || uriError)}>
-        {error || uriError || ' '}
-      </HelperText>
-
-      <AttachmentLabelInput
-        resetKey={labelResetKey}
-        label={attachmentLabelText}
-        placeholder={attachmentLabelPlaceholder}
-        onChangeText={handleLabelChange}
-      />
-    </AppModal>
+          <View style={styles.buttonGroup}>
+            <Button mode="contained" onPress={handleConfirm} style={styles.button}>
+              {t('common.confirm')}
+            </Button>
+            <Button mode="outlined" onPress={() => navigation.goBack()} style={styles.button}>
+              {t('common.cancel')}
+            </Button>
+          </View>
+        </ListColumn>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+  },
   fieldLabel: {
     marginBottom: 4,
     fontWeight: '600',
@@ -335,5 +354,12 @@ const styles = StyleSheet.create({
     minHeight: 72,
     textAlignVertical: 'top',
     paddingTop: 8,
+  },
+  buttonGroup: {
+    marginTop: 32,
+    gap: 12,
+  },
+  button: {
+    borderRadius: 8,
   },
 });

@@ -1,14 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { Linking, View, StyleSheet } from 'react-native';
-import { Text, Portal, Snackbar, Icon, useTheme } from 'react-native-paper';
+import { View, StyleSheet } from 'react-native';
+import { Text, Portal, Snackbar, useTheme } from 'react-native-paper';
 import { ContentItem } from '../mypayload';
 import { saveImageToAlbum } from '../adapter';
+import { openUrl } from '../adapter/openUrl';
 import { useTranslation } from 'react-i18next';
 import { truncateListText } from '../utils/text';
 import { ContentCardImage } from './ContentCardImage';
+import { ExternalOpenCard } from './ExternalOpenCard';
 import { openImageLightbox } from './ImageLightbox';
 import { SelectableText } from './SelectableText';
-import { wrapImagePress } from '../adapter/wrapImagePress';
 import { isHttpUrl, isImageMime } from '../utils/attachment';
 
 interface Props {
@@ -43,7 +44,7 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
 
   const handleOpenUrl = useCallback(async (href: string) => {
     try {
-      await Linking.openURL(href);
+      await openUrl(href);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       setSnackbarMessage(`${t('detail.openLinkFailed')}: ${message}`);
@@ -74,18 +75,23 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
           );
         }
         if (item.type === 'image') {
+          if (isHttpUrl(item.data)) {
+            return (
+              <LinkAttachment
+                key={index}
+                href={item.data}
+                mime="image/png"
+                label={item.alt || item.data}
+                onOpen={() => handleOpenUrl(item.data)}
+                onSaveImage={() => handleSaveImage(item.data)}
+              />
+            );
+          }
           return (
             <ContentCardImage
               key={index}
               uri={item.data}
-              onPressWithUri={
-                isHttpUrl(item.data)
-                  ? (resolvedUri) => openImageLightbox(resolvedUri)
-                  : undefined
-              }
-              onPress={
-                isHttpUrl(item.data) ? undefined : () => openImageLightbox(item.data)
-              }
+              onPress={() => openImageLightbox(item.data)}
               onLongPress={() => handleSaveImage(item.data)}
             />
           );
@@ -119,14 +125,6 @@ export const RichContentRenderer: React.FC<Props> = ({ items, selectable = false
   );
 };
 
-function mimeToIcon(mime: string): string {
-  const m = mime.toLowerCase();
-  if (m.startsWith('video/')) return 'play-circle-outline';
-  if (m === 'application/pdf') return 'file-pdf-box';
-  if (m === 'application/zip') return 'folder-zip-outline';
-  return 'file-outline';
-}
-
 function LinkAttachment({
   href,
   mime,
@@ -142,7 +140,6 @@ function LinkAttachment({
   onOpen: () => void;
   onSaveImage: () => void;
 }) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [imageFailed, setImageFailed] = useState(false);
   const showImage = isImageMime(mime) && !imageFailed;
@@ -161,42 +158,13 @@ function LinkAttachment({
     );
   }
 
-  return wrapImagePress(
-    <View
-      style={[
-        styles.linkCard,
-        { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={displayLabel}
-      accessibilityHint={tapHint}
-    >
-      <View style={styles.linkCardRow}>
-        <Icon
-          source={mimeToIcon(mime)}
-          size={28}
-          color={theme.colors.primary}
-        />
-        <View style={styles.linkCardContent}>
-          <Text variant="bodyMedium" style={{ color: theme.colors.onSurface }} numberOfLines={2}>
-            {displayLabel}
-          </Text>
-          <Text
-            variant="bodySmall"
-            style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}
-            numberOfLines={2}
-          >
-            {tapHint}
-          </Text>
-        </View>
-        <Icon
-          source="open-in-new"
-          size={20}
-          color={theme.colors.onSurfaceVariant}
-        />
-      </View>
-    </View>,
-    { onPress: onOpen },
+  return (
+    <ExternalOpenCard
+      mime={mime}
+      label={displayLabel}
+      tapHint={tapHint}
+      onOpen={onOpen}
+    />
   );
 }
 
@@ -208,21 +176,5 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
     marginVertical: 4,
     lineHeight: 20,
-  },
-  linkCard: {
-    width: '100%',
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 12,
-    marginVertical: 8,
-  },
-  linkCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  linkCardContent: {
-    flex: 1,
-    minWidth: 0,
   },
 });

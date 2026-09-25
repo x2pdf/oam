@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, View, StyleSheet } from 'react-native';
-import { Text, Portal, Snackbar, Icon, useTheme } from 'react-native-paper';
+import { View, StyleSheet } from 'react-native';
+import { Portal, Snackbar } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { saveImageToAlbum } from '../../../adapter';
+import { openUrl } from '../../../adapter/openUrl';
 import { truncateListText } from '../../../utils/text';
 import { ContentCardImage } from '../../../components/ContentCardImage';
+import { ExternalOpenCard } from '../../../components/ExternalOpenCard';
 import { openImageLightbox } from '../../../components/ImageLightbox';
-import { wrapImagePress } from '../../../adapter/wrapImagePress';
 import { ArweaveContentItem } from '../types';
-import { isHttpUrl, isImageMime, mimeToIcon, shouldDownload } from '../utils/mime';
+import { isHttpUrl, isImageMime, shouldDownload } from '../utils/mime';
 
 interface Props {
   items: ArweaveContentItem[];
@@ -49,7 +50,7 @@ export const ArweaveContentRenderer: React.FC<Props> = ({
   const handleOpenUrl = useCallback(
     async (href: string) => {
       try {
-        await Linking.openURL(href);
+        await openUrl(href);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
         setSnackbarMessage(`${t('detail.openLinkFailed')}: ${message}`);
@@ -129,7 +130,6 @@ function ImageOrExternalLink({
   onOpen: () => void;
   onSaveImage: () => void;
 }) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [imageFailed, setImageFailed] = useState(false);
   const showImage = tryImage && isImageMime(mime) && isHttpUrl(uri) && !imageFailed;
@@ -159,73 +159,12 @@ function ImageOrExternalLink({
       label={displayLabel}
       tapHint={tapHint}
       onOpen={onOpen}
-      theme={theme}
     />
-  );
-}
-
-function ExternalOpenCard({
-  mime,
-  label,
-  tapHint,
-  onOpen,
-  theme,
-}: {
-  mime: string;
-  label: string;
-  tapHint: string;
-  onOpen: () => void;
-  theme: ReturnType<typeof useTheme>;
-}) {
-  return wrapImagePress(
-    <View
-      style={[
-        styles.linkCard,
-        { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={tapHint}
-    >
-      <View style={styles.linkCardRow}>
-        <Icon source={mimeToIcon(mime)} size={28} color={theme.colors.primary} />
-        <View style={styles.linkCardContent}>
-          <Text variant="bodyMedium" style={{ color: theme.colors.onSurface }} numberOfLines={2}>
-            {label}
-          </Text>
-          <Text
-            variant="bodySmall"
-            style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}
-            numberOfLines={2}
-          >
-            {tapHint}
-          </Text>
-        </View>
-        <Icon source="open-in-new" size={20} color={theme.colors.onSurfaceVariant} />
-      </View>
-    </View>,
-    { onPress: onOpen },
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-  },
-  linkCard: {
-    width: '100%',
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 12,
-    marginVertical: 8,
-  },
-  linkCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  linkCardContent: {
-    flex: 1,
-    minWidth: 0,
   },
 });

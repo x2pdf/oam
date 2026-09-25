@@ -173,7 +173,13 @@ export type RootStackParamList = {
   PrivateKeyInput: undefined;
   PrivateKeyVerify: { privateKey: string };
   PrivateKeySetup: { privateKey: string };
-  SendData: { recipientAddress?: string; draftId?: string } | undefined;
+  SendData: {
+    recipientAddress?: string;
+    draftId?: string;
+    pendingAttachment?: SendDraftAttachment;
+    pendingAttachmentNonce?: number;
+  } | undefined;
+  AddAttachment: undefined;
   InputDataDetail: { item: InputDataItem };
   SubscriptionDetail: { subscription: Subscription };
   AddressDataList: { address: string; title?: string; peerAddress?: string };
@@ -186,6 +192,10 @@ export type RootStackParamList = {
   };
   ContentFilterDetail: { filter: ContentFilterRule };
   AppInfo: undefined;
+  SettingsChoice: { type: 'language' | 'appearance' | 'fontSize' };
+  ApiKeySettings: undefined;
+  DataSourceWeights: undefined;
+  HomeTabWeights: undefined;
   CacheManagement: undefined;
   FollowListSelection: undefined;
   ExportData: undefined;

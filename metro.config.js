@@ -17,6 +17,7 @@ const defaultResolveRequest = resolver.resolveRequest;
 const WEB_ONLY_MODULES = new Set([
   '@tauri-apps/plugin-dialog',
   '@tauri-apps/plugin-fs',
+  '@tauri-apps/plugin-opener',
   '@tauri-apps/api',
 ]);
 

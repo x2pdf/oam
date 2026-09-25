@@ -30,7 +30,6 @@ import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
 import { ContentItem, createJpegItem, createPngItem, createGifItem, createLinkItem } from '../mypayload';
-import { AddAttachmentModal } from '../components/AddAttachmentModal';
 import { SendDraftAttachmentRow } from '../components/SendDraftAttachmentRow';
 import { estimateSendFeeFromAddress, OAMPClient, getFeeSuggestions, FeeOption, FeeSuggestions, intrinsicGas } from '../oamp/client';
 import { BLACK_HOLE } from '../oamp/protocol';
@@ -112,9 +111,11 @@ export default function SendDataScreen() {
   const [images, setImages] = useState<ImageItem[]>(() =>
     (initialDraft?.images ?? []).map(draftImageToItem),
   );
-  const [attachments, setAttachments] = useState<SendDraftAttachment[]>(
-    () => initialDraft?.attachments ?? [],
-  );
+  const [attachments, setAttachments] = useState<SendDraftAttachment[]>(() => {
+    const base = initialDraft?.attachments ?? [];
+    const pending = route.params?.pendingAttachment;
+    return pending ? [...base, pending] : base;
+  });
   const [recipientAddress, setRecipientAddress] = useState(
     initialDraft?.recipientAddress || route.params?.recipientAddress || profile?.address || BLACK_HOLE,
   );
@@ -135,6 +136,22 @@ export default function SendDataScreen() {
       setRecipientAddress(route.params.recipientAddress);
     }
   }, [route.params?.recipientAddress]);
+
+  const lastAttachmentNonceRef = useRef<number | undefined>(
+    route.params?.pendingAttachment ? route.params.pendingAttachmentNonce : undefined,
+  );
+  const pendingAttachmentRef = useRef(route.params?.pendingAttachment);
+  useEffect(() => {
+    const pending = route.params?.pendingAttachment;
+    const nonce = route.params?.pendingAttachmentNonce;
+    if (pending) pendingAttachmentRef.current = pending;
+    if (!pending || nonce == null) return;
+    if (lastAttachmentNonceRef.current !== nonce) {
+      lastAttachmentNonceRef.current = nonce;
+      setAttachments((prev) => [...prev, pending]);
+    }
+    navigation.setParams({ pendingAttachment: undefined, pendingAttachmentNonce: undefined });
+  }, [navigation, route.params?.pendingAttachment, route.params?.pendingAttachmentNonce]);
 
   const recipientKey = recipientAddress.trim().toLowerCase();
 
@@ -259,7 +276,6 @@ export default function SendDataScreen() {
   const passwordLocked = passwordLockRemainingMs > 0;
   const [imageNameDialogVisible, setImageNameDialogVisible] = useState(false);
   const [imageSourceDialogVisible, setImageSourceDialogVisible] = useState(false);
-  const [attachmentDialogVisible, setAttachmentDialogVisible] = useState(false);
   const [currentPickingImage, setCurrentPickingImage] = useState<ImageItem | null>(null);
 
   const [feeEstimate, setFeeEstimate] = useState<string | null>(null);
@@ -343,7 +359,10 @@ export default function SendDataScreen() {
     appliedDraftRef.current = true;
     setText(draft.text);
     setImages(draft.images.map(draftImageToItem));
-    setAttachments(draft.attachments ?? []);
+    const pending = pendingAttachmentRef.current;
+    setAttachments(
+      pending ? [...(draft.attachments ?? []), pending] : (draft.attachments ?? []),
+    );
     setRecipientAddress(draft.recipientAddress || BLACK_HOLE);
     setEncryptEnabled(!!draft.encryptEnabled);
     setCurrentDraftId(draft.id);
@@ -1095,7 +1114,7 @@ export default function SendDataScreen() {
         <Button
           mode="outlined"
           icon="paperclip"
-          onPress={() => setAttachmentDialogVisible(true)}
+          onPress={() => navigation.navigate('AddAttachment')}
           style={styles.addImageButton}
         >
           {t('send.addAttachment')}
@@ -1283,15 +1302,6 @@ export default function SendDataScreen() {
           {t('send.pickImageFromFiles')}
         </Button>
       </AppModal>
-
-      <AddAttachmentModal
-        visible={attachmentDialogVisible}
-        onDismiss={() => setAttachmentDialogVisible(false)}
-        onConfirm={(attachment) => {
-          setAttachments((prev) => [...prev, attachment]);
-          setAttachmentDialogVisible(false);
-        }}
-      />
 
       <AppModal
         visible={imageNameDialogVisible}

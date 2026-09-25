@@ -9,6 +9,8 @@
     "core:default",
     "allow-export-pdf",
     "dialog:allow-save",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
     {
       "identifier": "fs:allow-write-file",
       "allow": [

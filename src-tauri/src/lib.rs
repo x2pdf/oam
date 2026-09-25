@@ -5,6 +5,7 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
+    .plugin(tauri_plugin_opener::init())
     .invoke_handler(tauri::generate_handler![pdf_export::export_pdf])
     .setup(|app| {
       if cfg!(debug_assertions) {

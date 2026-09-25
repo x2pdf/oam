@@ -13,6 +13,7 @@ import HomeScreen from '../screens/HomeScreen';
 import SubscriptionsScreen from '../screens/SubscriptionsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SendDataScreen from '../screens/SendDataScreen';
+import AddAttachmentScreen from '../screens/AddAttachmentScreen';
 import SubscriptionFormScreen from '../screens/SubscriptionFormScreen';
 import AddInfoSelectScreen from '../screens/AddInfoSelectScreen';
 import AddAddressFormScreen from '../screens/AddAddressFormScreen';
@@ -37,6 +38,10 @@ import ContentFilterDetailScreen from '../screens/ContentFilterDetailScreen';
 import AppInfoScreen from '../screens/AppInfoScreen';
 import FollowListSelectionScreen from '../screens/FollowListSelectionScreen';
 import CacheManagementScreen from '../screens/CacheManagementScreen';
+import SettingsChoiceScreen from '../screens/settings/SettingsChoiceScreen';
+import ApiKeySettingsScreen from '../screens/settings/ApiKeySettingsScreen';
+import DataSourceWeightsScreen from '../screens/settings/DataSourceWeightsScreen';
+import HomeTabWeightsScreen from '../screens/settings/HomeTabWeightsScreen';
 import ExportDataScreen from '../screens/ExportDataScreen';
 import ArweaveProfileScreen from '../arweave/screens/ArweaveProfileScreen';
 import ArweaveWalletDetailScreen from '../arweave/screens/ArweaveWalletDetailScreen';
@@ -281,6 +286,13 @@ export default function AppNavigator() {
           }}
         />
         <Stack.Screen
+          name="AddAttachment"
+          component={AddAttachmentScreen}
+          options={{
+            title: t('send.addAttachment'),
+          }}
+        />
+        <Stack.Screen
           name="InputDataDetail"
           component={InputDataDetailScreen}
           options={{
@@ -348,6 +360,33 @@ export default function AppNavigator() {
           options={{
             title: t('nav.appInfo'),
           }}
+        />
+        <Stack.Screen
+          name="SettingsChoice"
+          component={SettingsChoiceScreen}
+          options={({ route }) => ({
+            title:
+              route.params.type === 'language'
+                ? t('nav.language')
+                : route.params.type === 'appearance'
+                  ? t('nav.appearance')
+                  : t('nav.fontSize'),
+          })}
+        />
+        <Stack.Screen
+          name="ApiKeySettings"
+          component={ApiKeySettingsScreen}
+          options={{ title: t('nav.apiKeySettings') }}
+        />
+        <Stack.Screen
+          name="DataSourceWeights"
+          component={DataSourceWeightsScreen}
+          options={{ title: t('nav.dataSourceWeights') }}
+        />
+        <Stack.Screen
+          name="HomeTabWeights"
+          component={HomeTabWeightsScreen}
+          options={{ title: t('nav.homeTabWeights') }}
         />
         <Stack.Screen
           name="CacheManagement"

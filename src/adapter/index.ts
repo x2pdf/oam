@@ -7,6 +7,7 @@ import { MacImagePickerAdapter, MacImageRendererAdapter } from './mac';
 import { WindowsImagePickerAdapter, WindowsImageRendererAdapter } from './windows';
 
 export { saveImageToAlbum } from './saveImage';
+export { openUrl } from './openUrl';
 export {
   resolveRemoteImageUri,
   expandCandidateUrls,
