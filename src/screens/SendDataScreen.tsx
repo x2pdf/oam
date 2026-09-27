@@ -464,12 +464,18 @@ export default function SendDataScreen() {
     }
   };
 
+  const syncCustomFeeInputsFromOption = (option: FeeOption) => {
+    setCustomMaxFee(formatUnits(option.maxFeePerGas || option.gasPrice || 0n, 'gwei'));
+    setCustomMaxPriority(formatUnits(option.maxPriorityFeePerGas || 0n, 'gwei'));
+  };
+
   const loadFeeSuggestions = async () => {
     try {
       const suggestions = await getFeeSuggestions();
       setFeeSuggestions(suggestions);
       if (!feeOption) {
         setFeeOption(suggestions.normal);
+        syncCustomFeeInputsFromOption(suggestions.normal);
       }
     } catch (err) {
       console.warn('Failed to load fee suggestions', err);
@@ -534,10 +540,7 @@ export default function SendDataScreen() {
     if (!feeSuggestions) return;
     const selected = feeSuggestions[level];
     setFeeOption(selected);
-
-    // Also update the custom input fields so the user sees the Gwei values change
-    setCustomMaxFee(formatUnits(selected.maxFeePerGas || 0n, 'gwei'));
-    setCustomMaxPriority(formatUnits(selected.maxPriorityFeePerGas || 0n, 'gwei'));
+    syncCustomFeeInputsFromOption(selected);
 
     // Explicitly pass the new selection because state update is async
     estimateFee(feeEstimatePubKey, selected);
@@ -596,10 +599,9 @@ export default function SendDataScreen() {
   };
 
   const openFeeAdjustment = () => {
-    const current = feeOption;
+    const current = feeOption ?? feeSuggestions?.normal ?? null;
     if (current) {
-      setCustomMaxFee(formatUnits(current.maxFeePerGas || current.gasPrice || 0n, 'gwei'));
-      setCustomMaxPriority(formatUnits(current.maxPriorityFeePerGas || 0n, 'gwei'));
+      syncCustomFeeInputsFromOption(current);
     }
     setFeeAdjustmentVisible(true);
   };
