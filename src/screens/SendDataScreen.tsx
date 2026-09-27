@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Platform, BackHandler } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { useModalInsetFrameStyle } from '../theme/surfaces';
@@ -47,6 +47,8 @@ import { shortenAddress } from '../utils/address';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'SendData'>;
+
+type SendFlowStep = 'none' | 'confirm' | 'fee' | 'password';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
@@ -226,7 +228,7 @@ export default function SendDataScreen() {
   );
 
   // Dialog states
-  const [confirmSendVisible, setConfirmSendVisible] = useState(false);
+  const [sendFlowStep, setSendFlowStep] = useState<SendFlowStep>('none');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -272,7 +274,8 @@ export default function SendDataScreen() {
   }, [navigation, hasDraftContent, draftSaving]);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const passwordLockRemainingMs = usePasswordLockRemaining(passwordVisible);
+  const passwordDialogActive = sendFlowStep === 'password' || passwordVisible;
+  const passwordLockRemainingMs = usePasswordLockRemaining(passwordDialogActive);
   const passwordLocked = passwordLockRemainingMs > 0;
   const [imageNameDialogVisible, setImageNameDialogVisible] = useState(false);
   const [imageSourceDialogVisible, setImageSourceDialogVisible] = useState(false);
@@ -288,7 +291,6 @@ export default function SendDataScreen() {
 
   const [feeOption, setFeeOption] = useState<FeeOption | null>(null);
   const [feeSuggestions, setFeeSuggestions] = useState<FeeSuggestions | null>(null);
-  const [feeAdjustmentVisible, setFeeAdjustmentVisible] = useState(false);
   const [customMaxFee, setCustomMaxFee] = useState('');
   const [customMaxPriority, setCustomMaxPriority] = useState('');
   const feeGasLimitRef = useRef<bigint | null>(null);
@@ -314,6 +316,17 @@ export default function SendDataScreen() {
   const [fastFeeWei, setFastFeeWei] = useState<bigint>(0n);
 
   const [passwordAction, setPasswordAction] = useState<'send' | 'hexSend' | 'ethSend'>('send');
+
+  useEffect(() => {
+    if (sendFlowStep !== 'fee') {
+      return undefined;
+    }
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSendFlowStep('confirm');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [sendFlowStep]);
 
   const buildContentItems = useCallback((): ContentItem[] => {
     const items: ContentItem[] = [];
@@ -418,9 +431,26 @@ export default function SendDataScreen() {
     setEncryptEnabled(false);
   };
 
-  const closeConfirmDialog = () => {
-    setConfirmSendVisible(false);
+  const closeSendFlow = () => {
+    setSendFlowStep('none');
     resetFeeState();
+  };
+
+  const closeSendPasswordStep = () => {
+    if (loading) return;
+    setSendFlowStep('none');
+    setPassword('');
+    setPasswordError(null);
+  };
+
+  const handleSendFlowDismiss = () => {
+    if (sendFlowStep === 'confirm') {
+      closeSendFlow();
+    } else if (sendFlowStep === 'fee') {
+      setSendFlowStep('confirm');
+    } else if (sendFlowStep === 'password') {
+      closeSendPasswordStep();
+    }
   };
 
   const syncCustomFeeInputsFromOption = (option: FeeOption) => {
@@ -511,7 +541,7 @@ export default function SendDataScreen() {
 
   const openConfirmAndEstimate = (pubKey?: string | null) => {
     setFeeEstimatePubKey(pubKey);
-    setConfirmSendVisible(true);
+    setSendFlowStep('confirm');
     estimateFee(pubKey);
     loadFeeSuggestions();
   };
@@ -622,7 +652,7 @@ export default function SendDataScreen() {
         setFeeOption(selected);
         void estimateFee(feeEstimatePubKey, selected);
       }
-      setFeeAdjustmentVisible(false);
+      setSendFlowStep('confirm');
       void warnIfFeeSettingInconsistent(maxFee, maxPriority);
     } catch (err) {
       showAlert(t('common.error'), t('send.invalidFeeInput'));
@@ -634,7 +664,7 @@ export default function SendDataScreen() {
     if (current) {
       syncCustomFeeInputsFromOption(current);
     }
-    setFeeAdjustmentVisible(true);
+    setSendFlowStep('fee');
   };
 
   const retryFeeEstimate = () => {
@@ -856,10 +886,16 @@ export default function SendDataScreen() {
 
   const startPasswordInput = () => {
     if (!canConfirmSend) return;
-    setConfirmSendVisible(false);
     setPasswordError(null);
     setPasswordAction('send');
-    setPasswordVisible(true);
+    setSendFlowStep('password');
+  };
+
+  const dismissHexPasswordModal = () => {
+    if (loading) return;
+    setPasswordVisible(false);
+    setPassword('');
+    setPasswordError(null);
   };
 
   const startHexPasswordInput = () => {
@@ -906,7 +942,7 @@ export default function SendDataScreen() {
       }
 
       setLoading(false);
-      setPasswordVisible(false);
+      setSendFlowStep('none');
       setSendSuccessHash(txHash);
       setSendSuccessVisible(true);
 
@@ -955,7 +991,7 @@ export default function SendDataScreen() {
             {
               text: t('common.ok'),
               onPress: () => {
-                setPasswordVisible(false);
+                setSendFlowStep('none');
                 setPassword('');
               },
             },
@@ -972,9 +1008,8 @@ export default function SendDataScreen() {
             {
               text: t('common.ok'),
               onPress: () => {
-                setPasswordVisible(false);
                 setPassword('');
-                setConfirmSendVisible(true);
+                setSendFlowStep('confirm');
               },
             },
           ],
@@ -989,7 +1024,7 @@ export default function SendDataScreen() {
           {
             text: t('common.ok'),
             onPress: () => {
-              setPasswordVisible(false);
+              setSendFlowStep('none');
               setPassword('');
             },
           },
@@ -1367,19 +1402,121 @@ export default function SendDataScreen() {
       </AppModal>
 
       <AppModal
-        visible={confirmSendVisible}
-        onDismiss={closeConfirmDialog}
-        title={t('send.confirmTxTitle')}
-        scrollable
-        actions={[
-          { label: t('common.cancel'), onPress: closeConfirmDialog },
-          {
-            label: t('wallet.verifyButtonConfirm'),
-            onPress: startPasswordInput,
-            disabled: !canConfirmSend,
-          },
-        ]}
+        visible={sendFlowStep !== 'none'}
+        onDismiss={handleSendFlowDismiss}
+        dismissable={sendFlowStep !== 'password' || !loading}
+        title={
+          sendFlowStep === 'fee'
+            ? t('send.feeAdjustmentTitle')
+            : sendFlowStep === 'password'
+              ? t('send.passwordTitle')
+              : t('send.confirmTxTitle')
+        }
+        scrollable={sendFlowStep === 'confirm' || sendFlowStep === 'fee'}
+        actions={
+          sendFlowStep === 'fee'
+            ? [
+                { label: t('common.cancel'), onPress: () => setSendFlowStep('confirm') },
+                { label: t('common.ok'), onPress: handleApplyCustomFee },
+              ]
+            : sendFlowStep === 'password'
+              ? [
+                  {
+                    label: t('common.cancel'),
+                    disabled: loading,
+                    onPress: closeSendPasswordStep,
+                  },
+                  {
+                    label: t('common.ok'),
+                    onPress: executeSend,
+                    loading,
+                    disabled: loading || passwordLocked,
+                  },
+                ]
+              : [
+                  { label: t('common.cancel'), onPress: closeSendFlow },
+                  {
+                    label: t('wallet.verifyButtonConfirm'),
+                    onPress: startPasswordInput,
+                    disabled: !canConfirmSend,
+                  },
+                ]
+        }
       >
+        {sendFlowStep === 'fee' ? (
+          <>
+            <View style={styles.feeLevelGroup}>
+              <Button
+                mode={feeOption?.level === 'slow' ? 'contained' : 'outlined'}
+                onPress={() => handleSelectFeeLevel('slow')}
+                style={styles.feeLevelButton}
+              >
+                {t('send.feeLevelSlow')}
+              </Button>
+              <Button
+                mode={feeOption?.level === 'normal' ? 'contained' : 'outlined'}
+                onPress={() => handleSelectFeeLevel('normal')}
+                style={styles.feeLevelButton}
+              >
+                {t('send.feeLevelNormal')}
+              </Button>
+              <Button
+                mode={feeOption?.level === 'fast' ? 'contained' : 'outlined'}
+                onPress={() => handleSelectFeeLevel('fast')}
+                style={styles.feeLevelButton}
+              >
+                {t('send.feeLevelFast')}
+              </Button>
+            </View>
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>{t('send.feeLevelCustom')}</Text>
+            <TextInput
+              mode="outlined"
+              label={t('send.maxFeePerGas')}
+              keyboardType="numeric"
+              value={customMaxFee}
+              onChangeText={setCustomMaxFee}
+              style={styles.feeInput}
+            />
+            <TextInput
+              mode="outlined"
+              label={t('send.maxPriorityFeePerGas')}
+              keyboardType="numeric"
+              value={customMaxPriority}
+              onChangeText={setCustomMaxPriority}
+              style={styles.feeInput}
+            />
+          </>
+        ) : sendFlowStep === 'password' ? (
+          <>
+            <TextInput
+              mode="outlined"
+              label={t('send.passwordLabel')}
+              secureTextEntry
+              keyboardType="numeric"
+              maxLength={16}
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value);
+                if (passwordError) setPasswordError(null);
+              }}
+              autoFocus
+              disabled={loading || passwordLocked}
+              error={!!passwordError || passwordLocked}
+              outlineColor={theme.colors.outline}
+              activeOutlineColor={theme.colors.primary}
+            />
+            {passwordLocked ? (
+              <HelperText type="error" visible>
+                {t('home.passwordLocked', { seconds: Math.ceil(passwordLockRemainingMs / 1000) })}
+              </HelperText>
+            ) : passwordError ? (
+              <HelperText type="error" visible>
+                {passwordError}
+              </HelperText>
+            ) : null}
+          </>
+        ) : (
+          <>
         <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmRecipient')}</Text>
           <Text style={[styles.confirmValue, styles.addressText, { fontSize: Math.round(14 * fontScale) }]} selectable>
@@ -1489,32 +1626,24 @@ export default function SendDataScreen() {
             {t('send.safetyTipMsg')}
           </Text>
         </View>
+          </>
+        )}
       </AppModal>
 
       <AppModal
         visible={passwordVisible}
-        onDismiss={() => {
-          if (!loading) {
-            setPasswordVisible(false);
-            setPassword('');
-            setPasswordError(null);
-          }
-        }}
+        onDismiss={dismissHexPasswordModal}
         dismissable={!loading}
         title={t('send.passwordTitle')}
         actions={[
           {
             label: t('common.cancel'),
             disabled: loading,
-            onPress: () => {
-              setPasswordVisible(false);
-              setPassword('');
-              setPasswordError(null);
-            },
+            onPress: dismissHexPasswordModal,
           },
           {
             label: t('common.ok'),
-            onPress: passwordAction === 'hexSend' ? executeHexSend : executeSend,
+            onPress: executeHexSend,
             loading,
             disabled: loading || passwordLocked,
           },
@@ -1637,59 +1766,6 @@ export default function SendDataScreen() {
         actions={[{ label: t('common.back'), onPress: disableEncryptionAndReturn }]}
       >
         <Text>{t('send.encryptUnavailableMsg')}</Text>
-      </AppModal>
-
-      <AppModal
-        visible={feeAdjustmentVisible}
-        onDismiss={() => setFeeAdjustmentVisible(false)}
-        title={t('send.feeAdjustmentTitle')}
-        scrollable
-        actions={[
-          { label: t('common.cancel'), onPress: () => setFeeAdjustmentVisible(false) },
-          { label: t('common.ok'), onPress: handleApplyCustomFee },
-        ]}
-      >
-        <View style={styles.feeLevelGroup}>
-          <Button
-            mode={feeOption?.level === 'slow' ? 'contained' : 'outlined'}
-            onPress={() => handleSelectFeeLevel('slow')}
-            style={styles.feeLevelButton}
-          >
-            {t('send.feeLevelSlow')}
-          </Button>
-          <Button
-            mode={feeOption?.level === 'normal' ? 'contained' : 'outlined'}
-            onPress={() => handleSelectFeeLevel('normal')}
-            style={styles.feeLevelButton}
-          >
-            {t('send.feeLevelNormal')}
-          </Button>
-          <Button
-            mode={feeOption?.level === 'fast' ? 'contained' : 'outlined'}
-            onPress={() => handleSelectFeeLevel('fast')}
-            style={styles.feeLevelButton}
-          >
-            {t('send.feeLevelFast')}
-          </Button>
-        </View>
-
-        <Text style={[styles.fieldLabel, { marginTop: 16 }]}>{t('send.feeLevelCustom')}</Text>
-        <TextInput
-          mode="outlined"
-          label={t('send.maxFeePerGas')}
-          keyboardType="numeric"
-          value={customMaxFee}
-          onChangeText={setCustomMaxFee}
-          style={styles.feeInput}
-        />
-        <TextInput
-          mode="outlined"
-          label={t('send.maxPriorityFeePerGas')}
-          keyboardType="numeric"
-          value={customMaxPriority}
-          onChangeText={setCustomMaxPriority}
-          style={styles.feeInput}
-        />
       </AppModal>
 
       <AppModal

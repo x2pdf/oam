@@ -269,7 +269,9 @@ export default function InputDataDetailScreen() {
                 {t('detail.time')}
               </Text>
               <View style={styles.valueRow}>
-                <Text variant="bodyMedium">{displayTime}</Text>
+                <Text variant="bodyMedium" selectable style={styles.valueText}>
+                  {displayTime}
+                </Text>
                 <IconButton
                   icon="content-copy"
                   size={18}
