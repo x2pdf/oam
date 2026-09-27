@@ -115,7 +115,7 @@ async function estimateFeeEth(
   fromAddress: string,
   tx: TransactionRequest,
   feeOption?: FeeOption
-): Promise<string> {
+): Promise<{ feeEth: string; gasLimit: bigint }> {
   return withRpcFallback(async (provider) => {
     let gasLimit: bigint;
     let gasEstimateFailed = false;
@@ -160,7 +160,7 @@ async function estimateFeeEth(
     }
 
     const feeWei = gasLimit * gasPrice;
-    return formatEther(feeWei);
+    return { feeEth: formatEther(feeWei), gasLimit };
   }, { noFatal: true });
 }
 
@@ -258,7 +258,7 @@ export async function estimateSendFeeFromAddress(
   content: string | ContentItem[],
   isSelf: boolean,
   options?: { encrypt?: boolean; recipientPublicKey?: string; feeOption?: FeeOption; value?: bigint }
-): Promise<{ feeEth: string; built: BuiltTxRequest }> {
+): Promise<{ feeEth: string; built: BuiltTxRequest; gasLimit: bigint }> {
   const target = recipientAddress.trim() || BLACK_HOLE;
   let built: BuiltTxRequest;
 
@@ -276,12 +276,12 @@ export async function estimateSendFeeFromAddress(
     built.value = options.value;
   }
 
-  const feeEth = await estimateFeeEth(fromAddress, {
+  const { feeEth, gasLimit } = await estimateFeeEth(fromAddress, {
     to: built.to,
     data: built.data,
     value: built.value,
   }, options?.feeOption);
-  return { feeEth, built };
+  return { feeEth, built, gasLimit };
 }
 
 export class OAMPClient {

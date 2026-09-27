@@ -180,8 +180,9 @@ export type RootStackParamList = {
     draftId?: string;
     pendingAttachment?: SendDraftAttachment;
     pendingAttachmentNonce?: number;
+    returnScreen?: 'LocalDrafts';
   } | undefined;
-  AddAttachment: undefined;
+  AddAttachment: { draftId?: string } | undefined;
   InputDataDetail: { item: InputDataItem };
   SubscriptionDetail: { subscription: Subscription };
   AddressDataList: { address: string; title?: string; peerAddress?: string };

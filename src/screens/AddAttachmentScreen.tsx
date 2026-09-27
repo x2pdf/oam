@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Button, HelperText, Text, TextInput, useTheme } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ import {
 } from '../utils/attachment';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
+type RouteProps = RouteProp<RootStackParamList, 'AddAttachment'>;
 
 /**
  * Always use the default keyboard for URI/ID fields.
@@ -192,6 +193,7 @@ export default function AddAttachmentScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const navigation = useNavigation<NavProp>();
+  const route = useRoute<RouteProps>();
   const insets = useSafeAreaInsets();
   const { listContentStyle } = useListColumnLayout();
   const [source, setSource] = useState<AttachmentSource>('arweave-id');
@@ -311,6 +313,7 @@ export default function AddAttachmentScreen() {
     navigation.navigate({
       name: 'SendData',
       params: {
+        draftId: route.params?.draftId,
         pendingAttachment: {
           source,
           fileType,
@@ -323,6 +326,7 @@ export default function AddAttachmentScreen() {
         pendingAttachmentNonce: Date.now(),
       },
       merge: true,
+      pop: true,
     });
   };
 

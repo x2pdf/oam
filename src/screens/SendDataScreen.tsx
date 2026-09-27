@@ -291,6 +291,9 @@ export default function SendDataScreen() {
   const [feeAdjustmentVisible, setFeeAdjustmentVisible] = useState(false);
   const [customMaxFee, setCustomMaxFee] = useState('');
   const [customMaxPriority, setCustomMaxPriority] = useState('');
+  const feeGasLimitRef = useRef<bigint | null>(null);
+  const balanceWeiRef = useRef<bigint | null>(null);
+  const feeOptionRef = useRef<FeeOption | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -388,6 +391,9 @@ export default function SendDataScreen() {
     setInsufficientBalance(false);
     setFeeOption(null);
     setFeeSuggestions(null);
+    feeGasLimitRef.current = null;
+    balanceWeiRef.current = null;
+    feeOptionRef.current = null;
   };
 
   const ethValueToSend = useMemo(() => {
@@ -417,10 +423,29 @@ export default function SendDataScreen() {
     resetFeeState();
   };
 
+  const syncCustomFeeInputsFromOption = (option: FeeOption) => {
+    setCustomMaxFee(formatUnits(option.maxFeePerGas || option.gasPrice || 0n, 'gwei'));
+    setCustomMaxPriority(formatUnits(option.maxPriorityFeePerGas || 0n, 'gwei'));
+  };
+
+  const applyFeeOptionLocally = (option: FeeOption): boolean => {
+    const gasLimit = feeGasLimitRef.current;
+    const maxFee = option.maxFeePerGas ?? option.gasPrice ?? 0n;
+    if (gasLimit == null || maxFee === 0n) return false;
+    const feeWei = gasLimit * maxFee;
+    feeOptionRef.current = option;
+    setFeeOption(option);
+    setFeeEstimate(formatEther(feeWei));
+    const cachedBalance = balanceWeiRef.current;
+    if (cachedBalance != null) {
+      setInsufficientBalance(cachedBalance < feeWei + ethValueToSend);
+    }
+    return true;
+  };
+
   const estimateFee = async (pubKey?: string | null, manualFeeOption?: FeeOption | null) => {
     setFeeLoading(true);
     setFeeError(false);
-    // Don't clear feeEstimate immediately to avoid flickering if it's the same
     setBalanceEth(null);
     setInsufficientBalance(false);
     try {
@@ -432,10 +457,9 @@ export default function SendDataScreen() {
       const target = recipientAddress.trim() || BLACK_HOLE;
       const resolvedKey = pubKey ?? recipientPublicKey;
 
-      // Use the manual option if provided, otherwise fall back to the state
-      const currentFeeOption = manualFeeOption !== undefined ? manualFeeOption : feeOption;
+      const currentFeeOption = manualFeeOption !== undefined ? manualFeeOption : feeOptionRef.current;
 
-      const [{ feeEth }, balanceWei, price] = await Promise.all([
+      const [{ feeEth, gasLimit }, balanceWei, price] = await Promise.all([
         estimateSendFeeFromAddress(
           fromAddress,
           target,
@@ -451,32 +475,35 @@ export default function SendDataScreen() {
         withRpcFallback((provider) => provider.getBalance(fromAddress)),
         fetchEthUsdPrice(),
       ]);
-      setFeeEstimate(feeEth);
+      feeGasLimitRef.current = gasLimit;
+      balanceWeiRef.current = balanceWei;
       setBalanceEth(formatEther(balanceWei));
-      setInsufficientBalance(balanceWei < (parseEther(feeEth) + ethValueToSend));
+      const optionToApply = currentFeeOption || feeOptionRef.current;
+      if (!optionToApply || !applyFeeOptionLocally(optionToApply)) {
+        setFeeEstimate(feeEth);
+        setInsufficientBalance(balanceWei < (parseEther(feeEth) + ethValueToSend));
+      }
       if (price != null) setEthUsdPrice(price);
     } catch (error) {
       console.error('Fee estimate error:', error);
       setFeeError(true);
       setFeeEstimate(null);
+      feeGasLimitRef.current = null;
     } finally {
       setFeeLoading(false);
     }
-  };
-
-  const syncCustomFeeInputsFromOption = (option: FeeOption) => {
-    setCustomMaxFee(formatUnits(option.maxFeePerGas || option.gasPrice || 0n, 'gwei'));
-    setCustomMaxPriority(formatUnits(option.maxPriorityFeePerGas || 0n, 'gwei'));
   };
 
   const loadFeeSuggestions = async () => {
     try {
       const suggestions = await getFeeSuggestions();
       setFeeSuggestions(suggestions);
-      if (!feeOption) {
+      if (!feeOptionRef.current) {
+        feeOptionRef.current = suggestions.normal;
         setFeeOption(suggestions.normal);
         syncCustomFeeInputsFromOption(suggestions.normal);
       }
+      applyFeeOptionLocally(feeOptionRef.current);
     } catch (err) {
       console.warn('Failed to load fee suggestions', err);
     }
@@ -539,11 +566,12 @@ export default function SendDataScreen() {
   const handleSelectFeeLevel = (level: 'slow' | 'normal' | 'fast') => {
     if (!feeSuggestions) return;
     const selected = feeSuggestions[level];
-    setFeeOption(selected);
     syncCustomFeeInputsFromOption(selected);
-
-    // Explicitly pass the new selection because state update is async
-    estimateFee(feeEstimatePubKey, selected);
+    if (!applyFeeOptionLocally(selected)) {
+      feeOptionRef.current = selected;
+      setFeeOption(selected);
+      void estimateFee(feeEstimatePubKey, selected);
+    }
   };
 
   const warnIfFeeSettingInconsistent = async (maxFee: bigint, maxPriority: bigint) => {
@@ -589,9 +617,12 @@ export default function SendDataScreen() {
         maxPriorityFeePerGas: maxPriority,
         level: 'custom',
       };
-      setFeeOption(selected);
+      if (!applyFeeOptionLocally(selected)) {
+        feeOptionRef.current = selected;
+        setFeeOption(selected);
+        void estimateFee(feeEstimatePubKey, selected);
+      }
       setFeeAdjustmentVisible(false);
-      estimateFee(feeEstimatePubKey, selected);
       void warnIfFeeSettingInconsistent(maxFee, maxPriority);
     } catch (err) {
       showAlert(t('common.error'), t('send.invalidFeeInput'));
@@ -725,8 +756,30 @@ export default function SendDataScreen() {
       updatedAt: Date.now(),
     });
     setCurrentDraftId(id);
+    appliedDraftRef.current = true;
     return id;
   }, [attachments, currentDraftId, encryptEnabled, images, recipientAddress, text, upsertDraft]);
+
+  const openAddAttachment = async () => {
+    try {
+      const id = await persistDraft();
+      navigation.navigate('AddAttachment', { draftId: id });
+    } catch (error) {
+      console.error('Save draft error:', error);
+      setSnackbarMessage(t('send.draftSaveFailed'));
+      setSnackbarVisible(true);
+    }
+  };
+
+  const leaveAfterSendSuccess = useCallback(() => {
+    allowLeaveRef.current = true;
+    setSendSuccessVisible(false);
+    if (route.params?.returnScreen === 'LocalDrafts') {
+      navigation.navigate('LocalDrafts');
+      return;
+    }
+    navigation.navigate('MainTabs');
+  }, [navigation, route.params?.returnScreen]);
 
   const saveAsDraft = async () => {
     if (draftSaving) return;
@@ -1116,7 +1169,7 @@ export default function SendDataScreen() {
         <Button
           mode="outlined"
           icon="paperclip"
-          onPress={() => navigation.navigate('AddAttachment')}
+          onPress={() => { void openAddAttachment(); }}
           style={styles.addImageButton}
         >
           {t('send.addAttachment')}
@@ -1641,10 +1694,7 @@ export default function SendDataScreen() {
 
       <AppModal
         visible={sendSuccessVisible}
-        onDismiss={() => {
-          setSendSuccessVisible(false);
-          navigation.goBack();
-        }}
+        onDismiss={leaveAfterSendSuccess}
         title={t('send.sendSuccess')}
         actions={[
           {
@@ -1657,10 +1707,7 @@ export default function SendDataScreen() {
           },
           {
             label: t('common.ok'),
-            onPress: () => {
-              setSendSuccessVisible(false);
-              navigation.goBack();
-            },
+            onPress: leaveAfterSendSuccess,
           },
         ]}
       >

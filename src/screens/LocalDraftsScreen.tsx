@@ -40,7 +40,7 @@ export default function LocalDraftsScreen() {
 
   const handleOpen = useCallback(
     (draft: SendDraft) => {
-      navigation.navigate('SendData', { draftId: draft.id });
+      navigation.navigate('SendData', { draftId: draft.id, returnScreen: 'LocalDrafts' });
     },
     [navigation],
   );

@@ -65,7 +65,12 @@ export default function FollowListSelectionScreen() {
 
   const handleSelect = useCallback(
     (item: Subscription) => {
-      navigation.navigate('SendData', { recipientAddress: item.address });
+      navigation.navigate({
+        name: 'SendData',
+        params: { recipientAddress: item.address },
+        merge: true,
+        pop: true,
+      });
     },
     [navigation],
   );
