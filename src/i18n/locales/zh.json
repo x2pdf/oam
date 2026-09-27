@@ -97,7 +97,7 @@
     "upToDate": "已经是最新数据了",
     "setApiKeyHint": "请在“我的”页面设置 Etherscan API Key",
     "noMessages": "未发现消息",
-    "messagesSearchPlaceholder": "搜索消息内容或地址",
+    "messagesSearchPlaceholder": "搜索消息内容",
     "messagesSearchNoResult": "未找到匹配的消息",
     "messagesSearching": "搜索中...",
     "followingEmpty": "关注列表中的地址暂无消息",

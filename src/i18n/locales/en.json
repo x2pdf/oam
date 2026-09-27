@@ -97,7 +97,7 @@
     "upToDate": "Data is up to date",
     "setApiKeyHint": "Please set Etherscan API Key in the Profile page",
     "noMessages": "No messages found",
-    "messagesSearchPlaceholder": "Search message content or address",
+    "messagesSearchPlaceholder": "Search message content",
     "messagesSearchNoResult": "No matching messages",
     "messagesSearching": "Searching...",
     "followingEmpty": "No messages from followed addresses yet",

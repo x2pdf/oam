@@ -35,10 +35,6 @@ function appendOampItemText(parts: string[], item: ContentItem): void {
 
 export function extractSearchableText(item: InputDataItem): string {
   const parts: string[] = [
-    item.id,
-    item.from ?? '',
-    item.to ?? '',
-    item.address ?? '',
     item.textContent ?? '',
     item.description ?? '',
     item.rawInput ?? '',
