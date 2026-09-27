@@ -65,6 +65,19 @@ export default function ArweaveDataDetailScreen() {
     showCopiedSnackbar();
   }, [displayTime, showCopiedSnackbar]);
 
+  const handleCopyFileName = useCallback(async () => {
+    if (!fileName) return;
+    await Clipboard.setStringAsync(fileName);
+    showCopiedSnackbar();
+  }, [fileName, showCopiedSnackbar]);
+
+  const handleCopyNote = useCallback(async () => {
+    const note = (item.note ?? '').trim();
+    if (!note) return;
+    await Clipboard.setStringAsync(note);
+    showCopiedSnackbar();
+  }, [item.note, showCopiedSnackbar]);
+
   const renderBody = () => {
     if (!item.contentItems.length) return null;
     return (
@@ -176,18 +189,40 @@ export default function ArweaveDataDetailScreen() {
                 <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('arweave.upload.confirmFile')}
                 </Text>
-                <Text variant="bodyMedium" selectable>
-                  {fileName || '—'}
-                </Text>
+                <View style={styles.valueRow}>
+                  <Text variant="bodyMedium" selectable style={styles.valueText}>
+                    {fileName || '—'}
+                  </Text>
+                  <IconButton
+                    icon="content-copy"
+                    size={18}
+                    onPress={handleCopyFileName}
+                    iconColor={theme.colors.primary}
+                    style={styles.copyIconBtn}
+                    accessibilityLabel={t('common.copy')}
+                    disabled={!fileName}
+                  />
+                </View>
               </View>
 
               <View style={styles.metaRow}>
                 <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('arweave.upload.noteLabel')}
                 </Text>
-                <Text variant="bodyMedium" selectable>
-                  {noteDisplay}
-                </Text>
+                <View style={styles.valueRow}>
+                  <Text variant="bodyMedium" selectable style={styles.valueText}>
+                    {noteDisplay}
+                  </Text>
+                  <IconButton
+                    icon="content-copy"
+                    size={18}
+                    onPress={handleCopyNote}
+                    iconColor={theme.colors.primary}
+                    style={styles.copyIconBtn}
+                    accessibilityLabel={t('common.copy')}
+                    disabled={!(item.note ?? '').trim()}
+                  />
+                </View>
               </View>
 
               {displayTime ? (
