@@ -170,6 +170,6 @@ v1 信封（固定前缀 20 字节 + PAYLOAD）：
 
 ## 声明
 
-This project was developed with AI assistance.
+This project was developed with AI assistance. In fact, 100% of the code in this repository was written by AI.
 
 ---
