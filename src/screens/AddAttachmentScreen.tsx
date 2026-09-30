@@ -23,6 +23,7 @@ import {
   AttachmentSource,
   FILE_TYPE_TO_MIME,
   defaultLabelI18nKey,
+  mimeToAttachmentFileType,
   resolveAttachmentHref,
 } from '../utils/attachment';
 
@@ -93,6 +94,8 @@ type AttachmentLabelInputProps = {
   label: string;
   placeholder: string;
   resetKey: number;
+  /** 重新挂载（resetKey 变化）时的初始文本，用于从 AR 列表回填 */
+  initialValue: string;
   onChangeText: (value: string) => void;
   onFocus?: () => void;
 };
@@ -106,13 +109,15 @@ const AttachmentLabelInput = React.memo(function AttachmentLabelInput({
   label,
   placeholder,
   resetKey,
+  initialValue,
   onChangeText,
   onFocus,
 }: AttachmentLabelInputProps) {
-  const draftRef = useRef('');
+  const draftRef = useRef(initialValue);
 
   useEffect(() => {
-    draftRef.current = '';
+    draftRef.current = initialValue;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
   return (
@@ -121,7 +126,7 @@ const AttachmentLabelInput = React.memo(function AttachmentLabelInput({
       mode="outlined"
       label={label}
       placeholder={placeholder}
-      defaultValue=""
+      defaultValue={initialValue}
       {...LABEL_INPUT_PROPS}
       render={(props) => {
         const {
@@ -200,7 +205,8 @@ export default function AddAttachmentScreen() {
   const [fileType, setFileType] = useState<AttachmentFileType>('other');
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [labelResetKey] = useState(0);
+  const [labelResetKey, setLabelResetKey] = useState(0);
+  const [labelInitialValue, setLabelInitialValue] = useState('');
   const labelRef = useRef('');
   const scrollRef = useRef<ScrollView>(null);
   const uriWrapRef = useRef<View>(null);
@@ -285,6 +291,37 @@ export default function AddAttachmentScreen() {
     setInput(value);
     setError(null);
   }, []);
+
+  const pickedArweaveId = route.params?.pickedArweaveId;
+  const pickedArweaveMime = route.params?.pickedArweaveMime;
+  const pickedArweaveLabel = route.params?.pickedArweaveLabel;
+  const pickedArweaveNonce = route.params?.pickedArweaveNonce;
+  const lastPickedNonceRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!pickedArweaveId || pickedArweaveNonce == null) return;
+    if (lastPickedNonceRef.current !== pickedArweaveNonce) {
+      lastPickedNonceRef.current = pickedArweaveNonce;
+      // 仅回填：每次选择都会覆盖 ID 与文件类型，之后用户仍可手动修改
+      setSource('arweave-id');
+      setInput(pickedArweaveId);
+      const pickedType = mimeToAttachmentFileType(pickedArweaveMime);
+      if (pickedType) setFileType(pickedType);
+      // 显示名字：有备注/文件名才回填（覆盖旧值），都没有则保持用户当前输入
+      const pickedLabel = pickedArweaveLabel?.trim();
+      if (pickedLabel) {
+        labelRef.current = pickedLabel;
+        setLabelInitialValue(pickedLabel);
+        setLabelResetKey((k) => k + 1);
+      }
+      setError(null);
+    }
+    navigation.setParams({
+      pickedArweaveId: undefined,
+      pickedArweaveMime: undefined,
+      pickedArweaveLabel: undefined,
+      pickedArweaveNonce: undefined,
+    });
+  }, [navigation, pickedArweaveId, pickedArweaveMime, pickedArweaveLabel, pickedArweaveNonce]);
 
   const handleLabelChange = useCallback((value: string) => {
     labelRef.current = value;
@@ -396,9 +433,23 @@ export default function AddAttachmentScreen() {
             />
           </View>
           {source === 'arweave-id' && (
-            <HelperText type="info" visible style={{ paddingHorizontal: 0 }}>
-              {t('send.attachmentIdHint')}
-            </HelperText>
+            <>
+              <View style={styles.shortcutRow}>
+                <Button
+                  mode="outlined"
+                  compact
+                  icon="cloud-outline"
+                  onPress={() => navigation.navigate('ArweaveFileSelect')}
+                  style={styles.shortcutButton}
+                  labelStyle={styles.typeLabel}
+                >
+                  {t('send.attachmentPickFromArList')}
+                </Button>
+              </View>
+              <HelperText type="info" visible style={{ paddingHorizontal: 0 }}>
+                {t('send.attachmentIdHint')}
+              </HelperText>
+            </>
           )}
           <HelperText type="error" visible={!!(error || uriError)}>
             {error || uriError || ' '}
@@ -407,6 +458,7 @@ export default function AddAttachmentScreen() {
           <View ref={labelWrapRef} collapsable={false}>
             <AttachmentLabelInput
               resetKey={labelResetKey}
+              initialValue={labelInitialValue}
               label={t('send.attachmentLabel')}
               placeholder={t('send.attachmentLabelPlaceholder')}
               onChangeText={handleLabelChange}
@@ -455,6 +507,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginVertical: 2,
     marginHorizontal: 6,
+  },
+  shortcutRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  shortcutButton: {
+    marginRight: 8,
+    marginTop: 4,
+    borderRadius: 8,
   },
   uriInput: {
     minHeight: 88,

@@ -76,6 +76,7 @@
     "arweaveWalletSetup": "钱包设定",
     "arweaveUpload": "上传文件",
     "arweaveDataDetail": "AR 数据详情",
+    "arweaveFileSelect": "选择 AR 文件",
     "arweaveWalletDetail": "AR 钱包详情"
   },
   "home": {
@@ -502,6 +503,7 @@
     "recipientBlackHole": "黑洞地址",
     "recipientFollowing": "关注列表",
     "recipientRandom": "随机地址",
+    "attachmentPickFromArList": "AR文件列表页",
     "recipientFollowingTitle": "选择关注地址",
     "recipientFollowingEmpty": "暂无关注地址，请先在关注列表中添加。",
     "recipientBroadcast": "公开",

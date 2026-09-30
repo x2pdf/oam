@@ -76,6 +76,7 @@
     "arweaveWalletSetup": "Wallet Setup",
     "arweaveUpload": "Upload File",
     "arweaveDataDetail": "AR Data Detail",
+    "arweaveFileSelect": "Select AR File",
     "arweaveWalletDetail": "AR Wallet Detail"
   },
   "home": {
@@ -502,6 +503,7 @@
     "recipientBlackHole": "Black Hole",
     "recipientFollowing": "Subscriptions",
     "recipientRandom": "Random",
+    "attachmentPickFromArList": "AR File List",
     "recipientFollowingTitle": "Choose a subscription",
     "recipientFollowingEmpty": "No subscriptions yet. Add some in Subscriptions first.",
     "recipientBroadcast": "Public",

@@ -54,6 +54,7 @@ import ArweaveJwkVerifyScreen from '../arweave/screens/wallet/JwkVerifyScreen';
 import ArweavePasswordSetupScreen from '../arweave/screens/wallet/ArweavePasswordSetupScreen';
 import ArweaveUploadScreen from '../arweave/upload/screens/UploadScreen';
 import ArweaveDataDetailScreen from '../arweave/list/screens/ArweaveDataDetailScreen';
+import ArweaveFileSelectScreen from '../arweave/list/screens/ArweaveFileSelectScreen';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { getHeaderChrome } from '../theme';
 
@@ -463,6 +464,11 @@ export default function AppNavigator() {
           name="ArweaveDataDetail"
           component={ArweaveDataDetailScreen}
           options={{ title: t('nav.arweaveDataDetail') }}
+        />
+        <Stack.Screen
+          name="ArweaveFileSelect"
+          component={ArweaveFileSelectScreen}
+          options={{ title: t('nav.arweaveFileSelect') }}
         />
       </Stack.Navigator>
     </NavigationContainer>

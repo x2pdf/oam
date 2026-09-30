@@ -32,6 +32,20 @@ export const FILE_TYPE_TO_MIME: Record<AttachmentFileType, string> = {
   other: 'application/octet-stream',
 };
 
+/**
+ * 将 MIME（如 Arweave Content-Type 标签）映射为附件「文件类型」。
+ * 无法识别的 MIME（含 webp、其他 video/*）归为 other；空值返回 undefined（调用方不应覆盖用户选择）。
+ */
+export function mimeToAttachmentFileType(mime?: string): AttachmentFileType | undefined {
+  const m = mime?.split(';')[0].trim().toLowerCase();
+  if (!m) return undefined;
+  if (m === 'image/jpg') return 'jpeg';
+  for (const type of ATTACHMENT_FILE_TYPES) {
+    if (FILE_TYPE_TO_MIME[type] === m) return type;
+  }
+  return 'other';
+}
+
 const IMAGE_MIMES = new Set([
   'image/jpeg',
   'image/png',

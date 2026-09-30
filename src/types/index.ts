@@ -182,7 +182,13 @@ export type RootStackParamList = {
     pendingAttachmentNonce?: number;
     returnScreen?: 'LocalDrafts';
   } | undefined;
-  AddAttachment: { draftId?: string } | undefined;
+  AddAttachment: {
+    draftId?: string;
+    pickedArweaveId?: string;
+    pickedArweaveMime?: string;
+    pickedArweaveLabel?: string;
+    pickedArweaveNonce?: number;
+  } | undefined;
   InputDataDetail: { item: InputDataItem };
   SubscriptionDetail: { subscription: Subscription };
   AddressDataList: { address: string; title?: string; peerAddress?: string };
@@ -213,6 +219,7 @@ export type RootStackParamList = {
   ArweavePasswordSetup: { jwk: string; address: string };
   ArweaveUpload: undefined;
   ArweaveDataDetail: { item: ArweaveListItem };
+  ArweaveFileSelect: undefined;
 };
 
 export type MainTabParamList = {
