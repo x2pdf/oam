@@ -31,7 +31,7 @@ import { useThemePreference } from '../context/ThemeContext';
 import { getImagePickerAdapter, getImageRendererAdapter } from '../adapter';
 import { ContentItem, createJpegItem, createPngItem, createGifItem, createLinkItem } from '../mypayload';
 import { SendDraftAttachmentRow } from '../components/SendDraftAttachmentRow';
-import { estimateSendFeeFromAddress, OAMPClient, getFeeSuggestions, FeeOption, FeeSuggestions, intrinsicGas } from '../oamp/client';
+import { estimateSendFeeFromAddress, OAMPClient, getFeeSuggestions, feeSuggestionsFromOption, FeeOption, FeeSuggestions, intrinsicGas } from '../oamp/client';
 import { BLACK_HOLE } from '../oamp/protocol';
 import {
   lookupRecipientPublicKey,
@@ -296,6 +296,11 @@ export default function SendDataScreen() {
   const feeGasLimitRef = useRef<bigint | null>(null);
   const balanceWeiRef = useRef<bigint | null>(null);
   const feeOptionRef = useRef<FeeOption | null>(null);
+  // 用户是否手动选过档位/改过输入框；为 true 时后台校准不再覆盖
+  const feeUserTouchedRef = useRef(false);
+  // 异步回调里读取最新的弹窗步骤（避免闭包拿到旧值）
+  const sendFlowStepRef = useRef<SendFlowStep>(sendFlowStep);
+  sendFlowStepRef.current = sendFlowStep;
 
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -407,6 +412,7 @@ export default function SendDataScreen() {
     feeGasLimitRef.current = null;
     balanceWeiRef.current = null;
     feeOptionRef.current = null;
+    feeUserTouchedRef.current = false;
   };
 
   const ethValueToSend = useMemo(() => {
@@ -489,7 +495,7 @@ export default function SendDataScreen() {
 
       const currentFeeOption = manualFeeOption !== undefined ? manualFeeOption : feeOptionRef.current;
 
-      const [{ feeEth, gasLimit }, balanceWei, price] = await Promise.all([
+      const [{ feeEth, gasLimit, usedFeeOption }, balanceWei, price] = await Promise.all([
         estimateSendFeeFromAddress(
           fromAddress,
           target,
@@ -508,6 +514,16 @@ export default function SendDataScreen() {
       feeGasLimitRef.current = gasLimit;
       balanceWeiRef.current = balanceWei;
       setBalanceEth(formatEther(balanceWei));
+      // 预估时已经联网拿到了 maxFee / priorityFee：直接本地保存，
+      // 手续费设置弹窗打开即有值，不再等待 getFeeSuggestions。
+      if (!feeOptionRef.current) {
+        feeOptionRef.current = usedFeeOption;
+        setFeeOption(usedFeeOption);
+        setFeeSuggestions((prev) => prev ?? feeSuggestionsFromOption(usedFeeOption));
+        if (!feeUserTouchedRef.current && sendFlowStepRef.current !== 'fee') {
+          syncCustomFeeInputsFromOption(usedFeeOption);
+        }
+      }
       const optionToApply = currentFeeOption || feeOptionRef.current;
       if (!optionToApply || !applyFeeOptionLocally(optionToApply)) {
         setFeeEstimate(feeEth);
@@ -528,12 +544,22 @@ export default function SendDataScreen() {
     try {
       const suggestions = await getFeeSuggestions();
       setFeeSuggestions(suggestions);
-      if (!feeOptionRef.current) {
+      // 后台校准：仅当还没有值，或当前值是本地推导且优先费为 0、用户也没动过时才替换
+      const current = feeOptionRef.current;
+      const canReplace =
+        !current ||
+        (!feeUserTouchedRef.current &&
+          current.level === 'normal' &&
+          (current.maxPriorityFeePerGas ?? 0n) === 0n);
+      if (canReplace) {
         feeOptionRef.current = suggestions.normal;
         setFeeOption(suggestions.normal);
-        syncCustomFeeInputsFromOption(suggestions.normal);
+        // 正在编辑手续费弹窗时不覆盖输入框，避免数字跳动
+        if (sendFlowStepRef.current !== 'fee') {
+          syncCustomFeeInputsFromOption(suggestions.normal);
+        }
+        applyFeeOptionLocally(suggestions.normal);
       }
-      applyFeeOptionLocally(feeOptionRef.current);
     } catch (err) {
       console.warn('Failed to load fee suggestions', err);
     }
@@ -594,8 +620,11 @@ export default function SendDataScreen() {
     handleSend();
   };
   const handleSelectFeeLevel = (level: 'slow' | 'normal' | 'fast') => {
-    if (!feeSuggestions) return;
-    const selected = feeSuggestions[level];
+    const base = feeOptionRef.current ?? feeOption;
+    const suggestions = feeSuggestions ?? (base ? feeSuggestionsFromOption(base) : null);
+    if (!suggestions) return;
+    feeUserTouchedRef.current = true;
+    const selected = suggestions[level];
     syncCustomFeeInputsFromOption(selected);
     if (!applyFeeOptionLocally(selected)) {
       feeOptionRef.current = selected;
@@ -647,6 +676,7 @@ export default function SendDataScreen() {
         maxPriorityFeePerGas: maxPriority,
         level: 'custom',
       };
+      feeUserTouchedRef.current = true;
       if (!applyFeeOptionLocally(selected)) {
         feeOptionRef.current = selected;
         setFeeOption(selected);
@@ -660,9 +690,21 @@ export default function SendDataScreen() {
   };
 
   const openFeeAdjustment = () => {
-    const current = feeOption ?? feeSuggestions?.normal ?? null;
+    const current = feeOptionRef.current ?? feeOption ?? feeSuggestions?.normal ?? null;
     if (current) {
       syncCustomFeeInputsFromOption(current);
+    } else {
+      // 兜底：用确认页已显示的手续费反推 Max Fee，保证输入框不是空的
+      const gasLimit = feeGasLimitRef.current;
+      if (feeEstimate && gasLimit && gasLimit > 0n) {
+        try {
+          const maxFee = parseEther(feeEstimate) / gasLimit;
+          setCustomMaxFee(formatUnits(maxFee, 'gwei'));
+          setCustomMaxPriority('0');
+        } catch {
+          // ignore
+        }
+      }
     }
     setSendFlowStep('fee');
   };
@@ -801,14 +843,24 @@ export default function SendDataScreen() {
     }
   };
 
+  const leavingAfterSendRef = useRef(false);
+
+  useEffect(() => {
+    if (sendSuccessVisible) leavingAfterSendRef.current = false;
+  }, [sendSuccessVisible]);
+
   const leaveAfterSendSuccess = useCallback(() => {
+    // 弹窗 onDismiss 与“确定”按钮可能重复触发，只处理一次
+    if (leavingAfterSendRef.current) return;
+    leavingAfterSendRef.current = true;
     allowLeaveRef.current = true;
     setSendSuccessVisible(false);
+    // 使用 popTo 回到栈中已有页面并弹出发送页，避免新压入实例
     if (route.params?.returnScreen === 'LocalDrafts') {
-      navigation.navigate('LocalDrafts');
+      navigation.popTo('LocalDrafts');
       return;
     }
-    navigation.navigate('MainTabs');
+    navigation.popTo('MainTabs');
   }, [navigation, route.params?.returnScreen]);
 
   const saveAsDraft = async () => {
@@ -1474,7 +1526,10 @@ export default function SendDataScreen() {
               label={t('send.maxFeePerGas')}
               keyboardType="numeric"
               value={customMaxFee}
-              onChangeText={setCustomMaxFee}
+              onChangeText={(v) => {
+                feeUserTouchedRef.current = true;
+                setCustomMaxFee(v);
+              }}
               style={styles.feeInput}
             />
             <TextInput
@@ -1482,7 +1537,10 @@ export default function SendDataScreen() {
               label={t('send.maxPriorityFeePerGas')}
               keyboardType="numeric"
               value={customMaxPriority}
-              onChangeText={setCustomMaxPriority}
+              onChangeText={(v) => {
+                feeUserTouchedRef.current = true;
+                setCustomMaxPriority(v);
+              }}
               style={styles.feeInput}
             />
           </>

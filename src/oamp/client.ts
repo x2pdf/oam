@@ -115,7 +115,7 @@ async function estimateFeeEth(
   fromAddress: string,
   tx: TransactionRequest,
   feeOption?: FeeOption
-): Promise<{ feeEth: string; gasLimit: bigint }> {
+): Promise<{ feeEth: string; gasLimit: bigint; usedFeeOption: FeeOption }> {
   return withRpcFallback(async (provider) => {
     let gasLimit: bigint;
     let gasEstimateFailed = false;
@@ -135,8 +135,10 @@ async function estimateFeeEth(
     }
 
     let gasPrice: bigint | null = null;
+    let usedFeeOption: FeeOption | null = null;
     if (feeOption) {
       gasPrice = feeOption.maxFeePerGas ?? feeOption.gasPrice ?? null;
+      if (gasPrice) usedFeeOption = feeOption;
     }
 
     if (!gasPrice) {
@@ -150,9 +152,16 @@ async function estimateFeeEth(
         throw feeErr;
       }
       gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
+      if (gasPrice) {
+        usedFeeOption = {
+          maxFeePerGas: gasPrice,
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? 0n,
+          level: "normal",
+        };
+      }
     }
 
-    if (!gasPrice) {
+    if (!gasPrice || !usedFeeOption) {
       if (gasEstimateFailed) {
         throw new Error('Gas estimation and gas price fetch both failed');
       }
@@ -160,7 +169,7 @@ async function estimateFeeEth(
     }
 
     const feeWei = gasLimit * gasPrice;
-    return { feeEth: formatEther(feeWei), gasLimit };
+    return { feeEth: formatEther(feeWei), gasLimit, usedFeeOption };
   }, { noFatal: true });
 }
 
@@ -191,10 +200,10 @@ async function fetchFeeDataFromUrl(url: string): Promise<FeeData | null> {
   }
 }
 
-function feeSuggestionsFrom(feeData: FeeData): FeeSuggestions {
-  const baseGasPrice = feeData.gasPrice ?? 0n;
-  const maxFee = feeData.maxFeePerGas ?? baseGasPrice;
-  const maxPriority = feeData.maxPriorityFeePerGas ?? 0n;
+/** Derive slow / normal / fast tiers locally from a "normal" option (no network). */
+export function feeSuggestionsFromOption(normal: FeeOption): FeeSuggestions {
+  const maxFee = normal.maxFeePerGas ?? normal.gasPrice ?? 0n;
+  const maxPriority = normal.maxPriorityFeePerGas ?? 0n;
 
   return {
     slow: {
@@ -215,9 +224,17 @@ function feeSuggestionsFrom(feeData: FeeData): FeeSuggestions {
   };
 }
 
+export function feeSuggestionsFrom(feeData: FeeData): FeeSuggestions {
+  const baseGasPrice = feeData.gasPrice ?? 0n;
+  return feeSuggestionsFromOption({
+    maxFeePerGas: feeData.maxFeePerGas ?? baseGasPrice,
+    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? 0n,
+  });
+}
+
 export async function getFeeSuggestions(): Promise<FeeSuggestions> {
   const usedUrls = new Set<string>();
-  let chosen = await withRpcFallback(async (provider, url) => {
+  const chosen = await withRpcFallback(async (provider, url) => {
     usedUrls.add(url);
     return provider.getFeeData();
   }, { noFatal: true });
@@ -226,26 +243,39 @@ export async function getFeeSuggestions(): Promise<FeeSuggestions> {
     return feeSuggestionsFrom(chosen);
   }
 
-  const secondUrl = pickRandomRpcUrl(usedUrls);
-  if (secondUrl) {
-    usedUrls.add(secondUrl);
-    const second = await fetchFeeDataFromUrl(secondUrl);
-    if (second && !isZeroOrMissingPriority(second)) {
-      return feeSuggestionsFrom(second);
-    }
-    if (second) chosen = second;
+  // Priority fee missing/zero: ask up to two other nodes IN PARALLEL and use
+  // whichever returns a usable priority fee first (no serial waiting).
+  const urls: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    const url = pickRandomRpcUrl(usedUrls);
+    if (!url) break;
+    usedUrls.add(url);
+    urls.push(url);
+  }
+  if (urls.length === 0) {
+    return feeSuggestionsFrom(chosen);
   }
 
-  const thirdUrl = pickRandomRpcUrl(usedUrls);
-  if (thirdUrl) {
-    usedUrls.add(thirdUrl);
-    const third = await fetchFeeDataFromUrl(thirdUrl);
-    if (third) {
-      return feeSuggestionsFrom(third);
-    }
+  const results: Array<FeeData | null> = [];
+  const best = await new Promise<FeeData | null>((resolve) => {
+    let pending = urls.length;
+    urls.forEach((url, idx) => {
+      void fetchFeeDataFromUrl(url).then((data) => {
+        results[idx] = data;
+        if (data && !isZeroOrMissingPriority(data)) {
+          resolve(data);
+        }
+        pending -= 1;
+        if (pending === 0) resolve(null);
+      });
+    });
+  });
+  if (best) {
+    return feeSuggestionsFrom(best);
   }
 
-  return feeSuggestionsFrom(chosen);
+  const fallback = [...results].reverse().find((r): r is FeeData => !!r);
+  return feeSuggestionsFrom(fallback ?? chosen);
 }
 
 /**
@@ -258,7 +288,7 @@ export async function estimateSendFeeFromAddress(
   content: string | ContentItem[],
   isSelf: boolean,
   options?: { encrypt?: boolean; recipientPublicKey?: string; feeOption?: FeeOption; value?: bigint }
-): Promise<{ feeEth: string; built: BuiltTxRequest; gasLimit: bigint }> {
+): Promise<{ feeEth: string; built: BuiltTxRequest; gasLimit: bigint; usedFeeOption: FeeOption }> {
   const target = recipientAddress.trim() || BLACK_HOLE;
   let built: BuiltTxRequest;
 
@@ -276,12 +306,12 @@ export async function estimateSendFeeFromAddress(
     built.value = options.value;
   }
 
-  const { feeEth, gasLimit } = await estimateFeeEth(fromAddress, {
+  const { feeEth, gasLimit, usedFeeOption } = await estimateFeeEth(fromAddress, {
     to: built.to,
     data: built.data,
     value: built.value,
   }, options?.feeOption);
-  return { feeEth, built, gasLimit };
+  return { feeEth, built, gasLimit, usedFeeOption };
 }
 
 export class OAMPClient {
