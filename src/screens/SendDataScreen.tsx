@@ -48,7 +48,7 @@ import { shortenAddress } from '../utils/address';
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'SendData'>;
 
-type SendFlowStep = 'none' | 'confirm' | 'fee' | 'password';
+type SendFlowStep = 'none' | 'confirm' | 'fee' | 'password' | 'success';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
@@ -229,6 +229,10 @@ export default function SendDataScreen() {
 
   // Dialog states
   const [sendFlowStep, setSendFlowStep] = useState<SendFlowStep>('none');
+  // Paper Modal 关闭时会先淡出 ~220ms；淡出期间沿用上一步的内容，避免弹窗中途变形（闪屏）
+  const lastSendFlowStepRef = useRef<Exclude<SendFlowStep, 'none'>>('confirm');
+  if (sendFlowStep !== 'none') lastSendFlowStepRef.current = sendFlowStep;
+  const renderSendFlowStep = sendFlowStep === 'none' ? lastSendFlowStepRef.current : sendFlowStep;
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -306,7 +310,8 @@ export default function SendDataScreen() {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  const [sendSuccessVisible, setSendSuccessVisible] = useState(false);
+  // 十六进制发送成功：在同一个密码弹窗内原地切换成功态（普通发送见 sendFlowStep === 'success'）
+  const [hexSendSuccess, setHexSendSuccess] = useState(false);
   const [sendSuccessHash, setSendSuccessHash] = useState('');
 
   const [hexSendVisible, setHexSendVisible] = useState(false);
@@ -456,6 +461,8 @@ export default function SendDataScreen() {
       setSendFlowStep('confirm');
     } else if (sendFlowStep === 'password') {
       closeSendPasswordStep();
+    } else if (sendFlowStep === 'success') {
+      leaveAfterSendSuccess();
     }
   };
 
@@ -846,15 +853,17 @@ export default function SendDataScreen() {
   const leavingAfterSendRef = useRef(false);
 
   useEffect(() => {
-    if (sendSuccessVisible) leavingAfterSendRef.current = false;
-  }, [sendSuccessVisible]);
+    if (hexSendSuccess || sendFlowStep === 'success') leavingAfterSendRef.current = false;
+  }, [hexSendSuccess, sendFlowStep]);
 
   const leaveAfterSendSuccess = useCallback(() => {
     // 弹窗 onDismiss 与“确定”按钮可能重复触发，只处理一次
     if (leavingAfterSendRef.current) return;
     leavingAfterSendRef.current = true;
     allowLeaveRef.current = true;
-    setSendSuccessVisible(false);
+    // 注意：不重置 hexSendSuccess，弹窗淡出期间保持成功态内容，避免变形
+    setPasswordVisible(false);
+    setSendFlowStep('none');
     // 使用 popTo 回到栈中已有页面并弹出发送页，避免新压入实例
     if (route.params?.returnScreen === 'LocalDrafts') {
       navigation.popTo('LocalDrafts');
@@ -960,6 +969,7 @@ export default function SendDataScreen() {
     setHexSendVisible(false);
     setPasswordError(null);
     setPasswordAction('hexSend');
+    setHexSendSuccess(false);
     setPasswordVisible(true);
   };
 
@@ -993,15 +1003,12 @@ export default function SendDataScreen() {
         txHash = await client.sendUnencryptedMessage(target, items, feeOption || undefined, ethValueToSend);
       }
 
+      // 在同一个弹窗内原地切换到成功态：不销毁/新建 Modal，避免遮罩交叉淡入淡出造成闪屏。
+      // 成功态只能通过“确定”离开页面，这里不再清空 text/images/attachments，
+      // 以免底层页面和 header 在弹窗切换瞬间重绘。
       setLoading(false);
-      setSendFlowStep('none');
       setSendSuccessHash(txHash);
-      setSendSuccessVisible(true);
-
-      setText('');
-      setImages([]);
-      setAttachments([]);
-      setEthAmount('');
+      setSendFlowStep('success');
       setPassword('');
       if (currentDraftId) {
         await deleteDraft(currentDraftId);
@@ -1108,14 +1115,10 @@ export default function SendDataScreen() {
       const target = recipientAddress.trim() || BLACK_HOLE;
       const txHash = await client.sendRawHex(target, trimmedHex, feeOption || undefined, ethValueToSend);
 
+      // 保持 passwordVisible 不变，在同一个弹窗内切换成功态，避免双弹窗交叉淡入淡出闪屏
       setLoading(false);
-      setPasswordVisible(false);
-      setHexSendVisible(false);
       setSendSuccessHash(txHash);
-      setSendSuccessVisible(true);
-
-      setHexData('');
-      setEthAmount('');
+      setHexSendSuccess(true);
       setPassword('');
     } catch (error: any) {
       console.error('Hex send error:', error);
@@ -1458,20 +1461,34 @@ export default function SendDataScreen() {
         onDismiss={handleSendFlowDismiss}
         dismissable={sendFlowStep !== 'password' || !loading}
         title={
-          sendFlowStep === 'fee'
+          renderSendFlowStep === 'fee'
             ? t('send.feeAdjustmentTitle')
-            : sendFlowStep === 'password'
+            : renderSendFlowStep === 'password'
               ? t('send.passwordTitle')
-              : t('send.confirmTxTitle')
+              : renderSendFlowStep === 'success'
+                ? t('send.sendSuccess')
+                : t('send.confirmTxTitle')
         }
-        scrollable={sendFlowStep === 'confirm' || sendFlowStep === 'fee'}
+        scrollable={renderSendFlowStep === 'confirm' || renderSendFlowStep === 'fee'}
         actions={
-          sendFlowStep === 'fee'
+          renderSendFlowStep === 'success'
+            ? [
+                {
+                  label: t('common.copy'),
+                  onPress: async () => {
+                    await Clipboard.setStringAsync(sendSuccessHash);
+                    setSnackbarMessage(t('common.copied'));
+                    setSnackbarVisible(true);
+                  },
+                },
+                { label: t('common.ok'), onPress: leaveAfterSendSuccess },
+              ]
+            : renderSendFlowStep === 'fee'
             ? [
                 { label: t('common.cancel'), onPress: () => setSendFlowStep('confirm') },
                 { label: t('common.ok'), onPress: handleApplyCustomFee },
               ]
-            : sendFlowStep === 'password'
+            : renderSendFlowStep === 'password'
               ? [
                   {
                     label: t('common.cancel'),
@@ -1495,7 +1512,19 @@ export default function SendDataScreen() {
                 ]
         }
       >
-        {sendFlowStep === 'fee' ? (
+        {renderSendFlowStep === 'success' ? (
+          <>
+            <Text variant="bodyMedium" style={styles.dialogBody} selectable>
+              {t('send.txHash', { hash: sendSuccessHash })}
+            </Text>
+            <Text
+              variant="bodySmall"
+              style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}
+            >
+              {t('send.submitNotMinedHint')}
+            </Text>
+          </>
+        ) : renderSendFlowStep === 'fee' ? (
           <>
             <View style={styles.feeLevelGroup}>
               <Button
@@ -1544,7 +1573,7 @@ export default function SendDataScreen() {
               style={styles.feeInput}
             />
           </>
-        ) : sendFlowStep === 'password' ? (
+        ) : renderSendFlowStep === 'password' ? (
           <>
             <TextInput
               mode="outlined"
@@ -1690,23 +1719,51 @@ export default function SendDataScreen() {
 
       <AppModal
         visible={passwordVisible}
-        onDismiss={dismissHexPasswordModal}
+        onDismiss={hexSendSuccess ? leaveAfterSendSuccess : dismissHexPasswordModal}
         dismissable={!loading}
-        title={t('send.passwordTitle')}
-        actions={[
-          {
-            label: t('common.cancel'),
-            disabled: loading,
-            onPress: dismissHexPasswordModal,
-          },
-          {
-            label: t('common.ok'),
-            onPress: executeHexSend,
-            loading,
-            disabled: loading || passwordLocked,
-          },
-        ]}
+        title={hexSendSuccess ? t('send.sendSuccess') : t('send.passwordTitle')}
+        actions={
+          hexSendSuccess
+            ? [
+                {
+                  label: t('common.copy'),
+                  onPress: async () => {
+                    await Clipboard.setStringAsync(sendSuccessHash);
+                    setSnackbarMessage(t('common.copied'));
+                    setSnackbarVisible(true);
+                  },
+                },
+                { label: t('common.ok'), onPress: leaveAfterSendSuccess },
+              ]
+            : [
+                {
+                  label: t('common.cancel'),
+                  disabled: loading,
+                  onPress: dismissHexPasswordModal,
+                },
+                {
+                  label: t('common.ok'),
+                  onPress: executeHexSend,
+                  loading,
+                  disabled: loading || passwordLocked,
+                },
+              ]
+        }
       >
+        {hexSendSuccess ? (
+          <>
+            <Text variant="bodyMedium" style={styles.dialogBody} selectable>
+              {t('send.txHash', { hash: sendSuccessHash })}
+            </Text>
+            <Text
+              variant="bodySmall"
+              style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}
+            >
+              {t('send.submitNotMinedHint')}
+            </Text>
+          </>
+        ) : (
+          <>
         <TextInput
           mode="outlined"
           label={t('send.passwordLabel')}
@@ -1733,6 +1790,8 @@ export default function SendDataScreen() {
             {passwordError}
           </HelperText>
         ) : null}
+          </>
+        )}
       </AppModal>
 
       <AppModal
@@ -1824,36 +1883,6 @@ export default function SendDataScreen() {
         actions={[{ label: t('common.back'), onPress: disableEncryptionAndReturn }]}
       >
         <Text>{t('send.encryptUnavailableMsg')}</Text>
-      </AppModal>
-
-      <AppModal
-        visible={sendSuccessVisible}
-        onDismiss={leaveAfterSendSuccess}
-        title={t('send.sendSuccess')}
-        actions={[
-          {
-            label: t('common.copy'),
-            onPress: async () => {
-              await Clipboard.setStringAsync(sendSuccessHash);
-              setSnackbarMessage(t('common.copied'));
-              setSnackbarVisible(true);
-            },
-          },
-          {
-            label: t('common.ok'),
-            onPress: leaveAfterSendSuccess,
-          },
-        ]}
-      >
-        <Text variant="bodyMedium" style={styles.dialogBody} selectable>
-          {t('send.txHash', { hash: sendSuccessHash })}
-        </Text>
-        <Text
-          variant="bodySmall"
-          style={[styles.dialogHint, { color: theme.colors.onSurfaceVariant }]}
-        >
-          {t('send.submitNotMinedHint')}
-        </Text>
       </AppModal>
 
       <AppModal
