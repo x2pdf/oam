@@ -2,6 +2,7 @@ import { InputDataItem } from '../types';
 import { HomeTabId } from '../constants';
 import { cacheService } from './cacheService';
 import { dataSourceManager } from './DataSourceManager';
+import { ChainTransaction } from './ChainTransaction';
 import { applyDisplayPipeline } from '../display';
 import { OAMPClient } from '../oamp/client';
 import { DEFAULT_RPC_NODE } from '../config/rpcConfig';
@@ -126,12 +127,7 @@ export class DataRepository {
           const txs = await cacheService.getTransactions([userAddress], CACHE_LOAD_LIMIT);
           lastCacheBatchSize = txs.length;
           this.cacheTxOffsets[tabId] = txs.length;
-          const sent = mapTransactionsToMessages(txs, userAddress, 'sent', this.formatTimestamp, shortenAddress);
-          const inbox = mapTransactionsToMessages(txs, userAddress, 'inbox', this.formatTimestamp, shortenAddress);
-          const map = new Map<string, InputDataItem>();
-          sent.forEach(i => map.set(i.id, i));
-          inbox.forEach(i => map.set(i.id, i));
-          items = Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+          items = this.mapMessagesFromCache(txs, userAddress);
         }
       } else if (tabId === 'self') {
         if (userAddress) {
@@ -301,10 +297,26 @@ export class DataRepository {
             if (!cacheHasMore) break;
           }
         }
+      } else if (tabId === 'messages') {
+        if (userAddress) {
+          // sent + inbox share the same cached rows; read one batch of raw rows and map both.
+          let cacheHasMore = true;
+          while (cacheHasMore) {
+            const txs = await cacheService.getTransactions([userAddress], CACHE_LOAD_LIMIT, cacheOffset);
+            lastCacheBatchSize = txs.length;
+            cacheOffset += txs.length;
+            cacheHasMore = txs.length === CACHE_LOAD_LIMIT;
+            const batch = this.mapMessagesFromCache(txs, userAddress);
+            if (batch.length > 0 && this.countNewIds(this.rawData[tabId], batch) > 0) {
+              cachedItems = this.mergeData(cachedItems, batch);
+              break;
+            }
+            if (!cacheHasMore) break;
+          }
+        }
       }
       this.cacheTxOffsets[tabId] = cacheOffset;
-      // Note: Messages cache loading more is complex due to sent/inbox merge.
-      // For simplicity, if not in cache, go to network.
+      // All tabs read the local cache first; network is only used once the cache is exhausted.
 
       if (cachedItems.length > 0) {
         const prevRaw = this.rawData[tabId];
@@ -505,6 +517,19 @@ export class DataRepository {
     }
 
     return { items: resultItems, nextParams, followingNextEndBlock };
+  }
+
+  /**
+   * Map a batch of cached transactions into messages-tab items:
+   * sent + inbox merged, de-duplicated by id, newest first.
+   */
+  private mapMessagesFromCache(txs: ChainTransaction[], userAddress: string): InputDataItem[] {
+    const sent = mapTransactionsToMessages(txs, userAddress, 'sent', this.formatTimestamp, shortenAddress);
+    const inbox = mapTransactionsToMessages(txs, userAddress, 'inbox', this.formatTimestamp, shortenAddress);
+    const map = new Map<string, InputDataItem>();
+    sent.forEach(i => map.set(i.id, i));
+    inbox.forEach(i => map.set(i.id, i));
+    return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
   }
 
   private mergeData(prev: InputDataItem[], next: InputDataItem[]): InputDataItem[] {
