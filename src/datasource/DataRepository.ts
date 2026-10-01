@@ -145,10 +145,10 @@ export class DataRepository {
 
       if (items.length > 0) {
         this.rawData[tabId] = items;
-        // Show raw cache immediately, then refine via display pipeline (non-blocking).
-        this.updateState(tabId, { data: items, loading: false, hasMore: initHasMore });
+        // Wait for display pipeline before publishing so cold start never flashes RAW/HEX
+        // (applies to whichever tab is leftmost/home).
         const processed = await this.processItems(items, userAddress);
-        this.updateState(tabId, { data: processed, hasMore: initHasMore });
+        this.updateState(tabId, { data: processed, loading: false, hasMore: initHasMore });
       } else {
         this.updateState(tabId, { loading: false, hasMore: tabId === 'self' ? true : initHasMore });
       }
