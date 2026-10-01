@@ -25,6 +25,7 @@ export const AndroidPlatformImage: React.FC<PlatformImageProps> = (props) => {
     onLongPress,
     onError,
     onLoadDimensions,
+    fadeDuration,
   } = props;
 
   const inner = isGifUri(uri, mimeType) ? (
@@ -33,6 +34,7 @@ export const AndroidPlatformImage: React.FC<PlatformImageProps> = (props) => {
       style={style}
       contentFit={toContentFit(resizeMode)}
       autoplay
+      transition={fadeDuration === 0 ? 0 : undefined}
       onError={() => onError?.()}
       onLoad={(event) => {
         const { width, height } = event.source;

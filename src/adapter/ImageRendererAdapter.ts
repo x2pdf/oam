@@ -11,6 +11,8 @@ export interface PlatformImageProps {
   onLongPress?: () => void;
   /** Called when the user taps the image. */
   onPress?: () => void;
+  /** Android 原生图片渐显时长(ms)；0 表示关闭渐显。其他平台忽略。 */
+  fadeDuration?: number;
   /** Called when the image fails to load. */
   onError?: () => void;
   /** Called when intrinsic dimensions are known (fallback when Image.getSize fails). */

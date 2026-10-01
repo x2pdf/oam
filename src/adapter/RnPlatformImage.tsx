@@ -8,12 +8,14 @@ export const RnPlatformImage: React.FC<PlatformImageProps> = ({
   resizeMode = 'contain',
   onError,
   onLoadDimensions,
+  fadeDuration,
 }) => {
   return (
     <Image
       source={{ uri }}
       style={style}
       resizeMode={resizeMode}
+      fadeDuration={fadeDuration}
       onError={onError}
       onLoad={(event) => {
         const { width, height } = event.nativeEvent.source;

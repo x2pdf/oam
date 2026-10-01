@@ -22,6 +22,9 @@ const MIN_SCALE = 1;
 const MAX_SCALE = 6;
 const TAP_MOVE_THRESHOLD = 12;
 const LONG_PRESS_MS = 400;
+const FADE_IN_MS = 180;
+/** 图片 onLoad 迟迟不触发时的兜底显示时间，避免一直不可见。 */
+const REVEAL_FALLBACK_MS = 800;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -60,7 +63,15 @@ export function ImageLightboxHost() {
     };
   }, []);
 
-  return <ImageLightbox uri={uri} onClose={() => setUri(null)} />;
+  const handleClose = useCallback(() => setUri(null), []);
+
+  // 仅在有 uri 时才挂载，并以 uri 作 key：
+  // useCachedRemoteImage 的 useState 初始值才能在首帧就拿到本地路径，
+  // 避免“先渲染空黑屏、effect 后才出图”造成的闪屏。
+  if (!uri) {
+    return null;
+  }
+  return <ImageLightbox key={uri} uri={uri} onClose={handleClose} />;
 }
 
 export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
@@ -71,6 +82,11 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
+  /** 整体（遮罩 + 图片）淡入，取代 Modal 原生 fade。 */
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  /** 图片加载完成后再淡入，避免黑屏后图片突然跳出。 */
+  const imageOpacity = useRef(new Animated.Value(0)).current;
+  const imageRevealed = useRef(false);
   const currentScale = useRef(1);
   const currentTranslate = useRef({ x: 0, y: 0 });
   const pinchStartDistance = useRef(0);
@@ -131,20 +147,84 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     pinchStartScale.current = 1;
     usedMultiTouch.current = false;
     moved.current = false;
-    setImageSize(null);
   }, [clearLongPress, scale, translateX, translateY]);
+
+  const revealImage = useCallback(() => {
+    if (imageRevealed.current) {
+      return;
+    }
+    imageRevealed.current = true;
+    Animated.timing(imageOpacity, {
+      toValue: 1,
+      duration: FADE_IN_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [imageOpacity]);
+
+  const handleImageLoadDimensions = useCallback(
+    (size: { width: number; height: number }) => {
+      setImageSize((prev) =>
+        prev && prev.width === size.width && prev.height === size.height ? prev : size,
+      );
+      revealImage();
+    },
+    [revealImage],
+  );
+
+  // 打开时统一淡入遮罩
+  useEffect(() => {
+    if (!uri) {
+      return;
+    }
+    overlayOpacity.setValue(0);
+    Animated.timing(overlayOpacity, {
+      toValue: 1,
+      duration: FADE_IN_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [uri, overlayOpacity]);
 
   useEffect(() => {
     resetTransform();
-    if (displayUri) {
-      Image.getSize(
-        displayUri,
-        (w, h) => setImageSize({ width: w, height: h }),
-        () => setImageSize(null),
-      );
+    if (!displayUri) {
+      return () => clearLongPress();
     }
-    return () => clearLongPress();
-  }, [displayUri, resetTransform, clearLongPress]);
+
+    let cancelled = false;
+    imageRevealed.current = false;
+    imageOpacity.setValue(0);
+    Image.getSize(
+      displayUri,
+      (w, h) => {
+        if (!cancelled) {
+          handleImageLoadDimensions({ width: w, height: h });
+        }
+      },
+      () => {
+        if (!cancelled) {
+          revealImage();
+        }
+      },
+    );
+    const fallbackTimer = setTimeout(() => {
+      if (!cancelled) {
+        revealImage();
+      }
+    }, REVEAL_FALLBACK_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(fallbackTimer);
+      clearLongPress();
+    };
+  }, [
+    displayUri,
+    resetTransform,
+    clearLongPress,
+    imageOpacity,
+    handleImageLoadDimensions,
+    revealImage,
+  ]);
 
   useEffect(() => {
     if (!uri) {
@@ -382,12 +462,14 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     <Modal
       visible
       transparent
-      animationType="fade"
+      animationType="none"
       presentationStyle="overFullScreen"
       statusBarTranslucent
       onRequestClose={onClose}
       supportedOrientations={['portrait', 'landscape']}
     >
+      {/* opacity 用原生驱动，单独一层，避免与 backgroundColor(JS 驱动) 混用 */}
+      <Animated.View style={[styles.fill, { opacity: overlayOpacity }]}>
       <Animated.View
         style={[styles.backdrop, { backgroundColor }]}
         {...panResponder.panHandlers}
@@ -400,12 +482,19 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             {
               width,
               height,
+              opacity: imageOpacity,
               transform: [{ translateX }, { translateY }, { scale }],
             },
           ]}
         >
           {displayUri ? (
-            <PlatformImage uri={displayUri} style={{ width, height }} resizeMode="contain" />
+            <PlatformImage
+              uri={displayUri}
+              style={{ width, height }}
+              resizeMode="contain"
+              fadeDuration={0}
+              onLoadDimensions={handleImageLoadDimensions}
+            />
           ) : null}
         </Animated.View>
         {(loading || failed) && (
@@ -421,6 +510,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           </View>
         )}
       </Animated.View>
+      </Animated.View>
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -434,6 +524,9 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
 };
 
 const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.96)',
