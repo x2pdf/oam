@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, Platform, Pressable } from 'react-native';
+import { View, StyleSheet, Platform, Pressable, TouchableOpacity } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { InputDataItem } from '../types';
 import { OampContentBody } from './OampContentBody';
@@ -16,10 +17,11 @@ interface InputDataCardProps {
   item: InputDataItem;
   cardWidth?: number;
   onPress?: () => void;
+  onInteraction?: (item: InputDataItem) => void;
 }
 
 export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
-  ({ item, cardWidth, onPress }) => {
+  ({ item, cardWidth, onPress, onInteraction }) => {
     const theme = useTheme();
     const { t } = useTranslation();
     const { state } = useAppContext();
@@ -113,12 +115,31 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
 
           {renderBody()}
 
-          <Text
-            variant="labelSmall"
-            style={[styles.timeText, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) }]}
-          >
-            {displayTime}
-          </Text>
+          <View style={styles.footerRow}>
+            {onInteraction ? (
+              <TouchableOpacity
+                onPress={() => onInteraction(item)}
+                hitSlop={8}
+                activeOpacity={0.6}
+                style={styles.interactionBtn}
+                accessibilityLabel={t('interaction.like')}
+              >
+                <Ionicons
+                  name="heart-outline"
+                  size={18}
+                  color={theme.colors.primary}
+                />
+              </TouchableOpacity>
+            ) : (
+              <View />
+            )}
+            <Text
+              variant="labelSmall"
+              style={[styles.timeText, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) }]}
+            >
+              {displayTime}
+            </Text>
+          </View>
         </Card.Content>
       </Card>
     );
@@ -183,8 +204,15 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   timeText: {
-    textAlign: 'right',
     fontSize: 11,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 4,
+  },
+  interactionBtn: {
+    padding: 2,
   },
 });
