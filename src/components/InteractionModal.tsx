@@ -136,19 +136,14 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     [item?.from, item?.address],
   );
 
-  const isSelfLike = useMemo(() => {
-    if (!profile?.address || !authorAddress) return false;
-    return profile.address.toLowerCase() === authorAddress.toLowerCase();
-  }, [profile?.address, authorAddress]);
-
   const recipientAddress = useMemo(() => {
-    if (action === 'like') {
-      return isSelfLike ? BLACK_HOLE : (authorAddress || BLACK_HOLE);
+    if (action === 'like' || action === 'comment') {
+      return authorAddress || BLACK_HOLE;
     }
     return BLACK_HOLE;
-  }, [action, isSelfLike, authorAddress]);
+  }, [action, authorAddress]);
 
-  // 展示：永远跟下方 Approx 手续费走，只乘倍数。自己赞自己也照常显示（实际转账金额见 ethValueToSend）。
+  // 展示：永远跟下方 Approx 手续费走，只乘倍数。
   const ethValueDisplay = useMemo(() => {
     if (action !== 'like' || !feeEstimate) return null;
     try {
@@ -158,15 +153,15 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     }
   }, [action, feeEstimate, multiplier]);
 
-  // 实际上链附带的 ETH：自己赞自己为 0，否则 = Approx × 倍数。
+  // 实际上链附带的 ETH：点赞 = Approx × 倍数（自己赞自己也一样，小费回到自己地址）。
   const ethValueToSend = useMemo(() => {
-    if (action !== 'like' || !feeEstimate || isSelfLike) return 0n;
+    if (action !== 'like' || !feeEstimate) return 0n;
     try {
       return parseEther(feeEstimate) * BigInt(multiplier);
     } catch {
       return 0n;
     }
-  }, [action, feeEstimate, isSelfLike, multiplier]);
+  }, [action, feeEstimate, multiplier]);
 
   const composeContent = useMemo(() => {
     if (!item) return '';
@@ -283,7 +278,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       }
 
       const tipWei =
-        action === 'like' && !isSelfLike
+        action === 'like'
           ? parseEther(feeEth) * BigInt(multiplier)
           : 0n;
       const optionToApply = currentFeeOption || feeOptionRef.current;
@@ -306,7 +301,6 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     recipientAddress,
     estimateContentItems,
     action,
-    isSelfLike,
     multiplier,
     applyFeeOptionLocally,
     syncCustomFeeInputsFromOption,
@@ -376,12 +370,12 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     if (!feeEstimate || balanceWeiRef.current == null) return;
     try {
       const feeWeiValue = parseEther(feeEstimate);
-      const tipWei = action === 'like' && !isSelfLike ? feeWeiValue * BigInt(multiplier) : 0n;
+      const tipWei = action === 'like' ? feeWeiValue * BigInt(multiplier) : 0n;
       setInsufficientBalance(balanceWeiRef.current < feeWeiValue + tipWei);
     } catch {
       // ignore
     }
-  }, [feeEstimate, multiplier, action, isSelfLike]);
+  }, [feeEstimate, multiplier, action]);
 
   const handleSelectFeeLevel = useCallback((level: 'slow' | 'normal' | 'fast') => {
     const base = feeOptionRef.current ?? feeOption;
@@ -452,12 +446,13 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       const items = contentItems;
       let hash = '';
 
-      if (action === 'like') {
-        if (isSelfLike) {
-          hash = await client.sendBroadcast(items, feeOption || undefined, ethValueToSend);
-        } else {
-          hash = await client.sendUnencryptedMessage(recipientAddress, items, feeOption || undefined, ethValueToSend);
-        }
+      if (action === 'like' || action === 'comment') {
+        hash = await client.sendUnencryptedMessage(
+          recipientAddress,
+          items,
+          feeOption || undefined,
+          action === 'like' ? ethValueToSend : 0n,
+        );
       } else {
         hash = await client.sendBroadcast(items, feeOption || undefined, 0n);
       }
@@ -520,7 +515,6 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     contentItems,
     ethValueToSend,
     feeOption,
-    isSelfLike,
     item,
     password,
     passwordLocked,
