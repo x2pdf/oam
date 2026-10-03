@@ -1,4 +1,6 @@
-export const ARWEAVE_GATEWAY = 'https://arweave.net/';
+import { PRIMARY_ARWEAVE_GATEWAY } from '../config/arweaveGatewayConfig';
+
+export const ARWEAVE_GATEWAY: string = PRIMARY_ARWEAVE_GATEWAY;
 
 export const ATTACHMENT_FILE_TYPES = [
   'jpeg',

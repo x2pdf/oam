@@ -146,10 +146,3 @@ export const REMOTE_IMAGE_TIMEOUT_MS = 15000;
 
 /** 非 Arweave 远程图：同一 URL 最多尝试次数 */
 export const REMOTE_IMAGE_RETRY_PER_URL = 2;
-
-/** Arweave 网关列表，按顺序尝试 */
-export const ARWEAVE_GATEWAYS = [
-  'https://arweave.net/',
-  'https://ar-io.net/',
-  'https://g8way.io/',
-] as const;

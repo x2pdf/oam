@@ -1,8 +1,6 @@
-import {
-  ARWEAVE_GRAPHQL_ENDPOINTS,
-  ARWEAVE_GRAPHQL_PAGE_SIZE,
-  ARWEAVE_GRAPHQL_REQUEST_TIMEOUT_MS,
-} from '../constants';
+import { ARWEAVE_GRAPHQL_REQUEST_TIMEOUT_MS } from '../../../config/arweaveGatewayConfig';
+import { withArweaveGateways } from '../../gateway';
+import { ARWEAVE_GRAPHQL_PAGE_SIZE } from '../constants';
 import { ArweaveGraphQLTransaction } from '../types';
 
 const OWNER_TRANSACTIONS_QUERY = `
@@ -100,14 +98,5 @@ export async function fetchOwnerTransactions(
   const first = options.first ?? ARWEAVE_GRAPHQL_PAGE_SIZE;
   const after = options.after ?? null;
 
-  let lastError: unknown;
-  for (const endpoint of ARWEAVE_GRAPHQL_ENDPOINTS) {
-    try {
-      return await postGraphQL(endpoint, address, first, after);
-    } catch (e) {
-      lastError = e;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  return withArweaveGateways((gateway) => postGraphQL(`${gateway}graphql`, address, first, after));
 }

@@ -1,9 +1,6 @@
 import { Platform } from 'react-native';
-import {
-  ARWEAVE_GATEWAYS,
-  REMOTE_IMAGE_RETRY_PER_URL,
-  REMOTE_IMAGE_TIMEOUT_MS,
-} from '../constants';
+import { REMOTE_IMAGE_RETRY_PER_URL, REMOTE_IMAGE_TIMEOUT_MS } from '../constants';
+import { markArweaveGatewayOk, orderedArweaveGateways } from '../arweave/gateway';
 import { fetchImageWithTimeout } from '../datasource/fetchWithTimeout';
 import { extractArweaveIdFromUri, isHttpUrl } from '../utils/attachment';
 import {
@@ -28,10 +25,7 @@ let clearGeneration = 0;
 export function expandCandidateUrls(url: string): string[] {
   const arId = extractArweaveIdFromUri(url);
   if (arId) {
-    return ARWEAVE_GATEWAYS.map((gateway) => {
-      const base = gateway.endsWith('/') ? gateway : `${gateway}/`;
-      return `${base}${arId}`;
-    });
+    return orderedArweaveGateways().map((gateway) => `${gateway}${arId}`);
   }
   return Array.from({ length: REMOTE_IMAGE_RETRY_PER_URL }, () => url);
 }
@@ -155,6 +149,7 @@ async function downloadRemoteImage(placeholder: string, mimeHint?: string): Prom
         throw new Error('Image cache cleared during download');
       }
       await upsertCacheMap(placeholder, local);
+      markArweaveGatewayOk(candidate);
       return local;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
