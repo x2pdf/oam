@@ -9,7 +9,12 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../types';
 import { showAlert } from '../utils/alert';
-import { validatePaymentPassword, PAYMENT_PASSWORD_MAX_LENGTH } from '../wallet/passwordRules';
+import {
+  validatePaymentPassword,
+  validatePaymentPasswordLength,
+  PAYMENT_PASSWORD_MAX_LENGTH,
+  PAYMENT_PASSWORD_KEYBOARD_TYPE,
+} from '../wallet/passwordRules';
 import {
   changePaymentPassword,
   INVALID_PASSWORD_ERROR,
@@ -51,6 +56,9 @@ export default function ChangePaymentPasswordScreen() {
     const next: FieldErrors = {};
     if (!oldPassword) {
       next.old = t('form.oldPayPasswordRequired');
+    } else {
+      const oldLengthRuleKey = validatePaymentPasswordLength(oldPassword);
+      if (oldLengthRuleKey) next.old = t(oldLengthRuleKey);
     }
     const ruleKey = validatePaymentPassword(newPassword);
     if (ruleKey) {
@@ -121,7 +129,9 @@ export default function ChangePaymentPasswordScreen() {
             onChangeText={(v) => { setOldPassword(v); clearError('old'); }}
             mode="outlined"
             secureTextEntry
-            keyboardType="numeric"
+            keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+            autoCapitalize="none"
+            autoCorrect={false}
             maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
             placeholder={t('form.oldPayPasswordPlaceholder')}
             error={!!errors.old}
@@ -136,7 +146,9 @@ export default function ChangePaymentPasswordScreen() {
             onChangeText={(v) => { setNewPassword(v); clearError('next'); }}
             mode="outlined"
             secureTextEntry
-            keyboardType="numeric"
+            keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+            autoCapitalize="none"
+            autoCorrect={false}
             maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
             placeholder={t('form.newPayPasswordPlaceholder')}
             error={!!errors.next}
@@ -150,7 +162,9 @@ export default function ChangePaymentPasswordScreen() {
             onChangeText={(v) => { setConfirmPassword(v); clearError('confirm'); }}
             mode="outlined"
             secureTextEntry
-            keyboardType="numeric"
+            keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+            autoCapitalize="none"
+            autoCorrect={false}
             maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
             placeholder={t('form.confirmPayPasswordPlaceholder')}
             error={!!errors.confirm}

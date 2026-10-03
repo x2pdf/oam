@@ -40,6 +40,7 @@ import { buildExportFilename } from '../export/pdfTypes';
 import { generatePdfFromHtml } from '../export/generatePdf';
 import { savePdf } from '../adapter/savePdf';
 import { ContentKind } from '../types';
+import { validatePaymentPasswordLength, PAYMENT_PASSWORD_MAX_LENGTH, PAYMENT_PASSWORD_KEYBOARD_TYPE } from '../wallet/passwordRules';
 
 const MIN_START_YMD = '2010-01-01';
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -314,6 +315,11 @@ export default function ExportDataScreen() {
       setPasswordError(t('send.passwordLabel'));
       return;
     }
+    const lengthRuleKey = validatePaymentPasswordLength(password);
+    if (lengthRuleKey) {
+      setPasswordError(t(lengthRuleKey));
+      return;
+    }
     setUnlocking(true);
     try {
       await unlockSession(password);
@@ -561,8 +567,10 @@ export default function ExportDataScreen() {
           mode="outlined"
           label={t('send.passwordLabel')}
           secureTextEntry
-          keyboardType="numeric"
-          maxLength={16}
+          keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
           value={password}
           onChangeText={(value) => {
             setPassword(value);

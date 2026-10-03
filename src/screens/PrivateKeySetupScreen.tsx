@@ -14,7 +14,7 @@ import { getVerifiedOldPassword } from '../wallet/paymentPasswordContext';
 import { useAppContext } from '../context/AppContext';
 import { DEFAULT_CHAIN } from '../constants';
 import { showAlert } from '../utils/alert';
-import { validatePaymentPassword } from '../wallet/passwordRules';
+import { validatePaymentPassword, PAYMENT_PASSWORD_MAX_LENGTH, PAYMENT_PASSWORD_KEYBOARD_TYPE } from '../wallet/passwordRules';
 
 type RoutePropType = RouteProp<RootStackParamList, 'PrivateKeySetup'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -110,8 +110,10 @@ export default function PrivateKeySetupScreen() {
           onChangeText={setPassword}
           mode="outlined"
           secureTextEntry
-          keyboardType="numeric"
-          maxLength={16}
+          keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
           placeholder={t('form.payPasswordPlaceholder')}
           style={styles.input}
         />
@@ -122,8 +124,10 @@ export default function PrivateKeySetupScreen() {
           onChangeText={setConfirmPassword}
           mode="outlined"
           secureTextEntry
-          keyboardType="numeric"
-          maxLength={16}
+          keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
           placeholder={t('form.confirmPayPasswordPlaceholder')}
           style={styles.input}
         />

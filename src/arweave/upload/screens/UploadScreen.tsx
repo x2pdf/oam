@@ -45,6 +45,7 @@ import {
   postUploadTransaction,
   uploadBase64ToUint8Array,
 } from '../transaction';
+import { validatePaymentPasswordLength, PAYMENT_PASSWORD_MAX_LENGTH, PAYMENT_PASSWORD_KEYBOARD_TYPE } from '../../../wallet/passwordRules';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -200,6 +201,11 @@ export default function ArweaveUploadScreen() {
     if (passwordLocked) return;
     if (!password) {
       setPasswordError(t('arweave.upload.passwordRequired'));
+      return;
+    }
+    const lengthRuleKey = validatePaymentPasswordLength(password);
+    if (lengthRuleKey) {
+      setPasswordError(t(lengthRuleKey));
       return;
     }
     if (!pickedFile || !arProfile) return;
@@ -524,8 +530,10 @@ export default function ArweaveUploadScreen() {
           mode="outlined"
           label={t('arweave.upload.passwordLabel')}
           secureTextEntry
-          keyboardType="numeric"
-          maxLength={16}
+          keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
           value={password}
           onChangeText={(value) => {
             setPassword(value);

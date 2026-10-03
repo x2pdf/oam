@@ -53,6 +53,7 @@ import {
   interactionEmoji,
   interactionPreviewText,
 } from '../utils/interactionContent';
+import { validatePaymentPasswordLength, PAYMENT_PASSWORD_MAX_LENGTH, PAYMENT_PASSWORD_KEYBOARD_TYPE } from '../wallet/passwordRules';
 
 type Step = 'compose' | 'fee' | 'password' | 'success';
 
@@ -364,6 +365,11 @@ export default function InteractionScreen() {
     if (passwordLocked) return;
     if (!password) {
       setPasswordError(t('send.passwordLabel'));
+      return;
+    }
+    const lengthRuleKey = validatePaymentPasswordLength(password);
+    if (lengthRuleKey) {
+      setPasswordError(t(lengthRuleKey));
       return;
     }
     if (!item || !profile?.address) return;
@@ -776,8 +782,10 @@ export default function InteractionScreen() {
         mode="outlined"
         label={t('send.passwordLabel')}
         secureTextEntry
-        keyboardType="numeric"
-        maxLength={16}
+        keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+        autoCapitalize="none"
+        autoCorrect={false}
+        maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
         value={password}
         onChangeText={(value) => {
           setPassword(value);

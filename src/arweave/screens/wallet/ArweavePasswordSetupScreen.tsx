@@ -12,7 +12,7 @@ import { useAppContext } from '../../../context/AppContext';
 import { finalizeArWallet, isPeerReencryptError } from '../../wallet/finalizeWallet';
 import { setPendingNewPassword } from '../../wallet/verifiedEthPassword';
 import { showAlert } from '../../../utils/alert';
-import { validatePaymentPassword } from '../../../wallet/passwordRules';
+import { validatePaymentPassword, PAYMENT_PASSWORD_MAX_LENGTH, PAYMENT_PASSWORD_KEYBOARD_TYPE } from '../../../wallet/passwordRules';
 
 type RoutePropType = RouteProp<RootStackParamList, 'ArweavePasswordSetup'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -83,8 +83,10 @@ export default function ArweavePasswordSetupScreen() {
             onChangeText={setPassword}
             mode="outlined"
             secureTextEntry
-            keyboardType="numeric"
-            maxLength={16}
+            keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
             placeholder={t('form.payPasswordPlaceholder')}
             style={styles.input}
           />
@@ -95,8 +97,10 @@ export default function ArweavePasswordSetupScreen() {
             onChangeText={setConfirmPassword}
             mode="outlined"
             secureTextEntry
-            keyboardType="numeric"
-            maxLength={16}
+            keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
             placeholder={t('form.confirmPayPasswordPlaceholder')}
             style={styles.input}
           />

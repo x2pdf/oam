@@ -9,6 +9,7 @@ import {
   PASSWORD_LOCKED_ERROR,
   verifyEthPassword,
 } from '../wallet/ethPasswordVerify';
+import { validatePaymentPasswordLength, PAYMENT_PASSWORD_MAX_LENGTH, PAYMENT_PASSWORD_KEYBOARD_TYPE } from '../../wallet/passwordRules';
 
 type EthPasswordGateModalProps = {
   visible: boolean;
@@ -59,6 +60,11 @@ export function EthPasswordGateModal({ visible, onDismiss, onVerified }: EthPass
       setPasswordError(t('send.passwordLabel'));
       return;
     }
+    const lengthRuleKey = validatePaymentPasswordLength(password);
+    if (lengthRuleKey) {
+      setPasswordError(t(lengthRuleKey));
+      return;
+    }
 
     setVerifying(true);
     setPasswordError(null);
@@ -104,8 +110,10 @@ export function EthPasswordGateModal({ visible, onDismiss, onVerified }: EthPass
       <PaperTextInput
         label={t('send.passwordLabel')}
         secureTextEntry
-        keyboardType="numeric"
-        maxLength={16}
+        keyboardType={PAYMENT_PASSWORD_KEYBOARD_TYPE}
+        autoCapitalize="none"
+        autoCorrect={false}
+        maxLength={PAYMENT_PASSWORD_MAX_LENGTH}
         value={password}
         onChangeText={(value) => {
           setPassword(value);
