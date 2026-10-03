@@ -54,7 +54,7 @@ export function mapToInputDataItem(
     from: tx.from,
     to: tx.to,
     description: '',
-    balance: `${(parseInt(tx.value || '0', 10) / 1e18).toFixed(4)} ETH`,
+    balance: `${(parseInt(tx.value || '0', 10) / 1e18).toFixed(8)} ETH`,
     txCount: 1,
     lastActive,
     timestamp: tx.timestamp || 0,
