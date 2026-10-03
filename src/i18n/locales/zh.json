@@ -624,7 +624,8 @@
     "encrypted": "原内容为加密消息，无法显示",
     "unreadable": "引用内容无法显示",
     "filtered": "原内容已被过滤规则隐藏",
-    "image": "[图片]"
+    "image": "[图片]",
+    "viewOriginal": "查看原文"
   },
   "interaction": {
     "title": "互动",

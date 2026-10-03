@@ -2,8 +2,10 @@ import React, { useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ActivityIndicator, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ContentItem } from '../mypayload';
-import { InputDataItem } from '../types';
+import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { useReferencedTx } from '../datasource/refResolver';
 import { isHiddenByContentFilters } from '../utils/contentFilterApply';
@@ -23,6 +25,8 @@ function quoteText(items: ContentItem[] | undefined, imageLabel: string): string
   return joined.length > QUOTE_MAX_CHARS ? `${joined.slice(0, QUOTE_MAX_CHARS)}…` : joined;
 }
 
+type NavProp = NativeStackNavigationProp<RootStackParamList>;
+
 interface Props {
   refHash: string;
   action: string;
@@ -31,6 +35,7 @@ interface Props {
 export const RefQuoteCard: React.FC<Props> = ({ refHash }) => {
   const theme = useTheme();
   const { t } = useTranslation();
+  const navigation = useNavigation<NavProp>();
   const { state } = useAppContext();
   const { view, retry } = useReferencedTx(refHash);
 
@@ -69,10 +74,17 @@ export const RefQuoteCard: React.FC<Props> = ({ refHash }) => {
     body = <Text variant="bodySmall" style={muted}>{t('refQuote.filtered')}</Text>;
   } else {
     const text = quoteText(view.item.oampItems, t('refQuote.image'));
+    const original = view.item;
+    onPress = () => navigation.navigate('InputDataDetail', { item: original });
     body = (
-      <Text variant="bodyMedium" numberOfLines={QUOTE_MAX_LINES} style={{ color: theme.colors.onSurfaceVariant }}>
-        {text || t('refQuote.unreadable')}
-      </Text>
+      <>
+        <Text variant="bodyMedium" numberOfLines={QUOTE_MAX_LINES} style={{ color: theme.colors.onSurfaceVariant }}>
+          {text || t('refQuote.unreadable')}
+        </Text>
+        <Text variant="labelSmall" style={[styles.viewOriginal, { color: theme.colors.primary }]}>
+          {t('refQuote.viewOriginal')} ›
+        </Text>
+      </>
     );
   }
 
@@ -104,4 +116,5 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center' },
   rowText: { marginLeft: 8 },
+  viewOriginal: { marginTop: 4, textAlign: 'right' },
 });

@@ -624,7 +624,8 @@
     "encrypted": "Original is an encrypted message and cannot be shown",
     "unreadable": "Referenced content cannot be displayed",
     "filtered": "Original hidden by your content filters",
-    "image": "[Image]"
+    "image": "[Image]",
+    "viewOriginal": "View original"
   },
   "interaction": {
     "title": "Interact",
