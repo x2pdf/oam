@@ -17,7 +17,12 @@
       "bundleIdentifier": "com.oam.app"
     },
     "android": {
-      "package": "com.oam.app"
+      "package": "com.oam.app",
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -32,7 +37,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos",
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera"
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ]
     ]
