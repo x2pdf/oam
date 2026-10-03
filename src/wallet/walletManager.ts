@@ -8,8 +8,7 @@ export const PRIVATE_KEY_STORAGE_KEY = 'user_wallet_private_key';
 /**
  * scrypt cost for new keystores (ethers default, 128 MiB). Native builds run it
  * through react-native-quick-crypto (see crypto-polyfill.js); web/desktop use the
- * pure-JS fallback. Decryption reads N from the keystore JSON, so keystores
- * written with the old N=8192 still open and are upgraded by a password change.
+ * pure-JS fallback. Decryption reads N from the keystore JSON.
  */
 export const KEYSTORE_SCRYPT_N = 131072;
 

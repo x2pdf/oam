@@ -59,8 +59,6 @@ let inFlight = false;
 /**
  * Changes the payment password shared by the ETH and AR keystores, atomically:
  * either both keystores end up under the new password or both stay under the old one.
- * Keystores are re-encrypted with the current KDF cost, so this also upgrades
- * keystores written with older, weaker parameters.
  *
  * 1. Verify the old password (shares the wrong-password lockout with every other gate).
  * 2. Decrypt every keystore and re-encrypt it in memory; prove each new ciphertext opens.

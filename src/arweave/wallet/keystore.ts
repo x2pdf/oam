@@ -7,14 +7,12 @@ export const AR_KEYSTORE_STORAGE_KEY = 'oam_ar_wallet_keystore';
 
 /** Iterations for new keystores (OWASP 2023 guidance for PBKDF2-HMAC-SHA256). */
 const PBKDF2_ITERATIONS = 600_000;
-/** v1 payloads carry no iteration count; they were always written with this value. */
-const LEGACY_PBKDF2_ITERATIONS = 100_000;
 const MAX_PBKDF2_ITERATIONS = 10_000_000;
 
-/** v2 records the iteration count; v1 is the legacy format, still readable. */
+/** The payload records its iteration count, so the cost can be raised later. */
 interface EncryptedPayload {
-  v: 1 | 2;
-  iter?: number;
+  v: 2;
+  iter: number;
   salt: string;
   iv: string;
   ciphertext: string;
@@ -84,13 +82,12 @@ export async function encryptJwk(jwk: ArweaveJwk, password: string): Promise<str
 }
 
 function payloadIterations(payload: EncryptedPayload): number {
-  if (payload.v === 1) return LEGACY_PBKDF2_ITERATIONS;
   const iter = payload.iter;
   if (
     payload.v !== 2
     || typeof iter !== 'number'
     || !Number.isInteger(iter)
-    || iter < LEGACY_PBKDF2_ITERATIONS
+    || iter < PBKDF2_ITERATIONS
     || iter > MAX_PBKDF2_ITERATIONS
   ) {
     throw new Error('Unsupported AR keystore format');

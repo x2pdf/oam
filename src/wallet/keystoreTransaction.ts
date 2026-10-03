@@ -1,5 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import { secureDelete, secureGet, secureSet } from '../storage/secureStorage';
 import {
   loadEncryptedKeystore,
@@ -29,7 +27,6 @@ export class PasswordChangeError extends Error {
 }
 
 const JOURNAL_STORAGE_KEY = 'oam_payment_password_change_journal';
-const ACCESSIBILITY_MIGRATION_KEY = 'oam_keystore_accessibility_v1';
 
 /** The full keystore state; `null` means "no such keystore". */
 export interface KeystoreSnapshot {
@@ -97,20 +94,19 @@ async function applyOne(
   target: string | null,
   save: (value: string) => Promise<void>,
   remove: () => Promise<void>,
-  rewrite: boolean,
 ): Promise<void> {
   if (target === null) {
     if (current !== null) await remove();
-  } else if (rewrite || current !== target) {
+  } else if (current !== target) {
     await save(target);
   }
 }
 
 /** Makes storage equal `target` (null removes), then reads back to verify. */
-async function applySnapshot(target: KeystoreSnapshot, rewrite = false): Promise<void> {
+async function applySnapshot(target: KeystoreSnapshot): Promise<void> {
   const current = await readCurrentSnapshot();
-  await applyOne(current.eth, target.eth, saveEncryptedKeystore, removeEncryptedKeystore, rewrite);
-  await applyOne(current.ar, target.ar, saveEncryptedArKeystore, removeEncryptedArKeystore, rewrite);
+  await applyOne(current.eth, target.eth, saveEncryptedKeystore, removeEncryptedKeystore);
+  await applyOne(current.ar, target.ar, saveEncryptedArKeystore, removeEncryptedArKeystore);
 
   const after = await readCurrentSnapshot();
   if (after.eth !== target.eth || after.ar !== target.ar) {
@@ -167,14 +163,12 @@ export async function recoverPendingKeystoreChange(): Promise<'none' | 'cleared'
  * Persists a journal holding old + next, switches the keystores and reads them back.
  * Any failure restores `old`; if even that fails the journal stays and
  * `recoverPendingKeystoreChange` finishes the restore on next launch.
- * With `rewrite`, keystores are rewritten even when `old` equals `next`.
  *
  * Throws PasswordChangeError (FAILED: nothing changed, INCOMPLETE: needs recovery).
  */
 export async function commitKeystoreChange(
   old: KeystoreSnapshot,
   next: KeystoreSnapshot,
-  options: { rewrite?: boolean } = {},
 ): Promise<void> {
   try {
     await writeJournal({ v: 1, old, next });
@@ -185,7 +179,7 @@ export async function commitKeystoreChange(
   }
 
   try {
-    await applySnapshot(next, options.rewrite);
+    await applySnapshot(next);
   } catch (cause) {
     try {
       await applySnapshot(old);
@@ -212,20 +206,4 @@ export async function wipeKeystores(): Promise<void> {
   const old = await readCurrentSnapshot();
   if (old.eth === null && old.ar === null) return;
   await commitKeystoreChange(old, { eth: null, ar: null });
-}
-
-/**
- * One-time upgrade for keystores written before they were stored as
- * "this device only": rewrite them so the iOS Keychain accessibility applies to
- * existing installs too. Retried on the next launch if it fails.
- */
-export async function migrateKeystoreAccessibility(): Promise<void> {
-  if (Platform.OS === 'web') return;
-  if ((await AsyncStorage.getItem(ACCESSIBILITY_MIGRATION_KEY)) === 'done') return;
-
-  const current = await readCurrentSnapshot();
-  if (current.eth !== null || current.ar !== null) {
-    await commitKeystoreChange(current, current, { rewrite: true });
-  }
-  await AsyncStorage.setItem(ACCESSIBILITY_MIGRATION_KEY, 'done');
 }

@@ -19,8 +19,8 @@ function isTriviallyGuessable(password: string): boolean {
  * 8–16 characters (the input is a numeric keypad) and not a repeated or
  * sequential run. Returns the i18n key of the violated rule, or null when valid.
  *
- * Never apply this to the password typed at an unlock gate: passwords created
- * before the minimum went from 6 to 8 must keep working.
+ * Never apply this to the password typed at an unlock gate: a gate only checks
+ * the input against the keystore.
  */
 export function validatePaymentPassword(password: string): PaymentPasswordRuleKey | null {
   if (password.length < PAYMENT_PASSWORD_MIN_LENGTH) return 'form.payPasswordMinLength';
