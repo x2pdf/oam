@@ -4,6 +4,16 @@ import { MD3LightTheme, MD3DarkTheme, MD3Theme } from 'react-native-paper';
 const PRIMARY_COLOR = '#1DA1F2';
 const SECONDARY_COLOR = '#7B68EE';
 
+/** 浅色中性灰 elevation 阶梯（替换 MD3 默认的淡紫色调），搜索框等使用 */
+const lightElevation = {
+  level0: 'transparent',
+  level1: '#F4F5F7',
+  level2: '#EEF0F2',
+  level3: '#E9EBEE',
+  level4: '#E7E9EC',
+  level5: '#E3E5E9',
+};
+
 export const lightTheme = {
   ...MD3LightTheme,
   colors: {
@@ -17,6 +27,10 @@ export const lightTheme = {
     onSurface: '#1A1C1E',
     onSurfaceVariant: '#43474E',
     outline: '#73777F',
+    /** 中性灰（替换 MD3 默认的淡紫色 #E7E0EC / #CAC4D0），引用卡片等使用 */
+    surfaceVariant: '#E6E8EC',
+    outlineVariant: '#C4C7CE',
+    elevation: { ...lightElevation },
   },
   roundness: 12,
 };
