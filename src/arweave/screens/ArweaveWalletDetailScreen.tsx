@@ -19,10 +19,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppContext } from '../../context/AppContext';
 import { RootStackParamList } from '../../types';
 import { CopyableAddress } from '../../components/CopyableAddress';
-import {
-  clearRemoteImageCache,
-  getRemoteImageCacheCount,
-} from '../../adapter/remoteImageLoader';
+import { clearArweaveLocalCache, getArweaveLocalCacheCount } from '../localCache';
 import { getUploadWalletBalanceAr } from '../upload/transaction';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -73,7 +70,7 @@ export default function ArweaveWalletDetailScreen() {
 
   const loadCacheCount = useCallback(async () => {
     try {
-      const count = await getRemoteImageCacheCount();
+      const count = await getArweaveLocalCacheCount();
       setCacheCount(count);
     } catch (e) {
       console.warn('loadCacheCount failed:', e);
@@ -84,13 +81,14 @@ export default function ArweaveWalletDetailScreen() {
   const handleClearCache = useCallback(async () => {
     setClearingCache(true);
     try {
-      await clearRemoteImageCache();
-      setCacheCount(0);
+      await clearArweaveLocalCache();
+      await loadCacheCount();
       setSnackbarMessage(
-        t('arweave.walletDetail.cacheCleared', { defaultValue: '已清除 AR 图片本地缓存' }),
+        t('arweave.walletDetail.cacheCleared', { defaultValue: '已清除 AR 本地缓存' }),
       );
     } catch (e) {
-      console.warn('clearRemoteImageCache failed:', e);
+      console.warn('clearArweaveLocalCache failed:', e);
+      await loadCacheCount();
       setSnackbarMessage(
         t('arweave.walletDetail.cacheClearFailed', { defaultValue: '清除缓存失败' }),
       );
@@ -98,7 +96,7 @@ export default function ArweaveWalletDetailScreen() {
       setClearingCache(false);
       setSnackbarVisible(true);
     }
-  }, [t]);
+  }, [t, loadCacheCount]);
 
   useEffect(() => {
     if (!address) {
@@ -221,7 +219,7 @@ export default function ArweaveWalletDetailScreen() {
                     ? t('arweave.walletDetail.cacheCountLoading', { defaultValue: '统计中…' })
                     : t('arweave.walletDetail.cacheCount', {
                         count: cacheCount,
-                        defaultValue: `已缓存 {{count}} 个文件`,
+                        defaultValue: `已缓存 {{count}} 项`,
                       })}
                 </Text>
                 <Button

@@ -18,6 +18,7 @@ import AddAttachmentScreen from '../screens/AddAttachmentScreen';
 import SubscriptionFormScreen from '../screens/SubscriptionFormScreen';
 import AddInfoSelectScreen from '../screens/AddInfoSelectScreen';
 import AddAddressFormScreen from '../screens/AddAddressFormScreen';
+import ChangePaymentPasswordScreen from '../screens/ChangePaymentPasswordScreen';
 import WalletDisclaimerScreen from '../screens/WalletDisclaimerScreen';
 import RecoverDisclaimerScreen from '../screens/RecoverDisclaimerScreen';
 import MnemonicBackupScreen from '../screens/MnemonicBackupScreen';
@@ -209,6 +210,11 @@ export default function AppNavigator() {
             title: route.params?.mode === 'add' ? t('nav.addAddressForm') : t('nav.editAddressForm'),
             presentation: 'modal',
           })}
+        />
+        <Stack.Screen
+          name="ChangePaymentPassword"
+          component={ChangePaymentPasswordScreen}
+          options={{ title: t('nav.changePaymentPassword') }}
         />
         <Stack.Screen
           name="WalletDisclaimer"

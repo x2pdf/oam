@@ -22,6 +22,8 @@ import {
 } from './remoteImageStore';
 
 const inFlight = new Map<string, Promise<string>>();
+/** Bumped on every clear so downloads started earlier never write files back. */
+let clearGeneration = 0;
 
 export function expandCandidateUrls(url: string): string[] {
   const arId = extractArweaveIdFromUri(url);
@@ -136,6 +138,7 @@ async function fetchImageBytes(
 
 async function downloadRemoteImage(placeholder: string, mimeHint?: string): Promise<string> {
   const candidates = expandCandidateUrls(placeholder);
+  const generation = clearGeneration;
   let lastError: Error | null = null;
 
   for (const candidate of candidates) {
@@ -143,11 +146,21 @@ async function downloadRemoteImage(placeholder: string, mimeHint?: string): Prom
       const { bytes, mime } = await fetchImageBytes(candidate, mimeHint);
       const sniffed = sniffImageMeta(bytes);
       const meta = sniffed ?? resolveImageMeta(mime, candidate);
+      if (generation !== clearGeneration) {
+        throw new Error('Image cache cleared during download');
+      }
       const local = await writeLocalFile(placeholder, bytes, meta.ext);
+      if (generation !== clearGeneration) {
+        await deleteLocalFilesByPlaceholder(placeholder);
+        throw new Error('Image cache cleared during download');
+      }
       await upsertCacheMap(placeholder, local);
       return local;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      if (generation !== clearGeneration) {
+        break;
+      }
     }
   }
 
@@ -220,6 +233,7 @@ export async function getRemoteImageCacheCount(): Promise<number> {
 }
 
 export async function clearRemoteImageCache(): Promise<void> {
+  clearGeneration += 1;
   inFlight.clear();
   await clearCacheMap();
   await clearRemoteImageStore();

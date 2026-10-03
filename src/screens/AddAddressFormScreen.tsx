@@ -36,6 +36,7 @@ export default function AddAddressFormScreen({ route, navigation }: Props) {
   } = useAppContext();
 
   const isEdit = mode === 'edit';
+  const canChangePassword = isEdit && subscription?.walletType === 'write';
 
   /* ---------- 表单状态 ---------- */
   const [address, setAddress] = useState(subscription?.address ?? '');
@@ -106,6 +107,11 @@ export default function AddAddressFormScreen({ route, navigation }: Props) {
       t('common.cancel'),
     );
   }, [deleteProfile, navigation, t]);
+
+  /* ---------- 修改支付密码 ---------- */
+  const handleChangePassword = useCallback(() => {
+    navigation.navigate('ChangePaymentPassword');
+  }, [navigation]);
 
   /* ---------- 取消 ---------- */
   const handleCancel = useCallback(() => {
@@ -192,6 +198,16 @@ export default function AddAddressFormScreen({ route, navigation }: Props) {
         >
           {t('common.save')}
         </Button>
+        {canChangePassword && (
+          <Button
+            mode="outlined"
+            icon="lock-reset"
+            onPress={handleChangePassword}
+            style={styles.button}
+          >
+            {t('wallet.changePayPassword')}
+          </Button>
+        )}
         <Button
           mode="outlined"
           onPress={handleCancel}

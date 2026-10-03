@@ -4,12 +4,23 @@ import * as Sharing from 'expo-sharing';
 
 export type SaveJwkStatus = 'saved' | 'cancelled';
 
+const TEMP_JWK_FOLDER = 'oam-ar-jwk/';
+
+/** Remove temp JWK exports left in the cache directory by the share-sheet fallback. */
+export async function clearTempJwkFiles(): Promise<void> {
+  const cacheDir = FileSystem.cacheDirectory;
+  if (Platform.OS === 'web' || !cacheDir) {
+    return;
+  }
+  await FileSystem.deleteAsync(`${cacheDir}${TEMP_JWK_FOLDER}`, { idempotent: true });
+}
+
 async function writeTempJwk(jwkJson: string, filename: string): Promise<string> {
   const cacheDir = FileSystem.cacheDirectory;
   if (!cacheDir) {
     throw new Error('Cache directory is not available');
   }
-  const folder = `${cacheDir}oam-ar-jwk/`;
+  const folder = `${cacheDir}${TEMP_JWK_FOLDER}`;
   const info = await FileSystem.getInfoAsync(folder);
   if (!info.exists) {
     await FileSystem.makeDirectoryAsync(folder, { intermediates: true });

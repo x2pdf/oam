@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import './src/i18n'; // Initialize i18n
 import { initArweaveCacheDatabase } from './src/arweave/list/cache/database';
 import { initDatabase } from './src/storage/database';
+import { recoverPendingPasswordChange } from './src/wallet/changePaymentPassword';
 import { loadCacheMap } from './src/adapter/cacheMapService';
 import { getRemoteImageRoot } from './src/adapter/remoteImageStore';
 import { Platform } from 'react-native';
@@ -53,6 +54,10 @@ export default function App() {
     // Web OPFS has a small handle pool; open cache DBs sequentially.
     void (async () => {
       try {
+        // Finish/roll back a payment-password change interrupted by a crash.
+        await recoverPendingPasswordChange().catch((e) => {
+          console.warn('Failed to recover pending password change:', e);
+        });
         await initDatabase();
         await loadCacheMap();
         if (Platform.OS !== 'web') {

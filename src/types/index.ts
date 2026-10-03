@@ -165,6 +165,7 @@ export type RootStackParamList = {
     source: 'profile';
     subscription?: Subscription;
   };
+  ChangePaymentPassword: undefined;
   WalletDisclaimer: undefined;
   RecoverDisclaimer: undefined;
   MnemonicBackup: undefined;

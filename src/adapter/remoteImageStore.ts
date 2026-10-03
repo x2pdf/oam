@@ -217,19 +217,43 @@ export async function countRemoteImageStore(): Promise<number> {
   }
 }
 
+/**
+ * Physically remove every cached image file, then recreate the empty folder so later
+ * downloads and `getRemoteImageRoot()` keep working. Falls back to per-file deletion
+ * if removing the whole folder fails, and throws if anything is still left on disk.
+ */
 export async function clearRemoteImageStore(): Promise<void> {
   if (Platform.OS === 'web') {
     return;
   }
+  const root = FileSystem.documentDirectory;
+  if (!root) {
+    return;
+  }
+  const folder = `${root}${REMOTE_IMAGE_FOLDER}`;
+  cachedRoot = null;
+  cachedNames = null;
   try {
-    const folder = await getRemoteImageRoot();
     const info = await FileSystem.getInfoAsync(folder);
     if (info.exists) {
-      await FileSystem.deleteAsync(folder, { idempotent: true });
+      try {
+        await FileSystem.deleteAsync(folder, { idempotent: true });
+      } catch (error) {
+        console.warn('[remote-images] Failed to delete folder, deleting files one by one:', error);
+        const names = await FileSystem.readDirectoryAsync(folder);
+        for (const name of names) {
+          await FileSystem.deleteAsync(`${folder}${name}`, { idempotent: true });
+        }
+      }
+      const after = await FileSystem.getInfoAsync(folder);
+      if (after.exists && (await FileSystem.readDirectoryAsync(folder)).length > 0) {
+        throw new Error('Remote image files still exist after clearing');
+      }
     }
   } finally {
     cachedRoot = null;
     cachedNames = null;
+    await getRemoteImageRoot().catch(() => {});
   }
 }
 

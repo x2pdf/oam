@@ -127,8 +127,49 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
   `);
 }
 
+/**
+ * Delete the Arweave list cache database file (plus -wal/-shm) so no cached rows remain on
+ * disk, then reopen it right away so the schema and default settings exist again.
+ * Concurrent callers wait on the reopen via dbInitPromise. If the file cannot be removed
+ * (e.g. web fallback), rows are deleted and the file is vacuumed instead.
+ */
 export async function clearAllArweaveCache(): Promise<void> {
-  await withArweaveCacheDbWrite(async (database) => {
-    await database.execAsync('DELETE FROM arweave_uploads;');
+  await enqueueWrite(async () => {
+    const previousInit = dbInitPromise;
+    const reopen = (async () => {
+      if (previousInit) {
+        await previousInit.catch(() => undefined);
+      }
+      const current = db;
+      db = null;
+      try {
+        await current?.closeAsync();
+      } catch {
+        // Handle may already be poisoned/closed; deletion below still proceeds.
+      }
+
+      let deleted = true;
+      try {
+        await SQLite.deleteDatabaseAsync(DB_NAME);
+      } catch (error) {
+        deleted = false;
+        console.warn('[sqlite] Failed to delete Arweave cache database, clearing rows instead:', error);
+      }
+
+      const fresh = await openAndInit(true);
+      if (!deleted) {
+        await fresh.execAsync('DELETE FROM arweave_uploads;');
+        await fresh.execAsync('VACUUM;');
+      }
+      db = fresh;
+      return fresh;
+    })();
+    dbInitPromise = reopen;
+    try {
+      await reopen;
+    } catch (error) {
+      dbInitPromise = null;
+      throw error;
+    }
   });
 }

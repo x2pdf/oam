@@ -203,3 +203,19 @@ export async function clearAllCache(): Promise<void> {
     }
   });
 }
+
+/**
+ * Rewrite the database file so rows removed by DELETE are physically dropped from disk
+ * (DELETE alone only moves pages to the freelist), then truncate the WAL.
+ * Best-effort: failures are logged, and the schema stays untouched.
+ */
+export async function compactDatabase(): Promise<void> {
+  try {
+    await withDbWrite(async (database) => {
+      await database.execAsync('VACUUM;');
+      await database.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
+    });
+  } catch (error) {
+    console.warn('[sqlite] Failed to compact cache database:', error);
+  }
+}
