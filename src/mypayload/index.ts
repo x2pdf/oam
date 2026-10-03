@@ -11,7 +11,22 @@ export type ContentItem =
       label: string;
       arId?: string;
       download?: boolean;
-    };
+    }
+  | { type: "ref"; ref: string; action: string };
+
+const TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/;
+const REF_ACTION_RE = /^[a-z][a-z0-9-]{0,31}$/;
+
+/** 校验并规范化交易哈希（小写）；不合法返回 null。 */
+export function normalizeTxRef(hash: string | undefined | null): string | null {
+  const value = (hash ?? "").trim();
+  return TX_HASH_RE.test(value) ? value.toLowerCase() : null;
+}
+
+/** 创建对另一笔交易的引用（点赞 / 评论 / 转发等），编码为 <span data-ref data-action>。 */
+export function createRefItem(ref: string, action: string): ContentItem {
+  return { type: "ref", ref, action };
+}
 
 /**
  * 创建 PNG 图片内容项
@@ -143,6 +158,10 @@ export function payloadEncode(items: ContentItem[]): Uint8Array {
       }
       tag += `>${label}</a>`;
       html += tag;
+    } else if (item.type === "ref") {
+      const ref = normalizeTxRef(item.ref);
+      if (!ref || !REF_ACTION_RE.test(item.action)) continue;
+      html += `<span data-ref="${ref}" data-action="${item.action}"></span>`;
     }
   }
   html += "</html>";
@@ -168,7 +187,8 @@ export function payloadDecode(data: Uint8Array | string): ContentItem[] {
     }
 
     const items: ContentItem[] = [];
-    const tagRegex = /<pre>(.*?)<\/pre>|<img\s+([^>]*?)>|<a\s+([^>]*?)>(.*?)<\/a>/gs;
+    const tagRegex =
+      /<pre>(.*?)<\/pre>|<img\s+([^>]*?)>|<a\s+([^>]*?)>(.*?)<\/a>|<span\s+([^>]*?)>\s*<\/span>/gs;
     let match;
 
     while ((match = tagRegex.exec(html)) !== null) {
@@ -176,8 +196,16 @@ export function payloadDecode(data: Uint8Array | string): ContentItem[] {
       const imgTagBody = match[2];
       const aTagBody = match[3];
       const aInner = match[4];
+      const spanTagBody = match[5];
 
-      if (textContent !== undefined) {
+      if (spanTagBody !== undefined) {
+        const ref = normalizeTxRef(getAttr(spanTagBody, "data-ref"));
+        if (!ref) continue;
+        // action 保持开放字符串：未知动作也解析出引用，由 UI 走通用样式。
+        const rawAction = getAttr(spanTagBody, "data-action") ?? "";
+        const action = REF_ACTION_RE.test(rawAction) ? rawAction : "";
+        items.push({ type: "ref", ref, action });
+      } else if (textContent !== undefined) {
         items.push({ type: "text", content: unescapeHtml(textContent) });
       } else if (imgTagBody !== undefined) {
         const srcMatch = imgTagBody.match(/src="([^"]+)"/);
@@ -216,6 +244,12 @@ export function payloadDecode(data: Uint8Array | string): ContentItem[] {
     console.warn("payloadDecode failed:", e);
     return [];
   }
+}
+
+/** 属性名前必须是标签起点或空白，避免 data-xref 之类被误匹配。 */
+function getAttr(tagBody: string, name: string): string | undefined {
+  const m = tagBody.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`));
+  return m ? unescapeHtml(m[1]) : undefined;
 }
 
 function bytesToUtf8(data: Uint8Array | string): string | null {

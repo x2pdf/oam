@@ -39,10 +39,13 @@ import {
 } from '../wallet/session';
 import { usePasswordLockRemaining } from '../wallet/WalletSessionContext';
 import { showAlert } from '../utils/alert';
+import type { ContentItem } from '../mypayload';
 import {
   buildInteractionContent,
+  canInteractWith,
   InteractionType,
   interactionEmoji,
+  interactionPreviewText,
 } from '../utils/interactionContent';
 
 type Step = 'compose' | 'fee' | 'password' | 'success';
@@ -163,45 +166,13 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     }
   }, [action, feeEstimate, multiplier]);
 
-  const composeContent = useMemo(() => {
-    if (!item) return '';
-    return buildInteractionContent({
-      type: action,
-      item,
-      commentText,
-      multiplier,
-      ethValue: ethValueDisplay ?? undefined,
-    });
-  }, [action, item, commentText, multiplier, ethValueDisplay]);
+  // 上链内容不含小费金额（金额是交易本身的 value），估费与发送共用同一份。
+  const contentItems = useMemo<ContentItem[]>(() => {
+    if (!item) return [];
+    return buildInteractionContent({ type: action, item, commentText });
+  }, [action, item, commentText]);
 
-  // 估费用内容：点赞时不把小费金额写进 calldata 文案，避免「金额变 → 重估 → 金额变」死循环。
-  const estimateContent = useMemo(() => {
-    if (!item) return '';
-    if (action === 'like') {
-      return buildInteractionContent({
-        type: 'like',
-        item,
-        multiplier,
-        ethValue: undefined,
-      });
-    }
-    return buildInteractionContent({
-      type: action,
-      item,
-      commentText,
-      multiplier,
-    });
-  }, [action, item, commentText, multiplier]);
-
-  const contentItems = useMemo<[{ type: 'text'; content: string }]>(
-    () => [{ type: 'text', content: composeContent }],
-    [composeContent],
-  );
-
-  const estimateContentItems = useMemo<[{ type: 'text'; content: string }]>(
-    () => [{ type: 'text', content: estimateContent }],
-    [estimateContent],
-  );
+  const composeContent = useMemo(() => interactionPreviewText(contentItems), [contentItems]);
 
   const dataSummary = useMemo(() => {
     const text = composeContent.trim();
@@ -212,9 +183,10 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
 
   const canConfirmSend = useMemo(() => {
     if (feeLoading || feeError || !feeEstimate || insufficientBalance) return false;
+    if (!canInteractWith(item)) return false;
     if (action === 'comment' && !commentText.trim()) return false;
     return true;
-  }, [feeLoading, feeError, feeEstimate, insufficientBalance, action, commentText]);
+  }, [feeLoading, feeError, feeEstimate, insufficientBalance, action, commentText, item]);
 
   const syncCustomFeeInputsFromOption = useCallback((option: FeeOption) => {
     setCustomMaxFee(formatUnits(option.maxFeePerGas || option.gasPrice || 0n, 'gwei'));
@@ -254,7 +226,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
         estimateSendFeeFromAddress(
           profile.address,
           target,
-          estimateContentItems,
+          contentItems,
           false,
           {
             encrypt: false,
@@ -299,7 +271,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     profile?.address,
     item,
     recipientAddress,
-    estimateContentItems,
+    contentItems,
     action,
     multiplier,
     applyFeeOptionLocally,
@@ -356,14 +328,14 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅弹窗打开时初始化
   }, [visible, resetState]);
 
-  // 仅在影响 calldata / 收款方的输入变化时重估；不要依赖 composeContent（含小费展示字符串）。
+  // 仅在影响 calldata / 收款方的输入变化时重估。
   useEffect(() => {
     if (!visible || !item) return;
     const timer = setTimeout(() => {
       void estimateFeeRef.current(feeOptionRef.current);
     }, 400);
     return () => clearTimeout(timer);
-  }, [visible, item?.id, action, commentText, recipientAddress, multiplier, estimateContent]);
+  }, [visible, item?.id, action, commentText, recipientAddress, multiplier, contentItems]);
 
   // 倍数变化时只重算余额是否够（小费变了），不必等下一次网络估费。
   useEffect(() => {

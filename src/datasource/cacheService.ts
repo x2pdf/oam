@@ -8,6 +8,11 @@ export interface CacheConfig {
   isEnabled: boolean;
 }
 
+export type RefStatus = 'ok' | 'missing';
+
+/** 被引用交易的缓存条数上限（超出按 checkedAt 淘汰最旧的）。 */
+const REF_ROW_LIMIT = 500;
+
 export interface CacheStats {
   transactionCount: number;
   addressCount: number;
@@ -90,11 +95,15 @@ export class CacheService {
     await withDbWrite(async (db) => {
       for (const tx of txsWithInput) {
         await db.runAsync(
-          `INSERT OR IGNORE INTO transactions (
+          // 行可能先由「被引用交易」写入且 timestamp 为 0，这里补全时间。
+          `INSERT INTO transactions (
             hash, fromAddress, toAddress, input, value, timestamp,
             blockNumber, gas, gasPrice, gasUsed, nonce,
             transactionIndex, isError, methodId, contractAddress
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(hash) DO UPDATE SET timestamp = excluded.timestamp
+            WHERE (transactions.timestamp IS NULL OR transactions.timestamp = 0)
+              AND excluded.timestamp > 0`,
           [
             tx.hash, tx.from, tx.to, tx.input, tx.value, tx.timestamp,
             tx.blockNumber ?? null, tx.gas ?? null, tx.gasPrice ?? null,
@@ -111,6 +120,93 @@ export class CacheService {
     });
 
     await this.enforceLimit(addrLower);
+  }
+
+  /**
+   * Read a transaction by hash regardless of address membership
+   * (includes referenced-only rows and rows evicted from every address limit).
+   */
+  public async getTransactionByHash(hash: string): Promise<ChainTransaction | null> {
+    if (!(await this.isGlobalCacheEnabled())) return null;
+    const row = await withDb(async (db) =>
+      db.getFirstAsync<any>('SELECT * FROM transactions WHERE hash = ?', [hash.toLowerCase()])
+    );
+    return row ? this.mapTransactionRows([row])[0] : null;
+  }
+
+  public async getRefStatus(
+    hash: string
+  ): Promise<{ status: RefStatus; checkedAt: number } | null> {
+    if (!(await this.isGlobalCacheEnabled())) return null;
+    const row = await withDb(async (db) =>
+      db.getFirstAsync<{ status: RefStatus; checkedAt: number }>(
+        'SELECT status, checkedAt FROM tx_ref_status WHERE hash = ?',
+        [hash.toLowerCase()]
+      )
+    );
+    return row ?? null;
+  }
+
+  /**
+   * Store a transaction fetched only because another message references it.
+   * Writes no address_tx_map row, so it never shows up in lists or affects incremental sync.
+   */
+  public async saveReferencedTransaction(tx: ChainTransaction): Promise<void> {
+    if (!(await this.isGlobalCacheEnabled())) return;
+    if (!tx.hasInput) return;
+    const hash = tx.hash.toLowerCase();
+
+    await withDbWrite(async (db) => {
+      await db.runAsync(
+        `INSERT OR IGNORE INTO transactions (
+          hash, fromAddress, toAddress, input, value, timestamp,
+          blockNumber, gas, gasPrice, gasUsed, nonce,
+          transactionIndex, isError, methodId, contractAddress
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          hash, tx.from, tx.to, tx.input, tx.value, tx.timestamp,
+          tx.blockNumber ?? null, tx.gas ?? null, tx.gasPrice ?? null,
+          tx.gasUsed ?? null, tx.nonce ?? null, tx.transactionIndex ?? null,
+          tx.isError ? 1 : 0, tx.methodId ?? null, tx.contractAddress ?? null,
+        ]
+      );
+      await db.runAsync(
+        'INSERT OR REPLACE INTO tx_ref_status (hash, status, checkedAt) VALUES (?, ?, ?)',
+        [hash, 'ok', Date.now()]
+      );
+    });
+    await this.trimRefRows();
+  }
+
+  /** Negative cache: remember that a referenced transaction could not be found. */
+  public async markRefMissing(hash: string): Promise<void> {
+    if (!(await this.isGlobalCacheEnabled())) return;
+    await withDbWrite(async (db) => {
+      await db.runAsync(
+        `INSERT INTO tx_ref_status (hash, status, checkedAt) VALUES (?, 'missing', ?)
+         ON CONFLICT(hash) DO UPDATE SET checkedAt = excluded.checkedAt
+           WHERE tx_ref_status.status = 'missing'`,
+        [hash.toLowerCase(), Date.now()]
+      );
+    });
+    await this.trimRefRows();
+  }
+
+  private async trimRefRows(): Promise<void> {
+    await withDbWrite(async (db) => {
+      const stale = await db.getAllAsync<{ hash: string }>(
+        'SELECT hash FROM tx_ref_status ORDER BY checkedAt DESC LIMIT -1 OFFSET ?',
+        [REF_ROW_LIMIT]
+      );
+      for (const { hash } of stale) {
+        await db.runAsync('DELETE FROM tx_ref_status WHERE hash = ?', [hash]);
+        await db.runAsync(
+          `DELETE FROM transactions
+           WHERE hash = ? AND hash NOT IN (SELECT txHash FROM address_tx_map)`,
+          [hash]
+        );
+      }
+    });
   }
 
   /**
@@ -251,6 +347,7 @@ export class CacheService {
       await db.runAsync(`
         DELETE FROM transactions
         WHERE hash NOT IN (SELECT DISTINCT txHash FROM address_tx_map)
+          AND hash NOT IN (SELECT hash FROM tx_ref_status WHERE status = 'ok')
       `);
     });
   }

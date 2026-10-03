@@ -16,6 +16,7 @@ export function isDisplayableItems(items: ContentItem[] | null | undefined): ite
   return items.some((item) => {
     if (item.type === 'text') return !!item.content;
     if (item.type === 'image') return !!item.data;
+    if (item.type === 'ref') return true;
     return false;
   });
 }

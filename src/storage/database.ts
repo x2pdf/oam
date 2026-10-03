@@ -151,6 +151,16 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
     INSERT OR IGNORE INTO global_settings (key, value) VALUES ('default_limit', '100');
   `);
 
+  // 被点赞/评论/转发引用的交易：数据存在 transactions（不进 address_tx_map，不出现在任何列表），
+  // 这里只记录查询状态，missing 用于负缓存。
+  await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS tx_ref_status (
+      hash TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      checkedAt INTEGER NOT NULL
+    );
+  `);
+
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS image_cache_map (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -166,6 +176,7 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
 export async function clearAllCache(): Promise<void> {
   await withDbWrite(async (database) => {
     await database.execAsync('DELETE FROM address_tx_map;');
+    await database.execAsync('DELETE FROM tx_ref_status;');
     await database.execAsync('DELETE FROM transactions;');
   });
 }

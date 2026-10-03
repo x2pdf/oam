@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { truncateListText } from '../utils/text';
 import { ContentCardImage } from './ContentCardImage';
 import { ExternalOpenCard } from './ExternalOpenCard';
+import { RefQuoteCard } from './RefQuoteCard';
 import { openImageLightbox } from './ImageLightbox';
 import { SelectableText } from './SelectableText';
 import { isHttpUrl, isImageMime } from '../utils/attachment';
@@ -116,6 +117,9 @@ export const RichContentRenderer: React.FC<Props> = ({
               onSaveImage={() => handleSaveImage(item.href)}
             />
           );
+        }
+        if (item.type === 'ref') {
+          return <RefQuoteCard key={index} refHash={item.ref} action={item.action} />;
         }
         return null;
       })}
