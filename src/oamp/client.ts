@@ -3,6 +3,7 @@ import {
   formatEther,
   TransactionRequest,
   type FeeData,
+  type TransactionLike,
 } from "ethers";
 import { MessageType, CryptoScheme, OAMPMessage, DecryptedMessage, EncryptionContext } from "./types";
 import { serializeMessage, deserializeMessage, getMessageHeader, BLACK_HOLE } from "./protocol";
@@ -314,6 +315,31 @@ export async function estimateSendFeeFromAddress(
   return { feeEth, built, gasLimit, usedFeeOption };
 }
 
+export const FEE_TOO_HIGH_ERROR = 'FEE_TOO_HIGH';
+
+/** Ceiling for a fee the user was never shown (no fee option chosen): 1000 gwei. */
+const UNQUOTED_MAX_FEE_PER_GAS = 1_000n * 1_000_000_000n;
+
+/**
+ * Fee fields in `populated` can be filled from a single public RPC node. Before signing,
+ * make sure they stay within what the user confirmed (the chosen fee option), or within
+ * a hard ceiling when no option was chosen, so a hostile node cannot make the wallet
+ * burn its balance on fees. Throws FEE_TOO_HIGH.
+ */
+function assertFeeWithinBound(populated: TransactionLike<string>, feeOption?: FeeOption): void {
+  const maxFee = populated.maxFeePerGas ?? populated.gasPrice ?? 0n;
+  const priority = populated.maxPriorityFeePerGas ?? 0n;
+  const quoted = feeOption?.maxFeePerGas ?? feeOption?.gasPrice ?? null;
+  const bound = quoted ?? UNQUOTED_MAX_FEE_PER_GAS;
+  if (BigInt(maxFee) > bound || BigInt(priority) > bound) {
+    const err = new Error(
+      `Fee returned by the RPC node (${maxFee} wei/gas) exceeds the confirmed limit (${bound} wei/gas); signing cancelled`,
+    );
+    err.name = FEE_TOO_HIGH_ERROR;
+    throw err;
+  }
+}
+
 export class OAMPClient {
   private wallet: Wallet;
 
@@ -367,6 +393,7 @@ export class OAMPClient {
 
       return connected.populateTransaction(txRequest);
     }, { noFatal: true });
+    assertFeeWithinBound(populated, feeOption);
     const signed = await this.wallet.signTransaction(populated);
     return broadcastRawTx(signed);
   }

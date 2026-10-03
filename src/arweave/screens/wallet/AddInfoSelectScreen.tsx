@@ -1,10 +1,10 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { scrollFill } from '../../../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../../../theme/layout';
 import { Text, Card, Avatar, useTheme, IconButton, Snackbar } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../../types';
@@ -12,7 +12,7 @@ import { useAppContext } from '../../../context/AppContext';
 import { AppModal } from '../../../components/AppModal';
 import { EthPasswordGateModal } from '../../components/EthPasswordGateModal';
 import { checkEthKeystoreExists, checkEthWalletGate } from '../../wallet/ethWalletGate';
-import { setVerifiedOldPassword } from '../../wallet/verifiedEthPassword';
+import { clearPaymentPasswordContext, setVerifiedOldPassword } from '../../wallet/verifiedEthPassword';
 import { copyAddress } from '../../../components/CopyableAddress';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -32,6 +32,15 @@ export default function AddInfoSelectScreen() {
   const arProfile = state.arProfile;
   const ethProfile = state.profile;
   const { listContentStyle } = useListColumnLayout();
+
+  // Passwords handed over by a replacement flow must not outlive it: drop any left
+  // over when this screen is shown again (flow cancelled) or closed.
+  useFocusEffect(
+    useCallback(() => {
+      clearPaymentPasswordContext();
+    }, []),
+  );
+  useEffect(() => clearPaymentPasswordContext, []);
 
   const [replaceVisible, setReplaceVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);

@@ -1,5 +1,8 @@
 export type SaveJwkStatus = 'saved' | 'cancelled';
 
+/** Web/desktop never writes a temp copy (the file goes straight to the chosen path). */
+export async function clearTempJwkFiles(): Promise<void> {}
+
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }

@@ -1,17 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { Text, Card, Avatar, useTheme, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { AppModal } from '../components/AppModal';
 import { EthPasswordGateModal } from '../arweave/components/EthPasswordGateModal';
-import { setVerifiedOldPassword } from '../wallet/paymentPasswordContext';
+import { clearPaymentPasswordContext, setVerifiedOldPassword } from '../wallet/paymentPasswordContext';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type PendingAction = 'create' | 'recover' | 'privateKey' | 'readOnly' | null;
@@ -31,6 +31,15 @@ export default function AddInfoSelectScreen() {
   const profile = state.profile;
   const isWriteWallet = profile?.walletType === 'write';
   const { listContentStyle } = useListColumnLayout();
+
+  // Passwords handed over by a replacement flow must not outlive it: drop any left
+  // over when this screen is shown again (flow cancelled) or closed.
+  useFocusEffect(
+    useCallback(() => {
+      clearPaymentPasswordContext();
+    }, []),
+  );
+  useEffect(() => clearPaymentPasswordContext, []);
 
   const [visible, setVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);

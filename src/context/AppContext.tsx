@@ -23,6 +23,7 @@ import {
 import { STORAGE_KEYS, API_CONFIG, normalizeHomeTabWeights, type HomeTabId } from '../constants';
 import { migrateLegacyStorage } from '../storage/migrate';
 import { dataSourceManager } from '../datasource/DataSourceManager';
+import { wipeWalletKeys } from '../wallet/wipeWallet';
 import {
   ATTACHMENT_FILE_TYPES,
   ATTACHMENT_SOURCES,
@@ -284,6 +285,8 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const draftsRef = useRef(state.drafts);
   draftsRef.current = state.drafts;
+  const profileRef = useRef(state.profile);
+  profileRef.current = state.profile;
 
   /* ---------- 启动时从 AsyncStorage 加载持久化数据 ---------- */
   useEffect(() => {
@@ -441,17 +444,32 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
   }, [state.contentFilters, state.isLoading]);
 
   /* ---------- Profile CRUD ---------- */
-  const saveProfile = useCallback(async (item: Subscription) => {
-    dispatch({ type: 'SET_PROFILE', payload: item });
+  /**
+   * Leaving a full (write) wallet, by deleting it or replacing it with a read-only
+   * address, must also delete its keys. The AR wallet depends on the ETH wallet.
+   * Throws if the keys could not be removed; the profile is then left untouched.
+   */
+  const wipeWriteWalletKeys = useCallback(async () => {
+    if (profileRef.current?.walletType !== 'write') return;
+    await wipeWalletKeys();
+    dispatch({ type: 'SET_AR_PROFILE', payload: null });
   }, []);
+
+  const saveProfile = useCallback(async (item: Subscription) => {
+    if (item.walletType !== 'write') {
+      await wipeWriteWalletKeys();
+    }
+    dispatch({ type: 'SET_PROFILE', payload: item });
+  }, [wipeWriteWalletKeys]);
 
   const updateProfile = useCallback(async (item: Subscription) => {
     dispatch({ type: 'SET_PROFILE', payload: item });
   }, []);
 
   const deleteProfile = useCallback(async () => {
+    await wipeWriteWalletKeys();
     dispatch({ type: 'SET_PROFILE', payload: null });
-  }, []);
+  }, [wipeWriteWalletKeys]);
 
   /* ---------- AR Profile CRUD ---------- */
   const saveArProfile = useCallback(async (item: Subscription) => {

@@ -11,14 +11,6 @@
     "dialog:allow-save",
     "opener:allow-open-url",
     "opener:allow-default-urls",
-    {
-      "identifier": "fs:allow-write-file",
-      "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$DOCUMENT/**" },
-        { "path": "$DOWNLOAD/**" },
-        { "path": "$DESKTOP/**" }
-      ]
-    }
+    "fs:allow-write-file"
   ]
 }

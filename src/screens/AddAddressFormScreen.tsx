@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
-import { showConfirm } from '../utils/alert';
+import { showAlert, showConfirm } from '../utils/alert';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
 import {
@@ -75,10 +75,16 @@ export default function AddAddressFormScreen({ route, navigation }: Props) {
       walletType: isEdit ? subscription?.walletType : 'read',
     };
 
-    if (isEdit) {
-      await updateProfile(item);
-    } else {
-      await saveProfile(item);
+    try {
+      if (isEdit) {
+        await updateProfile(item);
+      } else {
+        await saveProfile(item);
+      }
+    } catch (error) {
+      console.error(error);
+      showAlert(t('common.error'), t('wallet.removeKeysFailed'));
+      return;
     }
 
     navigation.goBack();
@@ -91,22 +97,29 @@ export default function AddAddressFormScreen({ route, navigation }: Props) {
     saveProfile,
     updateProfile,
     navigation,
+    t,
   ]);
 
   /* ---------- 删除 ---------- */
   const handleDelete = useCallback(() => {
     showConfirm(
       t('common.confirmDelete'),
-      t('common.confirmDeleteMsg'),
+      subscription?.walletType === 'write' ? t('wallet.confirmDeleteWalletMsg') : t('common.confirmDeleteMsg'),
       async () => {
-        await deleteProfile();
+        try {
+          await deleteProfile();
+        } catch (error) {
+          console.error(error);
+          showAlert(t('common.error'), t('wallet.removeKeysFailed'));
+          return;
+        }
         navigation.goBack();
       },
       undefined,
       t('common.delete'),
       t('common.cancel'),
     );
-  }, [deleteProfile, navigation, t]);
+  }, [deleteProfile, navigation, subscription?.walletType, t]);
 
   /* ---------- 修改支付密码 ---------- */
   const handleChangePassword = useCallback(() => {

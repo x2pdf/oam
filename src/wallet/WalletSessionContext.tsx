@@ -17,6 +17,7 @@ import {
   subscribeSession,
   unlockSession,
 } from './session';
+import { clearPaymentPasswordContext } from './paymentPasswordContext';
 
 export function isMobilePlatform(): boolean {
   return Platform.OS === 'ios' || Platform.OS === 'android';
@@ -55,6 +56,7 @@ export const WalletSessionProvider: React.FC<Props> = ({ children }) => {
     const onChange = (next: AppStateStatus) => {
       if (next === 'background') {
         lockSession();
+        clearPaymentPasswordContext();
       }
     };
     const sub = AppState.addEventListener('change', onChange);

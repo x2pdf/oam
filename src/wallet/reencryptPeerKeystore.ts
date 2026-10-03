@@ -1,10 +1,9 @@
 import { decryptKeystore } from './session';
-import { encryptWallet, saveEncryptedKeystore } from './walletManager';
+import { encryptWallet } from './walletManager';
 import {
   decryptJwk,
   encryptJwk,
   loadEncryptedArKeystore,
-  saveEncryptedArKeystore,
 } from '../arweave/wallet/keystore';
 import { loadEthEncryptedKeystore } from '../arweave/wallet/ethKeystore';
 
@@ -94,12 +93,4 @@ export async function syncPeerAfterArReplace(
   newPassword: string,
 ): Promise<string | null> {
   return reencryptEthKeystore(oldPassword, newPassword);
-}
-
-export async function savePreparedArKeystore(encrypted: string): Promise<void> {
-  await saveEncryptedArKeystore(encrypted);
-}
-
-export async function savePreparedEthKeystore(encrypted: string): Promise<void> {
-  await saveEncryptedKeystore(encrypted);
 }

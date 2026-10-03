@@ -1,7 +1,4 @@
 export {
-  setVerifiedEthPassword,
-  getVerifiedEthPassword,
-  clearVerifiedEthPassword,
   setVerifiedOldPassword,
   getVerifiedOldPassword,
   setPendingNewPassword,
