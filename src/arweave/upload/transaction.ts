@@ -48,10 +48,27 @@ export function isUploadBalanceInsufficient(balanceWinston: string, feeWinston: 
   return BigInt(balanceWinston) < BigInt(feeWinston);
 }
 
+export const UPLOAD_FEE_TOO_HIGH_ERROR = 'UPLOAD_FEE_TOO_HIGH';
+
+/**
+ * The reward is baked into the signed transaction and comes from whichever gateway
+ * answers first, a different request than the quote the user was shown. A gateway
+ * could inflate it up to the wallet balance, so signing is refused above this bound:
+ * the quote plus 50% (price drifts a little between the two requests).
+ */
+export function maxAcceptableUploadReward(quotedFeeWinston: string): string {
+  return ((BigInt(quotedFeeWinston) * 3n) / 2n).toString();
+}
+
+export function isUploadFeeTooHighError(error: unknown): boolean {
+  return error instanceof Error && error.name === UPLOAD_FEE_TOO_HIGH_ERROR;
+}
+
 export async function postUploadTransaction(
   jwk: ArweaveJwk,
   data: Uint8Array,
   tags: UploadTag[],
+  maxRewardWinston: string,
 ): Promise<string> {
   // Anchor + price come from whichever gateway answers first; the signed tx is valid on any of them.
   const transaction = await withArweaveGateways(async (gateway) => {
@@ -61,6 +78,11 @@ export async function postUploadTransaction(
     }
     return tx;
   }, readOptions);
+  if (BigInt(transaction.reward) > BigInt(maxRewardWinston)) {
+    const err = new Error(`Gateway reward ${transaction.reward} exceeds the quoted fee bound ${maxRewardWinston}`);
+    err.name = UPLOAD_FEE_TOO_HIGH_ERROR;
+    throw err;
+  }
   await arweaveUnits.transactions.sign(transaction, jwk);
 
   // Re-posting the same signed tx to another gateway is idempotent (208 = already received).

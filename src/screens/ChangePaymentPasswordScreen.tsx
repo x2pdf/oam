@@ -159,7 +159,7 @@ export default function ChangePaymentPasswordScreen() {
           <HelperText type="error" visible={!!errors.confirm}>{errors.confirm}</HelperText>
 
           <View style={[styles.noticeBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-            {(['1', '2', '3', '4'] as const).map((n) => (
+            {(['1', '2', '3', '4', '5'] as const).map((n) => (
               <Text
                 key={n}
                 variant="bodySmall"

@@ -1,15 +1,15 @@
 import { ethers } from 'ethers';
 import { loadEncryptedKeystore } from './walletManager';
+import {
+  createNoKeystoreError,
+  getPasswordLockRemainingMs,
+  INVALID_PASSWORD_ERROR,
+  NO_KEYSTORE_ERROR,
+  PASSWORD_LOCKED_ERROR,
+  runGuardedPasswordAttempt,
+} from './passwordGuard';
 
-export const NO_KEYSTORE_ERROR = 'NO_KEYSTORE';
-export const INVALID_PASSWORD_ERROR = 'INVALID_PASSWORD';
-export const PASSWORD_LOCKED_ERROR = 'PASSWORD_LOCKED';
-
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCK_DURATION_MS = 60_000;
-
-let failedAttempts = 0;
-let lockUntil = 0;
+export { getPasswordLockRemainingMs, INVALID_PASSWORD_ERROR, NO_KEYSTORE_ERROR, PASSWORD_LOCKED_ERROR };
 
 type SessionListener = () => void;
 
@@ -27,31 +27,6 @@ export function subscribeSession(listener: SessionListener): () => void {
   };
 }
 
-export function getPasswordLockRemainingMs(): number {
-  return Math.max(0, lockUntil - Date.now());
-}
-
-function throwPasswordLocked(): never {
-  const err = new Error(PASSWORD_LOCKED_ERROR);
-  err.name = PASSWORD_LOCKED_ERROR;
-  throw err;
-}
-
-function assertNotPasswordLocked(): void {
-  if (getPasswordLockRemainingMs() > 0) {
-    throwPasswordLocked();
-  }
-  lockUntil = 0;
-}
-
-function recordPasswordFailure(): void {
-  failedAttempts += 1;
-  if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
-    failedAttempts = 0;
-    lockUntil = Date.now() + LOCK_DURATION_MS;
-  }
-}
-
 /**
  * Decrypts the locally stored keystore with the payment password.
  * Does not persist the password or write the session.
@@ -59,9 +34,7 @@ function recordPasswordFailure(): void {
 export async function decryptKeystore(password: string): Promise<ethers.Wallet> {
   const keystoreJson = await loadEncryptedKeystore();
   if (!keystoreJson) {
-    const err = new Error(NO_KEYSTORE_ERROR);
-    err.name = NO_KEYSTORE_ERROR;
-    throw err;
+    throw createNoKeystoreError();
   }
 
   try {
@@ -76,23 +49,10 @@ export async function decryptKeystore(password: string): Promise<ethers.Wallet> 
 }
 
 export async function unlockSession(password: string): Promise<ethers.Wallet> {
-  assertNotPasswordLocked();
-  try {
-    const wallet = await decryptKeystore(password);
-    failedAttempts = 0;
-    lockUntil = 0;
-    unlockedWallet = wallet;
-    notify();
-    return wallet;
-  } catch (e: any) {
-    if (e?.name === INVALID_PASSWORD_ERROR) {
-      recordPasswordFailure();
-      if (getPasswordLockRemainingMs() > 0) {
-        throwPasswordLocked();
-      }
-    }
-    throw e;
-  }
+  const wallet = await runGuardedPasswordAttempt(() => decryptKeystore(password));
+  unlockedWallet = wallet;
+  notify();
+  return wallet;
 }
 
 export function lockSession(): void {

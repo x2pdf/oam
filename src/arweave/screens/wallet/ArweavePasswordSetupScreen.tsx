@@ -12,6 +12,7 @@ import { useAppContext } from '../../../context/AppContext';
 import { finalizeArWallet, isPeerReencryptError } from '../../wallet/finalizeWallet';
 import { setPendingNewPassword } from '../../wallet/verifiedEthPassword';
 import { showAlert } from '../../../utils/alert';
+import { validatePaymentPassword } from '../../../wallet/passwordRules';
 
 type RoutePropType = RouteProp<RootStackParamList, 'ArweavePasswordSetup'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -31,12 +32,9 @@ export default function ArweavePasswordSetupScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleFinish = async () => {
-    if (password.length < 6) {
-      showAlert(t('common.error'), t('form.payPasswordMinLength'));
-      return;
-    }
-    if (password.length > 16) {
-      showAlert(t('common.error'), t('form.payPasswordMaxLength'));
+    const passwordRuleKey = validatePaymentPassword(password);
+    if (passwordRuleKey) {
+      showAlert(t('common.error'), t(passwordRuleKey));
       return;
     }
     if (password !== confirmPassword) {

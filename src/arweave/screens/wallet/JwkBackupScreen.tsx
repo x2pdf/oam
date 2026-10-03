@@ -63,7 +63,7 @@ export default function JwkBackupScreen() {
   const handleCopy = useCallback(async () => {
     if (!jwkJson) return;
     await copyJwk(jwkJson);
-    showSnackbar(t('common.copied'));
+    showSnackbar(t('arweave.jwkBackupCopied'));
   }, [jwkJson, showSnackbar, t]);
 
   const handleSaveFile = useCallback(async () => {

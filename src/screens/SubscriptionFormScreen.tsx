@@ -113,10 +113,16 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
       }
     } else {
       // profile
-      if (isEdit) {
-        await updateProfile(item);
-      } else {
-        await saveProfile(item);
+      try {
+        if (isEdit) {
+          await updateProfile(item);
+        } else {
+          await saveProfile(item);
+        }
+      } catch (error) {
+        console.error(error);
+        showAlert(t('common.error'), t('wallet.removeKeysFailed'));
+        return;
       }
     }
 
@@ -140,10 +146,18 @@ export default function SubscriptionFormScreen({ route, navigation }: Props) {
   const handleDelete = useCallback(() => {
     showConfirm(
       t('common.confirmDelete'),
-      t('common.confirmDeleteMsg'),
+      source === 'profile' && subscription?.walletType === 'write'
+        ? t('wallet.confirmDeleteWalletMsg')
+        : t('common.confirmDeleteMsg'),
       async () => {
         if (source === 'profile') {
-          await deleteProfile();
+          try {
+            await deleteProfile();
+          } catch (error) {
+            console.error(error);
+            showAlert(t('common.error'), t('wallet.removeKeysFailed'));
+            return;
+          }
         } else if (subscription) {
           await deleteSubscription(subscription.id);
         }

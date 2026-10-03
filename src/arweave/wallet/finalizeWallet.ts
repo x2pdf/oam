@@ -5,13 +5,13 @@ import {
   getPendingNewPassword,
   getVerifiedOldPassword,
 } from '../../wallet/paymentPasswordContext';
+import { commitKeystoreChange, readCurrentSnapshot } from '../../wallet/keystoreTransaction';
 import {
   isPeerReencryptError,
-  savePreparedEthKeystore,
   syncPeerAfterArReplace,
 } from '../../wallet/reencryptPeerKeystore';
 import { deserializeJwk } from './jwk';
-import { encryptJwk, saveEncryptedArKeystore } from './keystore';
+import { encryptJwk } from './keystore';
 
 export const NO_VERIFIED_PASSWORD_ERROR = 'NO_VERIFIED_PASSWORD';
 export { isPeerReencryptError };
@@ -37,6 +37,8 @@ export async function finalizeArWallet(
 
   const jwk = deserializeJwk(jwkJson);
 
+  const old = await readCurrentSnapshot();
+
   if (isReplacement) {
     const newPassword = getPendingNewPassword();
     if (!newPassword) {
@@ -45,16 +47,13 @@ export async function finalizeArWallet(
       throw err;
     }
 
+    // The payment password is shared: the ETH keystore moves to the new one too.
     const reencryptedEth = await syncPeerAfterArReplace(oldPassword, newPassword);
     const arKeystoreJson = await encryptJwk(jwk, newPassword);
-
-    if (reencryptedEth) {
-      await savePreparedEthKeystore(reencryptedEth);
-    }
-    await saveEncryptedArKeystore(arKeystoreJson);
+    await commitKeystoreChange(old, { eth: reencryptedEth ?? old.eth, ar: arKeystoreJson });
   } else {
     const arKeystoreJson = await encryptJwk(jwk, oldPassword);
-    await saveEncryptedArKeystore(arKeystoreJson);
+    await commitKeystoreChange(old, { eth: old.eth, ar: arKeystoreJson });
   }
 
   await saveArProfile({

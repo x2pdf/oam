@@ -1,17 +1,20 @@
-import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import { randomBytes } from 'ethers';
+import { secureDelete, secureGet, secureSet } from '../../storage/secureStorage';
 import type { ArweaveJwk } from './jwk';
 import { deserializeJwk, serializeJwk } from './jwk';
 
 export const AR_KEYSTORE_STORAGE_KEY = 'oam_ar_wallet_keystore';
 
-const USE_ASYNC_STORAGE = Platform.OS === 'web';
-const PBKDF2_ITERATIONS = 100_000;
+/** Iterations for new keystores (OWASP 2023 guidance for PBKDF2-HMAC-SHA256). */
+const PBKDF2_ITERATIONS = 600_000;
+/** v1 payloads carry no iteration count; they were always written with this value. */
+const LEGACY_PBKDF2_ITERATIONS = 100_000;
+const MAX_PBKDF2_ITERATIONS = 10_000_000;
 
+/** v2 records the iteration count; v1 is the legacy format, still readable. */
 interface EncryptedPayload {
-  v: 1;
+  v: 1 | 2;
+  iter?: number;
   salt: string;
   iv: string;
   ciphertext: string;
@@ -36,7 +39,7 @@ function toBufferSource(data: Uint8Array): ArrayBuffer {
   return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
 }
 
-async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+async function deriveKey(password: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
@@ -49,7 +52,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
     {
       name: 'PBKDF2',
       salt: toBufferSource(salt),
-      iterations: PBKDF2_ITERATIONS,
+      iterations,
       hash: 'SHA-256',
     },
     keyMaterial,
@@ -62,7 +65,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
 export async function encryptJwk(jwk: ArweaveJwk, password: string): Promise<string> {
   const salt = randomBytes(16);
   const iv = randomBytes(12);
-  const key = await deriveKey(password, salt);
+  const key = await deriveKey(password, salt, PBKDF2_ITERATIONS);
   const encoder = new TextEncoder();
   const plaintext = encoder.encode(serializeJwk(jwk));
   const encrypted = await crypto.subtle.encrypt(
@@ -71,7 +74,8 @@ export async function encryptJwk(jwk: ArweaveJwk, password: string): Promise<str
     plaintext,
   );
   const payload: EncryptedPayload = {
-    v: 1,
+    v: 2,
+    iter: PBKDF2_ITERATIONS,
     salt: toBase64(salt),
     iv: toBase64(iv),
     ciphertext: toBase64(new Uint8Array(encrypted)),
@@ -79,12 +83,28 @@ export async function encryptJwk(jwk: ArweaveJwk, password: string): Promise<str
   return JSON.stringify(payload);
 }
 
+function payloadIterations(payload: EncryptedPayload): number {
+  if (payload.v === 1) return LEGACY_PBKDF2_ITERATIONS;
+  const iter = payload.iter;
+  if (
+    payload.v !== 2
+    || typeof iter !== 'number'
+    || !Number.isInteger(iter)
+    || iter < LEGACY_PBKDF2_ITERATIONS
+    || iter > MAX_PBKDF2_ITERATIONS
+  ) {
+    throw new Error('Unsupported AR keystore format');
+  }
+  return iter;
+}
+
 export async function decryptJwk(payloadJson: string, password: string): Promise<ArweaveJwk> {
   const payload = JSON.parse(payloadJson) as EncryptedPayload;
+  const iterations = payloadIterations(payload);
   const salt = fromBase64(payload.salt);
   const iv = fromBase64(payload.iv);
   const ciphertext = fromBase64(payload.ciphertext);
-  const key = await deriveKey(password, salt);
+  const key = await deriveKey(password, salt, iterations);
   const decrypted = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: toBufferSource(iv) },
     key,
@@ -95,24 +115,13 @@ export async function decryptJwk(payloadJson: string, password: string): Promise
 }
 
 export async function saveEncryptedArKeystore(keystoreJson: string): Promise<void> {
-  if (USE_ASYNC_STORAGE) {
-    await AsyncStorage.setItem(AR_KEYSTORE_STORAGE_KEY, keystoreJson);
-  } else {
-    await SecureStore.setItemAsync(AR_KEYSTORE_STORAGE_KEY, keystoreJson);
-  }
+  await secureSet(AR_KEYSTORE_STORAGE_KEY, keystoreJson);
 }
 
 export async function loadEncryptedArKeystore(): Promise<string | null> {
-  if (USE_ASYNC_STORAGE) {
-    return AsyncStorage.getItem(AR_KEYSTORE_STORAGE_KEY);
-  }
-  return SecureStore.getItemAsync(AR_KEYSTORE_STORAGE_KEY);
+  return secureGet(AR_KEYSTORE_STORAGE_KEY);
 }
 
 export async function removeEncryptedArKeystore(): Promise<void> {
-  if (USE_ASYNC_STORAGE) {
-    await AsyncStorage.removeItem(AR_KEYSTORE_STORAGE_KEY);
-  } else {
-    await SecureStore.deleteItemAsync(AR_KEYSTORE_STORAGE_KEY);
-  }
+  await secureDelete(AR_KEYSTORE_STORAGE_KEY);
 }

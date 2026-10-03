@@ -1,12 +1,8 @@
 import { encryptWallet } from './walletManager';
 import { lockSession } from './session';
 import { clearPaymentPasswordContext } from './paymentPasswordContext';
-import {
-  isPeerReencryptError,
-  savePreparedArKeystore,
-  savePreparedEthKeystore,
-  syncPeerAfterEthReplace,
-} from './reencryptPeerKeystore';
+import { commitKeystoreChange, readCurrentSnapshot } from './keystoreTransaction';
+import { isPeerReencryptError, syncPeerAfterEthReplace } from './reencryptPeerKeystore';
 
 interface WalletKeyMaterial {
   address: string;
@@ -15,24 +11,25 @@ interface WalletKeyMaterial {
 
 /**
  * Encrypt and persist a new ETH wallet. When replacing an existing full wallet,
- * re-encrypts the AR peer keystore with the new payment password first.
+ * re-encrypts the AR peer keystore with the new payment password first. Both
+ * keystores are switched in one journaled commit, so a crash cannot leave them
+ * under different passwords.
  */
 export async function finalizeEthWalletSetup(
   wallet: WalletKeyMaterial,
   newPassword: string,
   oldPassword: string | null,
 ): Promise<void> {
-  let reencryptedAr: string | null = null;
+  const old = await readCurrentSnapshot();
+
+  let nextAr = old.ar;
   if (oldPassword) {
-    reencryptedAr = await syncPeerAfterEthReplace(oldPassword, newPassword);
+    nextAr = (await syncPeerAfterEthReplace(oldPassword, newPassword)) ?? old.ar;
   }
 
-  const ethKeystoreJson = await encryptWallet(wallet, newPassword);
+  const nextEth = await encryptWallet(wallet, newPassword);
 
-  if (reencryptedAr) {
-    await savePreparedArKeystore(reencryptedAr);
-  }
-  await savePreparedEthKeystore(ethKeystoreJson);
+  await commitKeystoreChange(old, { eth: nextEth, ar: nextAr });
 
   lockSession();
   clearPaymentPasswordContext();

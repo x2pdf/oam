@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -21,7 +21,10 @@ import { useThemePreference } from '../../../context/ThemeContext';
 import { useAppContext } from '../../../context/AppContext';
 import { RootStackParamList } from '../../../types';
 import { AppModal } from '../../../components/AppModal';
-import { decryptJwk, loadEncryptedArKeystore } from '../../wallet/keystore';
+import { unlockArJwk } from '../../wallet/arUnlock';
+import { NO_KEYSTORE_ERROR, PASSWORD_LOCKED_ERROR } from '../../../wallet/passwordGuard';
+import { usePasswordLockRemaining } from '../../../wallet/WalletSessionContext';
+import type { ArweaveJwk } from '../../wallet/jwk';
 import { UploadFileType, UPLOAD_FILE_TYPE_TO_MIME } from '../constants';
 import { resolveActualUploadFileType } from '../fileTypes';
 import { FileTypeSelector } from '../components/FileTypeSelector';
@@ -37,6 +40,8 @@ import {
   getUploadWalletBalanceAr,
   getUploadWalletBalanceWinston,
   isUploadBalanceInsufficient,
+  isUploadFeeTooHighError,
+  maxAcceptableUploadReward,
   postUploadTransaction,
   uploadBase64ToUint8Array,
 } from '../transaction';
@@ -75,6 +80,11 @@ export default function ArweaveUploadScreen() {
   const [feeLoading, setFeeLoading] = useState(false);
   const [feeError, setFeeError] = useState(false);
   const [insufficientBalance, setInsufficientBalance] = useState(false);
+  // The fee the user was shown; the signed reward must stay close to it.
+  const quotedFeeWinstonRef = useRef<string | null>(null);
+
+  const lockRemainingMs = usePasswordLockRemaining(passwordVisible);
+  const passwordLocked = lockRemainingMs > 0;
 
   const [successVisible, setSuccessVisible] = useState(false);
   const [successTxId, setSuccessTxId] = useState('');
@@ -90,6 +100,7 @@ export default function ArweaveUploadScreen() {
     setFeeLoading(true);
     setFeeError(false);
     setInsufficientBalance(false);
+    quotedFeeWinstonRef.current = null;
 
     try {
       const [balanceAr, feeAr, balanceWinston, feeWinston] = await Promise.all([
@@ -100,6 +111,7 @@ export default function ArweaveUploadScreen() {
       ]);
       setBalanceDisplay(`${balanceAr} ${t('arweave.upload.feeUnit')}`);
       setFeeDisplay(`${feeAr} ${t('arweave.upload.feeUnit')}`);
+      quotedFeeWinstonRef.current = feeWinston;
       setInsufficientBalance(isUploadBalanceInsufficient(balanceWinston, feeWinston));
     } catch {
       setFeeError(true);
@@ -185,23 +197,37 @@ export default function ArweaveUploadScreen() {
   }, [insufficientBalance, feeLoading, balanceLoading, feeError]);
 
   const executeUpload = useCallback(async () => {
+    if (passwordLocked) return;
     if (!password) {
       setPasswordError(t('arweave.upload.passwordRequired'));
       return;
     }
     if (!pickedFile || !arProfile) return;
+    const quotedFee = quotedFeeWinstonRef.current;
+    if (!quotedFee) {
+      setPasswordError(t('arweave.upload.feeEstimateFailed'));
+      return;
+    }
 
     setLoading(true);
     setPasswordError(null);
-    try {
-      const keystoreJson = await loadEncryptedArKeystore();
-      if (!keystoreJson) {
-        setPasswordError(t('arweave.upload.noKeystore'));
-        setLoading(false);
-        return;
-      }
 
-      const jwk = await decryptJwk(keystoreJson, password);
+    let jwk: ArweaveJwk;
+    try {
+      jwk = await unlockArJwk(password);
+    } catch (error: any) {
+      setLoading(false);
+      setPassword('');
+      if (error?.name === NO_KEYSTORE_ERROR) {
+        setPasswordError(t('arweave.upload.noKeystore'));
+      } else if (error?.name !== PASSWORD_LOCKED_ERROR) {
+        // A locked-out attempt is reported by the lock countdown under the field.
+        setPasswordError(t('arweave.upload.wrongPassword'));
+      }
+      return;
+    }
+
+    try {
       const data = uploadBase64ToUint8Array(pickedFile.base64);
       const tags: { name: string; value: string }[] = [
         { name: 'Content-Type', value: UPLOAD_FILE_TYPE_TO_MIME[fileType] },
@@ -212,7 +238,7 @@ export default function ArweaveUploadScreen() {
         tags.push({ name: 'Note', value: trimmedNote });
       }
 
-      const txId = await postUploadTransaction(jwk, data, tags);
+      const txId = await postUploadTransaction(jwk, data, tags, maxAcceptableUploadReward(quotedFee));
       setLoading(false);
       setPasswordVisible(false);
       setPassword('');
@@ -221,9 +247,13 @@ export default function ArweaveUploadScreen() {
     } catch (error) {
       console.error('Upload error:', error);
       setLoading(false);
-      setPasswordError(t('arweave.upload.wrongPassword'));
+      setPasswordError(
+        isUploadFeeTooHighError(error)
+          ? t('arweave.upload.feeTooHigh')
+          : t('arweave.upload.uploadFailed'),
+      );
     }
-  }, [password, pickedFile, arProfile, fileType, note, t]);
+  }, [passwordLocked, password, pickedFile, arProfile, fileType, note, t]);
 
   const handleCancel = useCallback(() => {
     if (hasContent) {
@@ -486,7 +516,7 @@ export default function ArweaveUploadScreen() {
             label: t('common.ok'),
             onPress: () => { void executeUpload(); },
             loading,
-            disabled: loading,
+            disabled: loading || passwordLocked,
           },
         ]}
       >
@@ -502,12 +532,16 @@ export default function ArweaveUploadScreen() {
             if (passwordError) setPasswordError(null);
           }}
           autoFocus
-          disabled={loading}
-          error={!!passwordError}
+          disabled={loading || passwordLocked}
+          error={!!passwordError || passwordLocked}
           outlineColor={theme.colors.outline}
           activeOutlineColor={theme.colors.primary}
         />
-        {passwordError ? (
+        {passwordLocked ? (
+          <HelperText type="error" visible>
+            {t('home.passwordLocked', { seconds: Math.ceil(lockRemainingMs / 1000) })}
+          </HelperText>
+        ) : passwordError ? (
           <HelperText type="error" visible>
             {passwordError}
           </HelperText>

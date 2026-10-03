@@ -14,6 +14,7 @@ import { getVerifiedOldPassword } from '../wallet/paymentPasswordContext';
 import { useAppContext } from '../context/AppContext';
 import { DEFAULT_CHAIN } from '../constants';
 import { showAlert } from '../utils/alert';
+import { validatePaymentPassword } from '../wallet/passwordRules';
 
 type RoutePropType = RouteProp<RootStackParamList, 'WalletSetup'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -42,12 +43,9 @@ export default function WalletSetupScreen() {
       showAlert(t('common.error'), t('form.walletNameMaxLength'));
       return;
     }
-    if (password.length < 6) {
-      showAlert(t('common.error'), t('form.payPasswordMinLength'));
-      return;
-    }
-    if (password.length > 16) {
-      showAlert(t('common.error'), t('form.payPasswordMaxLength'));
+    const passwordRuleKey = validatePaymentPassword(password);
+    if (passwordRuleKey) {
+      showAlert(t('common.error'), t(passwordRuleKey));
       return;
     }
     if (password !== confirmPassword) {

@@ -5,7 +5,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import './src/i18n'; // Initialize i18n
 import { initArweaveCacheDatabase } from './src/arweave/list/cache/database';
 import { initDatabase } from './src/storage/database';
-import { recoverPendingPasswordChange } from './src/wallet/changePaymentPassword';
+import { hydratePasswordGuard } from './src/wallet/passwordGuard';
+import { migrateKeystoreAccessibility, recoverPendingKeystoreChange } from './src/wallet/keystoreTransaction';
+import { clearTempJwkFiles } from './src/arweave/wallet/backup/saveJwkJson';
 import { loadCacheMap } from './src/adapter/cacheMapService';
 import { getRemoteImageRoot } from './src/adapter/remoteImageStore';
 import { Platform } from 'react-native';
@@ -54,10 +56,17 @@ export default function App() {
     // Web OPFS has a small handle pool; open cache DBs sequentially.
     void (async () => {
       try {
-        // Finish/roll back a payment-password change interrupted by a crash.
-        await recoverPendingPasswordChange().catch((e) => {
-          console.warn('Failed to recover pending password change:', e);
+        // Restore the persisted wrong-password counter before any password prompt can open.
+        await hydratePasswordGuard();
+        // Finish/roll back a keystore change interrupted by a crash.
+        await recoverPendingKeystoreChange().catch((e) => {
+          console.warn('Failed to recover pending keystore change:', e);
         });
+        await migrateKeystoreAccessibility().catch((e) => {
+          console.warn('Failed to migrate keystore accessibility:', e);
+        });
+        // A JWK backup copy left in the cache by an interrupted share must not linger.
+        await clearTempJwkFiles().catch(() => {});
         await initDatabase();
         await loadCacheMap();
         if (Platform.OS !== 'web') {

@@ -5,6 +5,8 @@ import * as Sharing from 'expo-sharing';
 export type SaveJwkStatus = 'saved' | 'cancelled';
 
 const TEMP_JWK_FOLDER = 'oam-ar-jwk/';
+/** Android hands the file to the target app asynchronously; give it time to read it. */
+const ANDROID_TEMP_JWK_TTL_MS = 60_000;
 
 /** Remove temp JWK exports left in the cache directory by the share-sheet fallback. */
 export async function clearTempJwkFiles(): Promise<void> {
@@ -73,5 +75,15 @@ export async function saveJwkJson(jwkJson: string, filename: string): Promise<Sa
   }
 
   const uri = await writeTempJwk(jwkJson, filename);
-  return shareJwkFile(uri, filename);
+  try {
+    return await shareJwkFile(uri, filename);
+  } finally {
+    // The plaintext copy must not stay in the cache after the share sheet is done.
+    // Anything missed here is also swept at app start (see App.tsx) and by "clear cache".
+    if (Platform.OS === 'android') {
+      setTimeout(() => { clearTempJwkFiles().catch(() => {}); }, ANDROID_TEMP_JWK_TTL_MS);
+    } else {
+      clearTempJwkFiles().catch(() => {});
+    }
+  }
 }
