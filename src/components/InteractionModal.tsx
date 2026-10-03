@@ -137,7 +137,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
   );
 
   const recipientAddress = useMemo(() => {
-    if (action === 'like' || action === 'comment') {
+    if (action === 'like') {
       return authorAddress || BLACK_HOLE;
     }
     return BLACK_HOLE;
@@ -446,13 +446,8 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       const items = contentItems;
       let hash = '';
 
-      if (action === 'like' || action === 'comment') {
-        hash = await client.sendUnencryptedMessage(
-          recipientAddress,
-          items,
-          feeOption || undefined,
-          action === 'like' ? ethValueToSend : 0n,
-        );
+      if (action === 'like') {
+        hash = await client.sendUnencryptedMessage(recipientAddress, items, feeOption || undefined, ethValueToSend);
       } else {
         hash = await client.sendBroadcast(items, feeOption || undefined, 0n);
       }
