@@ -1,6 +1,7 @@
 import { withDb, withDbWrite, clearAllCache } from '../storage/database';
 import { ChainTransaction } from './ChainTransaction';
 import { dataSourceManager } from './DataSourceManager';
+import { clearRemoteImageCache } from '../adapter/remoteImageLoader';
 
 export interface CacheConfig {
   address: string;
@@ -356,6 +357,12 @@ export class CacheService {
    * Clear all cached data
    */
   public async clearCache(): Promise<void> {
+    // Images first: it clears image_cache_map rows, which the DB deletion below then drops anyway.
+    try {
+      await clearRemoteImageCache();
+    } catch (error) {
+      console.warn('clearRemoteImageCache failed:', error);
+    }
     await clearAllCache();
   }
 

@@ -171,12 +171,35 @@ async function initSchema(database: SQLite.SQLiteDatabase) {
 }
 
 /**
- * Clear all cache data
+ * Clear all cache data by deleting the database file itself (plus -wal/-shm), so the
+ * on-disk size drops to ~0. The next getDb() call recreates an empty schema lazily.
+ * Falls back to deleting rows if the file cannot be removed (e.g. in-memory web fallback).
  */
 export async function clearAllCache(): Promise<void> {
-  await withDbWrite(async (database) => {
-    await database.execAsync('DELETE FROM address_tx_map;');
-    await database.execAsync('DELETE FROM tx_ref_status;');
-    await database.execAsync('DELETE FROM transactions;');
+  await enqueueWrite(async () => {
+    if (dbInitPromise) {
+      await dbInitPromise.catch(() => undefined);
+    }
+    const current = db;
+    db = null;
+    dbInitPromise = null;
+
+    try {
+      await current?.closeAsync();
+    } catch {
+      // Handle may already be poisoned/closed; deletion below still proceeds.
+    }
+
+    try {
+      await SQLite.deleteDatabaseAsync(DB_NAME);
+    } catch (error) {
+      console.warn('[sqlite] Failed to delete cache database, clearing rows instead:', error);
+      const database = await getDb();
+      await database.execAsync('DELETE FROM address_tx_map;');
+      await database.execAsync('DELETE FROM tx_ref_status;');
+      await database.execAsync('DELETE FROM transactions;');
+      await database.execAsync('DELETE FROM image_cache_map;');
+      await database.execAsync('VACUUM;');
+    }
   });
 }
