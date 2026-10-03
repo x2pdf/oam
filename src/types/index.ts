@@ -190,6 +190,7 @@ export type RootStackParamList = {
     pickedArweaveNonce?: number;
   } | undefined;
   InputDataDetail: { item: InputDataItem };
+  Interaction: { item: InputDataItem };
   SubscriptionDetail: { subscription: Subscription };
   AddressDataList: { address: string; title?: string; peerAddress?: string };
   LocalFavorites: undefined;

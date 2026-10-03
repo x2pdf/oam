@@ -13,6 +13,7 @@ import HomeScreen from '../screens/HomeScreen';
 import SubscriptionsScreen from '../screens/SubscriptionsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SendDataScreen from '../screens/SendDataScreen';
+import InteractionScreen from '../screens/InteractionScreen';
 import AddAttachmentScreen from '../screens/AddAttachmentScreen';
 import SubscriptionFormScreen from '../screens/SubscriptionFormScreen';
 import AddInfoSelectScreen from '../screens/AddInfoSelectScreen';
@@ -284,6 +285,13 @@ export default function AppNavigator() {
           component={SendDataScreen}
           options={{
             title: t('nav.sendData'),
+          }}
+        />
+        <Stack.Screen
+          name="Interaction"
+          component={InteractionScreen}
+          options={{
+            title: t('interaction.title'),
           }}
         />
         <Stack.Screen

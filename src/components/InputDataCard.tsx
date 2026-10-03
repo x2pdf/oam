@@ -116,6 +116,12 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
           {renderBody()}
 
           <View style={styles.footerRow}>
+            <Text
+              variant="labelSmall"
+              style={[styles.timeText, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) }]}
+            >
+              {displayTime}
+            </Text>
             {onInteraction ? (
               <TouchableOpacity
                 onPress={() => onInteraction(item)}
@@ -133,12 +139,6 @@ export const InputDataCard: React.FC<InputDataCardProps> = React.memo(
             ) : (
               <View />
             )}
-            <Text
-              variant="labelSmall"
-              style={[styles.timeText, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(11 * fontScale) }]}
-            >
-              {displayTime}
-            </Text>
           </View>
         </Card.Content>
       </Card>

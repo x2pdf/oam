@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 import {
   Text,
@@ -12,13 +13,18 @@ import {
   ActivityIndicator,
 } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { parseUnits, parseEther, formatUnits, formatEther } from 'ethers';
-import { AppModal } from './AppModal';
+import { AppModal } from '../components/AppModal';
+import { scrollFill } from '../theme/scroll';
+import { ListColumn, useListColumnLayout } from '../theme/layout';
 import { useAppContext } from '../context/AppContext';
 import { useThemePreference } from '../context/ThemeContext';
-import { useModalInsetFrameStyle } from '../theme/surfaces';
-import type { InputDataItem } from '../types';
+import { useOutlineFrameStyle } from '../theme/surfaces';
+import type { RootStackParamList } from '../types';
 import {
   estimateSendFeeFromAddress,
   getFeeSuggestions,
@@ -54,11 +60,8 @@ type LikeMultiplier = 1 | 2 | 3 | 5 | 10;
 
 const LIKE_MULTIPLIERS: LikeMultiplier[] = [1, 2, 3, 5, 10];
 
-interface InteractionModalProps {
-  item: InputDataItem | null;
-  visible: boolean;
-  onDismiss: () => void;
-}
+type NavProp = NativeStackNavigationProp<RootStackParamList, 'Interaction'>;
+type RouteProps = RouteProp<RootStackParamList, 'Interaction'>;
 
 function wrapLongHex(value: string): string {
   return value.replace(/(.{8})/g, '$1\u200b');
@@ -70,15 +73,24 @@ function tipFromFeeEstimate(feeEstimate: string, multiplier: number): string {
   return formatEther(parseEther(feeEstimate) * BigInt(multiplier));
 }
 
-export function InteractionModal({ item, visible, onDismiss }: InteractionModalProps) {
+export default function InteractionScreen() {
   const theme = useTheme();
-  const modalInsetFrameStyle = useModalInsetFrameStyle();
+  const navigation = useNavigation<NavProp>();
+  const route = useRoute<RouteProps>();
+  const insets = useSafeAreaInsets();
+  const { listContentStyle } = useListColumnLayout();
+  const item = route.params.item;
+  const frameStyle = useOutlineFrameStyle();
   const { t } = useTranslation();
   const { fontScale } = useThemePreference();
   const { state } = useAppContext();
   const profile = state.profile;
 
   const [step, setStep] = useState<Step>('compose');
+  // Paper Modal 关闭时会先淡出；淡出期间沿用上一步的内容，避免弹窗中途变形（闪屏）
+  const lastDialogStepRef = useRef<Exclude<Step, 'compose'>>('password');
+  if (step !== 'compose') lastDialogStepRef.current = step;
+  const renderDialogStep = step === 'compose' ? lastDialogStepRef.current : step;
 
   const [action, setAction] = useState<InteractionType>('like');
   const [multiplier, setMultiplier] = useState<LikeMultiplier>(1);
@@ -100,7 +112,6 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
   const feeOptionRef = useRef<FeeOption | null>(null);
   const feeUserTouchedRef = useRef(false);
   const estimateFeeRef = useRef<(manual?: FeeOption | null) => Promise<void>>(async () => {});
-  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -108,31 +119,6 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
   const [txHash, setTxHash] = useState('');
   const passwordLockRemainingMs = usePasswordLockRemaining(step === 'password');
   const passwordLocked = passwordLockRemainingMs > 0;
-
-  const resetState = useCallback(() => {
-    setStep('compose');
-    setAction('like');
-    setMultiplier(1);
-    setCommentText('');
-    setFeeEstimate(null);
-    setFeeLoading(false);
-    setFeeError(false);
-    setBalanceEth(null);
-    setInsufficientBalance(false);
-    setEthUsdPrice(null);
-    setFeeOption(null);
-    setFeeSuggestions(null);
-    setCustomMaxFee('');
-    setCustomMaxPriority('');
-    feeGasLimitRef.current = null;
-    balanceWeiRef.current = null;
-    feeOptionRef.current = null;
-    feeUserTouchedRef.current = false;
-    setPassword('');
-    setPasswordError(null);
-    setLoading(false);
-    setTxHash('');
-  }, []);
 
   const authorAddress = useMemo(
     () => (item?.from || item?.address || '').trim(),
@@ -168,18 +154,10 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
 
   // 上链内容不含小费金额（金额是交易本身的 value），估费与发送共用同一份。
   const contentItems = useMemo<ContentItem[]>(() => {
-    if (!item) return [];
     return buildInteractionContent({ type: action, item, commentText });
   }, [action, item, commentText]);
 
   const composeContent = useMemo(() => interactionPreviewText(contentItems), [contentItems]);
-
-  const dataSummary = useMemo(() => {
-    const text = composeContent.trim();
-    if (!text) return t('send.confirmDataEmpty');
-    const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text;
-    return t('send.confirmDataText', { text: preview });
-  }, [composeContent, t]);
 
   const canConfirmSend = useMemo(() => {
     if (feeLoading || feeError || !feeEstimate || insufficientBalance) return false;
@@ -305,37 +283,17 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
   }, [applyFeeOptionLocally, syncCustomFeeInputsFromOption, step, ethValueToSend]);
 
   useEffect(() => {
-    if (!visible) {
-      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
-      resetTimerRef.current = setTimeout(() => {
-        resetTimerRef.current = null;
-        resetState();
-      }, 250);
-      return () => {
-        if (resetTimerRef.current) {
-          clearTimeout(resetTimerRef.current);
-          resetTimerRef.current = null;
-        }
-      };
-    }
-
-    if (resetTimerRef.current) {
-      clearTimeout(resetTimerRef.current);
-      resetTimerRef.current = null;
-    }
-    resetState();
     void loadFeeSuggestions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅弹窗打开时初始化
-  }, [visible, resetState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅页面打开时初始化
+  }, []);
 
   // 仅在影响 calldata / 收款方的输入变化时重估。
   useEffect(() => {
-    if (!visible || !item) return;
     const timer = setTimeout(() => {
       void estimateFeeRef.current(feeOptionRef.current);
     }, 400);
     return () => clearTimeout(timer);
-  }, [visible, item?.id, action, commentText, recipientAddress, multiplier, contentItems]);
+  }, [item.id, action, commentText, recipientAddress, multiplier, contentItems]);
 
   // 倍数变化时只重算余额是否够（小费变了），不必等下一次网络估费。
   useEffect(() => {
@@ -490,20 +448,23 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     t,
   ]);
 
-  const handleDismiss = useCallback(() => {
+  const leavePage = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  // 弹窗（费用 / 密码 / 成功）的关闭：回到页面；成功后离开页面。
+  const handleDialogDismiss = useCallback(() => {
     if (loading) return;
-    if (step === 'fee') {
-      setStep('compose');
-    } else if (step === 'password') {
+    if (step === 'success') {
+      leavePage();
+      return;
+    }
+    if (step === 'password') {
       setPassword('');
       setPasswordError(null);
-      setStep('compose');
-    } else if (step === 'success') {
-      onDismiss();
-    } else {
-      onDismiss();
     }
-  }, [loading, onDismiss, step]);
+    setStep('compose');
+  }, [loading, leavePage, step]);
 
   const feeDisplay = feeLoading
     ? t('send.feeEstimating')
@@ -552,7 +513,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       </View>
 
       {action === 'like' && (
-        <View style={[modalInsetFrameStyle, styles.sectionFrame]}>
+        <View style={[frameStyle, styles.sectionFrame]}>
           <Text style={[styles.sectionLabel, { fontSize: Math.round(13 * fontScale) }]}>
             {t('interaction.likeAmount')}
           </Text>
@@ -597,7 +558,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       )}
 
       {action === 'comment' && (
-        <View style={[modalInsetFrameStyle, styles.sectionFrame]}>
+        <View style={[frameStyle, styles.sectionFrame]}>
           <Text style={[styles.sectionLabel, { fontSize: Math.round(13 * fontScale) }]}>
             {t('interaction.commentInputLabel')}
           </Text>
@@ -620,7 +581,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       )}
 
       {(action === 'like' || action === 'repost') && (
-        <View style={[modalInsetFrameStyle, styles.sectionFrame]}>
+        <View style={[frameStyle, styles.sectionFrame]}>
           <Text style={[styles.sectionLabel, { fontSize: Math.round(13 * fontScale) }]}>
             {t('interaction.onChainPreview')}
           </Text>
@@ -629,8 +590,8 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
             value={composeContent}
             editable={false}
             multiline
-            numberOfLines={action === 'repost' ? 8 : 6}
-            style={styles.previewInput}
+            numberOfLines={3}
+            style={[styles.previewInput, styles.compactPreviewInput]}
             contentStyle={{ textAlignVertical: 'top', paddingTop: 8, color: theme.colors.onSurface }}
             outlineColor={theme.colors.outline}
           />
@@ -641,7 +602,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       )}
 
       {action === 'comment' && (
-        <View style={[modalInsetFrameStyle, styles.sectionFrame]}>
+        <View style={[frameStyle, styles.sectionFrame]}>
           <Text style={[styles.sectionLabel, { fontSize: Math.round(13 * fontScale) }]}>
             {t('interaction.onChainPreview')}
           </Text>
@@ -661,20 +622,15 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
         </View>
       )}
 
-      <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+      <View style={[frameStyle, styles.confirmFrame]}>
         <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmRecipient')}</Text>
         <Text style={[styles.confirmValue, styles.addressText, { fontSize: Math.round(14 * fontScale) }]} selectable>
           {wrapLongHex(recipientAddress)}
         </Text>
       </View>
 
-      <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
-        <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmData')}</Text>
-        <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>{dataSummary}</Text>
-      </View>
-
       {ethValueToSend > 0n && (
-        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+        <View style={[frameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmEthAmount')}</Text>
           <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale), color: theme.colors.primary, fontWeight: 'bold' }]}>
             {ethValueDisplay} ETH
@@ -682,7 +638,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
         </View>
       )}
 
-      <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+      <View style={[frameStyle, styles.confirmFrame]}>
         <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmBalance')}</Text>
         <View style={styles.feeRow}>
           {feeLoading && <ActivityIndicator size="small" style={styles.feeSpinner} />}
@@ -695,7 +651,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
         )}
       </View>
 
-      <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+      <View style={[frameStyle, styles.confirmFrame]}>
         <View style={styles.confirmLabelRow}>
           <Text style={[styles.confirmLabel, { fontSize: Math.round(13 * fontScale) }]}>{t('send.confirmFee')}</Text>
           {!feeLoading && !feeError && (
@@ -721,7 +677,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       </View>
 
       {insufficientBalance && (
-        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+        <View style={[frameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
             {t('send.insufficientBalance')}
           </Text>
@@ -729,7 +685,7 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
       )}
 
       {feeError && !feeLoading && (
-        <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+        <View style={[frameStyle, styles.confirmFrame]}>
           <Text style={[styles.confirmWarning, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
             {t('send.feeEstimateFailedHint')}
           </Text>
@@ -738,20 +694,24 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
           </Button>
         </View>
       )}
+    </>
+  );
 
-      <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+  const renderDisclaimers = () => (
+    <>
+      <View style={[frameStyle, styles.confirmFrame]}>
         <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
           {t('send.feeDisclaimer')}
         </Text>
       </View>
 
-      <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+      <View style={[frameStyle, styles.confirmFrame]}>
         <Text style={[styles.feeDisclaimer, { color: theme.colors.error, fontSize: Math.round(13 * fontScale), lineHeight: Math.round(18 * fontScale) }]}>
           {t('send.submitNotMinedDisclaimer')}
         </Text>
       </View>
 
-      <View style={[modalInsetFrameStyle, styles.confirmFrame]}>
+      <View style={[frameStyle, styles.confirmFrame]}>
         <Text style={[styles.safetyTip, { color: theme.colors.onSurfaceVariant, fontSize: Math.round(12 * fontScale), lineHeight: Math.round(17 * fontScale) }]}>
           {t('send.safetyTipMsg')}
         </Text>
@@ -852,17 +812,15 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
     </>
   );
 
-  const title =
-    step === 'fee'
+  const dialogTitle =
+    renderDialogStep === 'fee'
       ? t('send.feeAdjustmentTitle')
-      : step === 'password'
+      : renderDialogStep === 'password'
         ? t('send.passwordTitle')
-        : step === 'success'
-          ? t('send.sendSuccess')
-          : t('interaction.title');
+        : t('send.sendSuccess');
 
-  const actions =
-    step === 'success'
+  const dialogActions =
+    renderDialogStep === 'success'
       ? [
           {
             label: t('common.copy'),
@@ -870,50 +828,96 @@ export function InteractionModal({ item, visible, onDismiss }: InteractionModalP
               await Clipboard.setStringAsync(txHash);
             },
           },
-          { label: t('common.ok'), onPress: onDismiss },
+          { label: t('common.ok'), onPress: leavePage },
         ]
-      : step === 'fee'
+      : renderDialogStep === 'fee'
         ? [
             { label: t('common.cancel'), onPress: () => setStep('compose') },
             { label: t('common.ok'), onPress: handleApplyCustomFee },
           ]
-        : step === 'password'
-          ? [
-              { label: t('common.cancel'), disabled: loading, onPress: () => setStep('compose') },
-              {
-                label: t('common.ok'),
-                onPress: handleSend,
-                loading,
-                disabled: loading || passwordLocked,
-              },
-            ]
-          : [
-              { label: t('common.cancel'), onPress: onDismiss },
-              {
-                label: t('send.confirmSendButton', { defaultValue: t('wallet.verifyButtonConfirm') }),
-                onPress: handleConfirm,
-                disabled: !canConfirmSend,
-              },
-            ];
+        : [
+            { label: t('common.cancel'), disabled: loading, onPress: handleDialogDismiss },
+            {
+              label: t('common.ok'),
+              onPress: handleSend,
+              loading,
+              disabled: loading || passwordLocked,
+            },
+          ];
 
   return (
-    <AppModal
-      visible={visible}
-      onDismiss={handleDismiss}
-      dismissable={!loading}
-      title={title}
-      scrollable
-      actions={actions}
-    >
-      {step === 'compose' && renderComposeContent()}
-      {step === 'fee' && renderFeeContent()}
-      {step === 'password' && renderPasswordContent()}
-      {step === 'success' && renderSuccessContent()}
-    </AppModal>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        style={[scrollFill, styles.container]}
+        contentContainerStyle={[styles.content, listContentStyle, { paddingBottom: insets.bottom + 20 }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <ListColumn>
+          {renderComposeContent()}
+
+          <View style={styles.buttonGroup}>
+            <Button
+              mode="contained"
+              onPress={handleConfirm}
+              disabled={!canConfirmSend}
+              style={styles.button}
+              buttonColor={theme.colors.primary}
+              contentStyle={styles.buttonContent}
+            >
+              {t('send.confirmSendButton', { defaultValue: t('wallet.verifyButtonConfirm') })}
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={leavePage}
+              style={styles.button}
+              contentStyle={styles.buttonContent}
+            >
+              {t('common.cancel')}
+            </Button>
+          </View>
+
+          <View style={styles.disclaimerGroup}>{renderDisclaimers()}</View>
+        </ListColumn>
+      </ScrollView>
+
+      <AppModal
+        visible={step !== 'compose'}
+        onDismiss={handleDialogDismiss}
+        dismissable={!loading}
+        title={dialogTitle}
+        scrollable={renderDialogStep === 'fee'}
+        actions={dialogActions}
+      >
+        {renderDialogStep === 'fee' && renderFeeContent()}
+        {renderDialogStep === 'password' && renderPasswordContent()}
+        {renderDialogStep === 'success' && renderSuccessContent()}
+      </AppModal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  buttonGroup: {
+    marginTop: 24,
+    gap: 12,
+  },
+  disclaimerGroup: {
+    marginTop: 16,
+  },
+  button: {
+    borderRadius: 8,
+  },
+  buttonContent: {
+    paddingVertical: 4,
+  },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -970,6 +974,9 @@ const styles = StyleSheet.create({
   previewInput: {
     minHeight: 280,
     backgroundColor: 'transparent',
+  },
+  compactPreviewInput: {
+    minHeight: 140,
   },
   confirmFrame: {
     paddingVertical: 8,

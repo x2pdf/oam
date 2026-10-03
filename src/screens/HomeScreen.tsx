@@ -20,7 +20,6 @@ import { useTranslation } from 'react-i18next';
 import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { InputDataCard } from '../components/InputDataCard';
-import { InteractionModal } from '../components/InteractionModal';
 import { CopyableAddress } from '../components/CopyableAddress';
 import { shortenAddress, BLACK_HOLE_ADDRESS } from '../utils/address';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -141,8 +140,6 @@ export default function HomeScreen() {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [dialogVisible, setDialogVisible] = useState(false);
-  const [interactionItem, setInteractionItem] = useState<InputDataItem | null>(null);
-  const [interactionVisible, setInteractionVisible] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -607,13 +604,8 @@ export default function HomeScreen() {
       setDialogVisible(true);
       return;
     }
-    setInteractionItem(item);
-    setInteractionVisible(true);
-  }, [profile, t]);
-
-  const dismissInteraction = useCallback(() => {
-    setInteractionVisible(false);
-  }, []);
+    navigation.navigate('Interaction', { item });
+  }, [profile, t, navigation]);
 
   const renderItem = useCallback(
     ({ item }: { item: InputDataItem }) => (
@@ -1135,12 +1127,6 @@ export default function HomeScreen() {
         onPress={onFabPress}
         color="white"
         small
-      />
-
-      <InteractionModal
-        item={interactionItem}
-        visible={interactionVisible}
-        onDismiss={dismissInteraction}
       />
     </View>
   );
