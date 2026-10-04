@@ -141,8 +141,26 @@ export const FOLLOWING_BLOCK_FETCH_TIMEOUT_MS = 20000;
 /** 关注页按地址拉取时的并发限制 (每秒请求数) */
 export const FOLLOWING_ADDRESS_FETCH_RATE_LIMIT = 5;
 
-/** 远程图片单次 fetch 超时（每个候选地址）。有本地文件时不出网，不堵列表。 */
-export const REMOTE_IMAGE_TIMEOUT_MS = 15000;
+/**
+ * 远程图片单次尝试超时（每个候选网关，含响应头与图片体）。Arweave 网关首字节常要十几秒，
+ * 大图下载更久；等待中的请求只占一个连接，所以给得很宽。有本地文件时不出网，不堵列表。
+ */
+export const REMOTE_IMAGE_TIMEOUT_MS = 120000;
+
+/** 单张图片从开始到放弃的总时限（含排队、所有网关尝试）。 */
+export const REMOTE_IMAGE_TOTAL_DEADLINE_MS = 240000;
+
+/** Arweave 图：当前网关这么久没下完，就再并发启动下一个网关（先成功者胜出，其余中止）。 */
+export const REMOTE_IMAGE_HEDGE_DELAY_MS = 8000;
+
+/** Arweave 图：同一张图最多同时请求的网关数。 */
+export const REMOTE_IMAGE_MAX_PARALLEL_PER_IMAGE = 3;
+
+/**
+ * 全局同时进行的远程图片请求上限，避免一屏图片 × 多网关把连接打满。
+ * 并发备用网关只在有空闲槽位时才启动，不排队，不挤占新图片的首个请求。
+ */
+export const REMOTE_IMAGE_MAX_CONCURRENT_REQUESTS = 18;
 
 /** 非 Arweave 远程图：同一 URL 最多尝试次数 */
 export const REMOTE_IMAGE_RETRY_PER_URL = 2;

@@ -7,6 +7,7 @@ import {
 } from '../adapter/remoteImageLoader';
 import { peekCachedImagePath } from '../adapter/cacheMapService';
 import { isHttpUrl, isLocalImageUri } from '../utils/attachment';
+import { imgLog, shortRef } from '../utils/imageCacheLog';
 
 function computeInitialDisplayUri(
   uri: string | null | undefined,
@@ -124,6 +125,9 @@ export function useCachedRemoteImage(
       return;
     }
     const initial = computeInitialDisplayUri(uri, hintPath);
+    if (forceToken > 0) {
+      imgLog('hook.forceReload', { uri: shortRef(uri), forceToken });
+    }
     if (initial && forceToken === 0) {
       setDisplayUri(initial);
       setLoading(false);
@@ -139,6 +143,6 @@ export function useCachedRemoteImage(
     loading,
     failed,
     retry,
-    invalidate: () => invalidateRemoteImageCache(uri ?? ''),
+    invalidate: (reason?: string) => invalidateRemoteImageCache(uri ?? '', reason),
   };
 }

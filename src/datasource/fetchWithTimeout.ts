@@ -41,9 +41,22 @@ export async function fetchImageWithTimeout(
   url: string,
   timeoutMs: number,
   extraHeaders?: Record<string, string>,
+  /** 外部中止（例如并发网关中另一个已成功）；读取响应体期间同样生效。 */
+  signal?: AbortSignal,
 ): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener('abort', () => controller.abort());
+    }
+  }
   try {
     return await fetch(url, {
       headers: {
@@ -55,7 +68,7 @@ export async function fetchImageWithTimeout(
     });
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
+      throw new Error(timedOut ? `Request timed out after ${timeoutMs}ms` : 'Request aborted');
     }
     throw err;
   } finally {

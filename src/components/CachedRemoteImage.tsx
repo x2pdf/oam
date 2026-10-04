@@ -4,7 +4,9 @@ import { ActivityIndicator, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { getImageRendererAdapter } from '../adapter';
 import { PlatformImageProps } from '../adapter/ImageRendererAdapter';
+import { localFileExists } from '../adapter/remoteImageStore';
 import { useCachedRemoteImage } from '../hooks/useCachedRemoteImage';
+import { imgCount, imgLog, shortRef } from '../utils/imageCacheLog';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
@@ -65,13 +67,27 @@ export const CachedRemoteImage: React.FC<Props> = ({
   }, [displayUri, onDisplayUri]);
 
   const handleImageError = useCallback(async () => {
+    // 显示的文件根本不存在（路径失效）时只重新解析，不能删缓存：按文件名仍能在当前目录找到它。
+    const missingFile =
+      !!displayUri && displayUri.startsWith('file:') && !(await localFileExists(displayUri));
+    const willInvalidate = !!uri && decodeRetries < MAX_DECODE_RETRIES && !missingFile;
+    imgCount('renderError');
+    imgLog('render.error', {
+      uri: shortRef(uri),
+      displayUri: shortRef(displayUri, 140),
+      decodeRetries,
+      missingFile,
+      willInvalidate,
+    });
     if (uri && decodeRetries < MAX_DECODE_RETRIES) {
       setDecodeRetries((n) => n + 1);
-      await invalidate().catch(() => {});
+      if (!missingFile) {
+        await invalidate(`render error on ${shortRef(displayUri, 140)}`).catch(() => {});
+      }
       retry();
     }
     onError?.();
-  }, [uri, decodeRetries, invalidate, retry, onError]);
+  }, [uri, displayUri, decodeRetries, invalidate, retry, onError]);
 
   if (failed && decodeRetries >= MAX_DECODE_RETRIES) {
     return null;
