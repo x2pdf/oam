@@ -275,6 +275,8 @@ xcodebuild -exportArchive \
 
 把 `method` 改成 `app-store` 可用于 App Store 上传，改成 `development` 可用于开发分发。
 
+> 注意：此方式导出的 IPA 都**带签名**，只能安装到描述文件中登记过的设备。若需要让用户用自己的 Apple ID 重签安装，请参见 [第 12 节：打包出没有签名的 IPA 安装包](#12-打包出没有签名的-ipa-安装包)。
+
 ### 5.3 方式三：EAS Build（Expo 云端编译）
 
 不需要本地 Xcode，在 Expo 服务器上编译：
@@ -556,41 +558,59 @@ npx eas-cli build --platform ios
 ```
 
 
-## 12. 打包出没有签名的IPA安装包
+## 12. 打包出没有签名的 IPA 安装包
 
-来得iOS目录：
-cd oam/ios/
+> 第 5.2 节 `xcodebuild -exportArchive` 导出的 IPA **是带签名的**（`method` 只决定用哪种签名，没有"不签名"选项），只能装在描述文件登记过的设备上。
+> 如果要把 IPA 交给用户，让他们用**自己的 Apple ID** 通过 Sideloadly / AltStore / 爱思助手等工具重签安装，应打**未签名**的 IPA：不依赖我们的证书，也没有设备与有效期限制。
 
-执行不签名的打包命令：
-xcodebuild -workspace OAM.xcworkspace -scheme OAM -configuration Release -sdk iphoneos18.2 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+### 12.1 打包步骤（推荐：Archive 方式）
 
-找到打包好的安装包的位置：
-find ~/Library/Developer/Xcode/DerivedData -path "*/Build/Products/Release-iphoneos/*.app" -print
+```bash
+cd ios
 
-检查安装包是不是没有签名的：
-codesign -dv "/Users/megan/Library/Developer/Xcode/DerivedData/OAM-xxxxxxxxxxxxxxxxx/Build/Products/Release-iphoneos/OAM.app“
-如果显示：
-code object is not signed at all
-那么就确认是未签名的。
+# 1. 关闭签名进行 Archive（不需要 ExportOptions.plist，也不走 -exportArchive）
+xcodebuild archive \
+  -workspace OAM.xcworkspace \
+  -scheme OAM \
+  -configuration Release \
+  -archivePath build/OAM.xcarchive \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
+# 2. 组装 Payload 目录（目录名必须是 Payload，不能改）
+rm -rf build/ipa && mkdir -p build/ipa/Payload
+cp -R build/OAM.xcarchive/Products/Applications/OAM.app build/ipa/Payload/
 
-创建IPA包名目录（不要改为别的名字）：
-mkdir -p Payload
+# 3. 压缩为 IPA
+cd build/ipa && zip -qry OAM.ipa Payload
+```
 
-复制未签名的安装包到IPA包目录下：
-cp -R /Users/megan/Library/Developer/Xcode/DerivedData/OAM-xxxxxxxxxxxx/Build/Products/Release-iphoneos/OAM.app Payload
+产物：`ios/build/ipa/OAM.ipa`（`ios/build/` 已在 `.gitignore` 中）。
 
-最后封装为IPA安装包：
-zip -r OAM.ipa Payload
+### 12.2 校验是否未签名
 
+```bash
+codesign -dv ios/build/ipa/Payload/OAM.app
+```
 
+输出 `code object is not signed at all` 即为未签名。
 
+### 12.3 备选：build 方式
 
+不用 Archive 也可以直接 build，产物在 DerivedData 中：
 
+```bash
+cd ios
+xcodebuild build -workspace OAM.xcworkspace -scheme OAM -configuration Release -sdk iphoneos \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
+# 查找生成的 .app
+find ~/Library/Developer/Xcode/DerivedData -path "*/Build/Products/Release-iphoneos/OAM.app" -maxdepth 6
+```
 
+然后把找到的 `OAM.app` 按 12.1 第 2、3 步放入 `Payload/` 并 zip。`-sdk iphoneos` 会自动使用当前 Xcode 自带的 SDK，无需写死版本号。
 
+### 12.4 用户侧安装注意事项
 
-
-
-
+- 免费 Apple ID 重签的 App **7 天后失效**，需重新签名安装；付费开发者账号为 1 年。
+- 免费 Apple ID 同一时间最多安装 **3 个**侧载 App。
+- 重签工具通常会修改 Bundle ID（默认 `com.oam.logan.app`），属正常现象；改动后与原 App 视为不同应用，数据不互通。
