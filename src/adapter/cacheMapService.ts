@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { withDb, withDbWrite } from '../storage/database';
-import { containerPrefixOf, imgCount, imgLog, shortRef } from '../utils/imageCacheLog';
 import {
   findLocalFileByPlaceholder,
   peekLocalFileByPlaceholder,
@@ -87,88 +86,7 @@ export async function loadCacheMap(): Promise<void> {
           placeholder,
         ]);
       }
-    }).catch((error) => imgLog('loadCacheMap.migrateFailed', String(error)));
-  }
-  imgLog('loadCacheMap', {
-    rows: rows.length,
-    inMemory: memory.size,
-    migratedAbsolutePaths: legacy.length,
-  });
-}
-
-/**
- * 启动诊断：对比当前文档目录、缓存文件夹实际文件与 image_cache_map 中记录的绝对路径。
- * 若映射表里的路径指向旧的应用容器（重装后 UUID 变化），这里会列出旧前缀与数量。
- */
-export async function logImageCacheStartupReport(): Promise<void> {
-  if (!usePersistentMap()) {
-    return;
-  }
-  try {
-    const docDir = FileSystem.documentDirectory ?? '';
-    const folder = `${docDir}${REMOTE_IMAGE_FOLDER}`;
-    const folderInfo = await FileSystem.getInfoAsync(folder);
-    let fileNames: string[] = [];
-    let totalBytes = 0;
-    if (folderInfo.exists) {
-      fileNames = await FileSystem.readDirectoryAsync(folder);
-      for (const name of fileNames) {
-        const info = await FileSystem.getInfoAsync(`${folder}${name}`);
-        if (info.exists && 'size' in info && typeof info.size === 'number') {
-          totalBytes += info.size;
-        }
-      }
-    }
-    imgLog('startup.dir', {
-      documentDirectory: docDir,
-      containerPrefix: containerPrefixOf(docDir),
-      folderExists: folderInfo.exists,
-      files: fileNames.length,
-      totalKB: Math.round(totalBytes / 1024),
-    });
-
-    const currentPrefix = containerPrefixOf(docDir);
-    const staleByPrefix: Record<string, number> = {};
-    let underCurrent = 0;
-    let existsCount = 0;
-    let missingCount = 0;
-    const missingSamples: string[] = [];
-    for (const [placeholder, localPath] of memory) {
-      if (localPath.startsWith(folder) || localPath.startsWith(`file://${folder}`)) {
-        underCurrent += 1;
-      } else {
-        const prefix = containerPrefixOf(localPath) ?? '(unknown)';
-        staleByPrefix[prefix] = (staleByPrefix[prefix] ?? 0) + 1;
-      }
-      const info = await FileSystem.getInfoAsync(localPath).catch(() => ({ exists: false }));
-      if (info.exists) {
-        existsCount += 1;
-      } else {
-        missingCount += 1;
-        if (missingSamples.length < 5) {
-          missingSamples.push(`${shortRef(placeholder, 60)} -> ${shortRef(localPath, 120)}`);
-        }
-      }
-    }
-    imgLog('startup.map', {
-      rows: memory.size,
-      pathUnderCurrentFolder: underCurrent,
-      pathUnderOtherPrefix: memory.size - underCurrent,
-      staleByPrefix,
-      currentPrefix,
-      fileExists: existsCount,
-      fileMissing: missingCount,
-    });
-    for (const sample of missingSamples) {
-      imgLog('startup.map.missingSample', sample);
-    }
-    const mappedNames = new Set(
-      [...memory.values()].map((path) => path.slice(path.lastIndexOf('/') + 1)),
-    );
-    const orphanFiles = fileNames.filter((name) => !mappedNames.has(name)).length;
-    imgLog('startup.orphans', { filesWithoutMapRowByName: orphanFiles });
-  } catch (error) {
-    imgLog('startup.report.failed', String(error));
+    }).catch(() => {});
   }
 }
 
@@ -225,19 +143,13 @@ export async function hydrateCacheMap(
   for (const placeholder of unique) {
     const fromMem = peekCacheMap(placeholder);
     if (fromMem) {
-      // 注意：这里不校验文件是否存在，旧容器路径也会被当作命中返回给 UI。
       map[placeholder] = fromMem;
-      imgCount('hydrateMem');
       continue;
     }
     const onDisk = await findLocalFileByPlaceholder(placeholder);
     if (onDisk) {
       map[placeholder] = onDisk;
-      imgCount('hydrateDisk');
       await upsertCacheMap(placeholder, onDisk);
-    } else {
-      imgCount('hydrateMiss');
-      imgLog('hydrate.miss', shortRef(placeholder));
     }
   }
   return map;

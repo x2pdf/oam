@@ -8,7 +8,7 @@ import { initDatabase } from './src/storage/database';
 import { hydratePasswordGuard } from './src/wallet/passwordGuard';
 import { recoverPendingKeystoreChange } from './src/wallet/keystoreTransaction';
 import { clearTempJwkFiles } from './src/arweave/wallet/backup/saveJwkJson';
-import { loadCacheMap, logImageCacheStartupReport } from './src/adapter/cacheMapService';
+import { loadCacheMap } from './src/adapter/cacheMapService';
 import { getRemoteImageRoot } from './src/adapter/remoteImageStore';
 import { Platform } from 'react-native';
 import { AppProvider, useAppContext } from './src/context/AppContext';
@@ -68,7 +68,6 @@ export default function App() {
         await loadCacheMap();
         if (Platform.OS !== 'web') {
           await getRemoteImageRoot().catch(() => {});
-          void logImageCacheStartupReport();
         }
         await initArweaveCacheDatabase();
       } catch (e) {
