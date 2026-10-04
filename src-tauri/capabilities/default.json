@@ -9,6 +9,7 @@
     "core:default",
     "allow-export-pdf",
     "dialog:allow-save",
+    "dialog:allow-message",
     "opener:allow-open-url",
     "opener:allow-default-urls",
     "fs:allow-write-file"

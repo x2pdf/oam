@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { scrollFill } from '../theme/scroll';
 import { ListColumn, useListColumnLayout } from '../theme/layout';
@@ -41,12 +41,17 @@ export default function ChangePaymentPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
+  // Mirrors `loading` synchronously so goBack() right after success is not blocked
+  // by a guard that has not been torn down by a re-render yet.
+  const busyRef = useRef(false);
 
   // Keystores are being rewritten: do not let the user leave mid-operation.
-  useEffect(() => {
-    if (!loading) return;
-    return navigation.addListener('beforeRemove', (e) => e.preventDefault());
-  }, [loading, navigation]);
+  useEffect(
+    () => navigation.addListener('beforeRemove', (e) => {
+      if (busyRef.current) e.preventDefault();
+    }),
+    [navigation],
+  );
 
   const clearError = (field: keyof FieldErrors) => {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -76,14 +81,21 @@ export default function ChangePaymentPasswordScreen() {
   const handleConfirm = async () => {
     if (loading || !validate()) return;
 
+    busyRef.current = true;
     setLoading(true);
     try {
       await changePaymentPassword(oldPassword, newPassword);
+      busyRef.current = false;
       setLoading(false);
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setErrors({});
       showAlert(t('common.success'), t('wallet.changePayPasswordSuccess'), [
         { text: t('common.ok'), onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
+      busyRef.current = false;
       setLoading(false);
       switch (error?.name) {
         case INVALID_PASSWORD_ERROR:

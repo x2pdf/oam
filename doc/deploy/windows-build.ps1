@@ -122,7 +122,7 @@ function Invoke-Npm {
 function Get-AppMeta {
   param([string]$RepoRoot)
   $name = 'OAM'
-  $ver = '26.1.2'
+  $ver = '26.1.3'
   $pkgPath = Join-Path $RepoRoot 'package.json'
   $confPath = Join-Path $RepoRoot 'src-tauri\tauri.conf.json'
   try {
