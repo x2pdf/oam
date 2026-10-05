@@ -647,6 +647,7 @@
     "unreadable": "Referenced content cannot be displayed",
     "filtered": "Original hidden by your content filters",
     "image": "[Image]",
+    "txId": "Transaction",
     "viewOriginal": "View original"
   },
   "interaction": {

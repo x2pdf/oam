@@ -647,6 +647,7 @@
     "unreadable": "引用内容无法显示",
     "filtered": "原内容已被过滤规则隐藏",
     "image": "[图片]",
+    "txId": "交易",
     "viewOriginal": "查看原文"
   },
   "interaction": {

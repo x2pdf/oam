@@ -106,9 +106,9 @@ async function buildResult(tx: ChainTransaction): Promise<RefResult> {
   const base = mapToInputDataItem(tx, 'all', '', formatTimestamp, shortenAddress);
   const [item] = await applyDisplayPipeline([base], { userAddress: wallet?.address, client });
   if (!item) return { state: 'unreadable', reason: 'not-oam' };
-  if (item.contentKind === 'OAMP') return { state: 'ok', item };
   if (item.contentKind === 'OAMP_ENCRYPTED') return { state: 'unreadable', reason: 'encrypted' };
-  return { state: 'unreadable', reason: 'not-oam' };
+  // OAMP / UTF-8 / RAW 都交给引用卡片展示；无可读文本时卡片退化为显示交易 ID。
+  return { state: 'ok', item };
 }
 
 async function doResolve(hash: string, force: boolean): Promise<RefResult> {

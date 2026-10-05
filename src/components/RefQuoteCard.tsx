@@ -4,7 +4,7 @@ import { ActivityIndicator, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ContentItem } from '../mypayload';
+import { ContentItem, normalizeTxRef } from '../mypayload';
 import { InputDataItem, RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { useReferencedTx } from '../datasource/refResolver';
@@ -21,8 +21,19 @@ function quoteText(items: ContentItem[] | undefined, imageLabel: string): string
     else if (entry.type === 'image') parts.push(imageLabel);
     else if (entry.type === 'link') parts.push(entry.label || entry.href);
   }
-  const joined = parts.filter(Boolean).join('\n').trim();
-  return joined.length > QUOTE_MAX_CHARS ? `${joined.slice(0, QUOTE_MAX_CHARS)}…` : joined;
+  return truncate(parts.filter(Boolean).join('\n'));
+}
+
+function truncate(text: string): string {
+  const trimmed = text.trim();
+  return trimmed.length > QUOTE_MAX_CHARS ? `${trimmed.slice(0, QUOTE_MAX_CHARS)}…` : trimmed;
+}
+
+/** OAMP 取结构化文本，UTF-8 取解码文本；RAW 或无文本时返回空串，由调用方兜底显示交易 ID。 */
+function itemQuoteText(item: InputDataItem, imageLabel: string): string {
+  if (item.contentKind === 'OAMP') return quoteText(item.oampItems, imageLabel);
+  if (item.contentKind === 'UTF-8') return truncate(item.textContent ?? '');
+  return '';
 }
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -45,6 +56,11 @@ export const RefQuoteCard: React.FC<Props> = ({ refHash }) => {
   );
 
   const muted = { color: theme.colors.onSurfaceVariant };
+  const txIdLine = (
+    <Text variant="bodySmall" selectable style={muted}>
+      {t('refQuote.txId')}: <Text variant="bodySmall" style={[muted, styles.mono]}>{normalizeTxRef(refHash) ?? refHash}</Text>
+    </Text>
+  );
   let body: React.ReactNode;
   let onPress: (() => void) | undefined;
 
@@ -65,22 +81,24 @@ export const RefQuoteCard: React.FC<Props> = ({ refHash }) => {
       </Text>
     );
   } else if (view.state === 'unreadable') {
-    body = (
-      <Text variant="bodySmall" style={muted}>
-        {view.reason === 'encrypted' ? t('refQuote.encrypted') : t('refQuote.unreadable')}
-      </Text>
-    );
+    body = view.reason === 'encrypted'
+      ? <Text variant="bodySmall" style={muted}>{t('refQuote.encrypted')}</Text>
+      : txIdLine;
   } else if (hidden) {
     body = <Text variant="bodySmall" style={muted}>{t('refQuote.filtered')}</Text>;
   } else {
-    const text = quoteText(view.item.oampItems, t('refQuote.image'));
+    const text = itemQuoteText(view.item, t('refQuote.image'));
     const original = view.item;
     onPress = () => navigation.navigate('InputDataDetail', { item: original });
     body = (
       <>
-        <Text variant="bodyMedium" numberOfLines={QUOTE_MAX_LINES} style={{ color: theme.colors.onSurfaceVariant }}>
-          {text || t('refQuote.unreadable')}
-        </Text>
+        {text ? (
+          <Text variant="bodyMedium" numberOfLines={QUOTE_MAX_LINES} style={{ color: theme.colors.onSurfaceVariant }}>
+            {text}
+          </Text>
+        ) : (
+          txIdLine
+        )}
         <Text variant="labelSmall" style={[styles.viewOriginal, { color: theme.colors.primary }]}>
           {t('refQuote.viewOriginal')} ›
         </Text>
@@ -117,4 +135,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   rowText: { marginLeft: 8 },
   viewOriginal: { marginTop: 4, textAlign: 'right' },
+  mono: { fontFamily: 'monospace' },
 });
