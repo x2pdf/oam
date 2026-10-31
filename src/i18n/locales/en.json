@@ -806,6 +806,7 @@
       "balanceLabel": "AR Balance",
       "confirmFee": "Estimated Fee",
       "feeUnit": "AR",
+      "feeUsdEstimate": "≈ {{usd}} USD (estimate only)",
       "noFile": "Please select a file to upload",
       "pickFailed": "Failed to pick file. Please try again.",
       "insufficientBalance": "Insufficient AR balance for the estimated fee",

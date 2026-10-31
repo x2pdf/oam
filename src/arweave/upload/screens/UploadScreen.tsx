@@ -22,6 +22,7 @@ import { useAppContext } from '../../../context/AppContext';
 import { RootStackParamList } from '../../../types';
 import { AppModal } from '../../../components/AppModal';
 import { unlockArJwk } from '../../wallet/arUnlock';
+import { fetchArUsdPrice, arToUsdDisplay } from '../../arPrice';
 import { NO_KEYSTORE_ERROR, PASSWORD_LOCKED_ERROR } from '../../../wallet/passwordGuard';
 import { usePasswordLockRemaining } from '../../../wallet/WalletSessionContext';
 import type { ArweaveJwk } from '../../wallet/jwk';
@@ -35,11 +36,7 @@ import {
   PickedUploadFile,
 } from '../pickFile';
 import {
-  estimateUploadFeeAr,
-  estimateUploadFeeWinston,
-  getUploadWalletBalanceAr,
-  getUploadWalletBalanceWinston,
-  isUploadBalanceInsufficient,
+  getUploadQuote,
   isUploadFeeTooHighError,
   maxAcceptableUploadReward,
   postUploadTransaction,
@@ -77,12 +74,15 @@ export default function ArweaveUploadScreen() {
 
   const [balanceDisplay, setBalanceDisplay] = useState('—');
   const [feeDisplay, setFeeDisplay] = useState('—');
+  const [feeAr, setFeeAr] = useState<string | null>(null);
+  const [arUsdPrice, setArUsdPrice] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [feeLoading, setFeeLoading] = useState(false);
   const [feeError, setFeeError] = useState(false);
   const [insufficientBalance, setInsufficientBalance] = useState(false);
   // The fee the user was shown; the signed reward must stay close to it.
   const quotedFeeWinstonRef = useRef<string | null>(null);
+  const quoteRequestRef = useRef(0);
 
   const lockRemainingMs = usePasswordLockRemaining(passwordVisible);
   const passwordLocked = lockRemainingMs > 0;
@@ -97,30 +97,34 @@ export default function ArweaveUploadScreen() {
   const loadFeeAndBalance = useCallback(async () => {
     if (!arProfile || !pickedFile) return;
 
+    const requestId = ++quoteRequestRef.current;
     setBalanceLoading(true);
     setFeeLoading(true);
+    setBalanceDisplay('—');
+    setFeeDisplay('—');
+    setFeeAr(null);
     setFeeError(false);
     setInsufficientBalance(false);
     quotedFeeWinstonRef.current = null;
 
     try {
-      const [balanceAr, feeAr, balanceWinston, feeWinston] = await Promise.all([
-        getUploadWalletBalanceAr(arProfile.address),
-        estimateUploadFeeAr(pickedFile.sizeBytes),
-        getUploadWalletBalanceWinston(arProfile.address),
-        estimateUploadFeeWinston(pickedFile.sizeBytes),
-      ]);
-      setBalanceDisplay(`${balanceAr} ${t('arweave.upload.feeUnit')}`);
-      setFeeDisplay(`${feeAr} ${t('arweave.upload.feeUnit')}`);
-      quotedFeeWinstonRef.current = feeWinston;
-      setInsufficientBalance(isUploadBalanceInsufficient(balanceWinston, feeWinston));
+      const quote = await getUploadQuote(arProfile.address, pickedFile.sizeBytes);
+      if (requestId !== quoteRequestRef.current) return;
+      setBalanceDisplay(`${quote.balanceAr} ${t('arweave.upload.feeUnit')}`);
+      setFeeDisplay(`${quote.feeAr} ${t('arweave.upload.feeUnit')}`);
+      setFeeAr(quote.feeAr);
+      quotedFeeWinstonRef.current = quote.feeWinston;
+      setInsufficientBalance(quote.insufficientBalance);
     } catch {
+      if (requestId !== quoteRequestRef.current) return;
       setFeeError(true);
       setBalanceDisplay('—');
       setFeeDisplay('—');
     } finally {
-      setBalanceLoading(false);
-      setFeeLoading(false);
+      if (requestId === quoteRequestRef.current) {
+        setBalanceLoading(false);
+        setFeeLoading(false);
+      }
     }
   }, [arProfile, pickedFile, t]);
 
@@ -128,7 +132,30 @@ export default function ArweaveUploadScreen() {
     if (confirmVisible) {
       void loadFeeAndBalance();
     }
+    return () => { quoteRequestRef.current++; };
   }, [confirmVisible, loadFeeAndBalance]);
+
+  // Market data is optional: a slow/failed quote must never hold up the AR fee.
+  useEffect(() => {
+    if (!confirmVisible) return;
+    let cancelled = false;
+    setArUsdPrice(null);
+    void fetchArUsdPrice().then((price) => {
+      if (!cancelled) setArUsdPrice(price);
+    });
+    return () => { cancelled = true; };
+  }, [confirmVisible]);
+
+  const openConfirm = useCallback(() => {
+    quotedFeeWinstonRef.current = null;
+    setFeeAr(null);
+    setArUsdPrice(null);
+    setFeeDisplay('—');
+    setBalanceDisplay('—');
+    setFeeLoading(true);
+    setBalanceLoading(true);
+    setConfirmVisible(true);
+  }, []);
 
   const applyPickedFile = useCallback((file: PickedUploadFile) => {
     setPickedFile(file);
@@ -147,9 +174,9 @@ export default function ArweaveUploadScreen() {
     setOpenConfirmAfterMismatch(false);
     setFormatMismatchActual(null);
     if (shouldOpenConfirm) {
-      setConfirmVisible(true);
+      openConfirm();
     }
-  }, [openConfirmAfterMismatch]);
+  }, [openConfirmAfterMismatch, openConfirm]);
 
   const handleFileTypeChange = useCallback((nextType: UploadFileType) => {
     setFileType(nextType);
@@ -187,11 +214,11 @@ export default function ArweaveUploadScreen() {
       showFormatMismatch(actualType, true);
       return;
     }
-    setConfirmVisible(true);
-  }, [pickedFile, fileType, showFormatMismatch, t]);
+    openConfirm();
+  }, [pickedFile, fileType, showFormatMismatch, openConfirm, t]);
 
   const startPasswordInput = useCallback(() => {
-    if (insufficientBalance || feeLoading || balanceLoading || feeError) return;
+    if (!quotedFeeWinstonRef.current || insufficientBalance || feeLoading || balanceLoading || feeError) return;
     setConfirmVisible(false);
     setPasswordError(null);
     setPasswordVisible(true);
@@ -269,7 +296,8 @@ export default function ArweaveUploadScreen() {
     navigation.goBack();
   }, [hasContent, navigation]);
 
-  const canConfirmUpload = !insufficientBalance && !feeLoading && !balanceLoading && !feeError;
+  const canConfirmUpload = feeAr !== null && !insufficientBalance && !feeLoading && !balanceLoading && !feeError;
+  const feeUsdText = arToUsdDisplay(feeAr, arUsdPrice);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -457,6 +485,11 @@ export default function ArweaveUploadScreen() {
               {feeDisplay}
             </Text>
           </View>
+          {feeUsdText && (
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: Math.round(12 * fontScale), marginTop: 2 }}>
+              {t('arweave.upload.feeUsdEstimate', { usd: feeUsdText })}
+            </Text>
+          )}
         </View>
 
         {insufficientBalance && (

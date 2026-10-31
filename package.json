@@ -12,6 +12,7 @@
     "build:desktop": "tauri build",
     "pods": "node scripts/ensure-ios-pods.js",
     "postinstall": "node scripts/ensure-ios-pods.js",
+    "test": "node --test tests/*.test.cjs",
     "lint": "eslint ."
   },
   "dependencies": {

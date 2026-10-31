@@ -806,6 +806,7 @@
       "balanceLabel": "AR 余额",
       "confirmFee": "预估手续费",
       "feeUnit": "AR",
+      "feeUsdEstimate": "约 {{usd}} 美元（仅供参考）",
       "noFile": "请先选择要上传的文件",
       "pickFailed": "文件选择失败，请重试",
       "insufficientBalance": "AR 余额不足以支付预估手续费",

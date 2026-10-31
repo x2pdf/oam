@@ -13,6 +13,20 @@ const readOptions = { timeoutMs: ARWEAVE_READ_TIMEOUT_MS };
 
 export type UploadTag = { name: string; value: string };
 
+/** Derive every confirmation value from the same fee and balance responses. */
+export async function getUploadQuote(address: string, dataSize: number) {
+  const [balanceWinston, feeWinston] = await Promise.all([
+    getUploadWalletBalanceWinston(address),
+    estimateUploadFeeWinston(dataSize),
+  ]);
+  return {
+    balanceAr: arweaveUnits.ar.winstonToAr(balanceWinston),
+    feeAr: arweaveUnits.ar.winstonToAr(feeWinston),
+    feeWinston,
+    insufficientBalance: isUploadBalanceInsufficient(balanceWinston, feeWinston),
+  };
+}
+
 export async function estimateUploadFeeAr(dataSize: number): Promise<string> {
   return arweaveUnits.ar.winstonToAr(await estimateUploadFeeWinston(dataSize));
 }
