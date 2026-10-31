@@ -1,0 +1,116 @@
+# Apple Personal Team 免费签名 7 天有效期快速刷新
+
+适用项目：OAM  
+Bundle ID：`com.oam.logan.app`  
+Team ID：`29UHBF5BN2`
+
+## 日常快速刷新
+
+这个流程只刷新 provisioning profile，并复用 Xcode 已有的构建缓存。正常情况下应该很快。
+
+1. 完全退出 Xcode。
+
+2. 只删除旧 provisioning profile：
+
+```sh
+find ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles \
+  -name "*.mobileprovision" -delete
+```
+
+3. 确认已清空：
+
+```sh
+find ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles \
+  -name "*.mobileprovision" -print
+```
+
+没有输出即正常。
+
+4. 打开 workspace：
+
+```sh
+open ios/OAM.xcworkspace
+```
+
+5. 在 Xcode 中选择 OAM scheme 和已连接的 iPhone。
+
+6. 确认签名设置没有被改动：
+
+- Automatically manage signing：开启
+- Team：自己的 Personal Team
+- Bundle Identifier：`com.oam.logan.app`
+
+7. 执行 `Product → Run`。
+
+Xcode 会复用原有 DerivedData，申请新的 7 天 profile，然后重新签名并安装。
+
+## 离线独立运行设置
+
+OAM 如果需要在没有电脑、没有 Metro 的情况下打开，Run 必须使用 `Release`：
+
+`Product → Scheme → Edit Scheme → Run → Info → Build Configuration → Release`
+
+这是一次性设置。设置好后不要在每次刷新时切换 Debug / Release。
+
+如果当前 OAM 已经能脱离电脑正常打开，说明该设置已正确，保持现状即可。
+
+第一次构建 Release 可能需要几分钟；以后只要保留 DerivedData，日常刷新就会复用缓存。
+
+## 下次不要再踩的坑
+
+为了快速刷新，不要：
+
+1. 指定新的 `-derivedDataPath`。
+2. 删除 `~/Library/Developer/Xcode/DerivedData/`。
+3. 执行 Clean Build Folder、重跑 `pod install` 或切换构建配置。
+
+删除 provisioning profile 不会导致全量编译。只有丢失 DerivedData 或改变构建配置，才会让 React Native、Expo、Hermes、QuickCrypto/OpenSSL 和 Pods 从零编译。
+
+## 两个已知报错
+
+### No script URL provided
+
+原因：安装了 Debug 包，但 Metro 没有运行，App 内也没有可用的生产 JS bundle。
+
+解决：需要脱离电脑使用时，安装 Release 包。
+
+### Cannot create devtools websocket connections in embedded environments
+
+原因：把 `dev=true` 的 Debug bundle 强行嵌入了 App，它仍然会初始化 DevTools WebSocket。
+
+解决：不要使用 `FORCE_BUNDLING=1` 模拟 Release，直接构建真正的 Release。
+
+## 检查新 profile 有效期
+
+```sh
+for f in ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/*.mobileprovision; do
+  echo "=== $f ==="
+  security cms -D -i "$f" 2>/dev/null | plutil -extract Name raw -o - -
+  security cms -D -i "$f" 2>/dev/null | plutil -extract CreationDate raw -o - -
+  security cms -D -i "$f" 2>/dev/null | plutil -extract ExpirationDate raw -o - -
+done
+```
+
+正常结果：`ExpirationDate = CreationDate + 7 天`。
+
+## 不要删除
+
+- Keychain 中的 `Apple Development: ...` 证书
+- `~/Library/Developer/Xcode/UserData/` 整个目录
+- `~/Library/Developer/Xcode/DerivedData/`
+- OAM.app 中的 `embedded.mobileprovision`
+
+真正需要删除的只有：
+
+`~/Library/Developer/Xcode/UserData/Provisioning Profiles/*.mobileprovision`
+
+## 最近一次已验证的 profile
+
+- Profile：`iOS Team Provisioning Profile: com.oam.logan.app`
+- UUID：`a7de6cab-cdd1-4786-b757-3f52183ff7c3`
+- CreationDate：`2026-10-24T04:58:51Z`
+- ExpirationDate：`2026-10-31T04:58:51Z`
+
+有效期正好 7 天。
+
+核心原则：只删除 Xcode 的 managed provisioning profile 缓存，然后复用原有 DerivedData 重新签名。
