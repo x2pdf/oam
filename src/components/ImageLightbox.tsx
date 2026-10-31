@@ -82,6 +82,8 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
+  // 仅下拉关闭手势影响遮罩，焦点缩放产生的位移不应让背景变透明。
+  const dismissTranslateY = useRef(new Animated.Value(0)).current;
   /** 整体（遮罩 + 图片）淡入，取代 Modal 原生 fade。 */
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   /** 图片加载完成后再淡入，避免黑屏后图片突然跳出。 */
@@ -143,11 +145,12 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     scale.setValue(1);
     translateX.setValue(0);
     translateY.setValue(0);
+    dismissTranslateY.setValue(0);
     pinchStartDistance.current = 0;
     pinchStartScale.current = 1;
     usedMultiTouch.current = false;
     moved.current = false;
-  }, [clearLongPress, scale, translateX, translateY]);
+  }, [clearLongPress, dismissTranslateY, scale, translateX, translateY]);
 
   const revealImage = useCallback(() => {
     if (imageRevealed.current) {
@@ -237,32 +240,6 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     return () => sub.remove();
   }, [uri, onClose]);
 
-  const applyScale = useCallback(
-    (next: number) => {
-      const clamped = clamp(next, MIN_SCALE, MAX_SCALE);
-      currentScale.current = clamped;
-      scale.setValue(clamped);
-      if (clamped === MIN_SCALE) {
-        currentTranslate.current = { x: 0, y: 0 };
-        translateX.setValue(0);
-        translateY.setValue(0);
-      }
-    },
-    [scale, translateX, translateY],
-  );
-
-  const clampTranslate = useCallback(
-    (x: number, y: number, nextScale: number) => {
-      const maxX = ((nextScale - 1) * width) / 2;
-      const maxY = ((nextScale - 1) * height) / 2;
-      return {
-        x: clamp(x, -maxX, maxX),
-        y: clamp(y, -maxY, maxY),
-      };
-    },
-    [height, width],
-  );
-
   const getImageLayout = useCallback(() => {
     const defaultLayout = { x: 0, y: 0, w: width, h: height };
     if (!imageSize) return defaultLayout;
@@ -286,6 +263,37 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
       h,
     };
   }, [imageSize, width, height]);
+
+  const clampTranslate = useCallback(
+    (x: number, y: number, nextScale: number) => {
+      const layout = getImageLayout();
+      // contain 的留白不属于图片；不足一屏的轴保持居中，避免放大后露出更多空白。
+      const maxX = Math.max(0, (layout.w * nextScale - width) / 2);
+      const maxY = Math.max(0, (layout.h * nextScale - height) / 2);
+      return {
+        x: maxX > 0 ? clamp(x, -maxX, maxX) : 0,
+        y: maxY > 0 ? clamp(y, -maxY, maxY) : 0,
+      };
+    },
+    [getImageLayout, height, width],
+  );
+
+  const applyScale = useCallback(
+    (next: number) => {
+      const clamped = clamp(next, MIN_SCALE, MAX_SCALE);
+      const position = clampTranslate(
+        currentTranslate.current.x,
+        currentTranslate.current.y,
+        clamped,
+      );
+      currentScale.current = clamped;
+      currentTranslate.current = position;
+      scale.setValue(clamped);
+      translateX.setValue(position.x);
+      translateY.setValue(position.y);
+    },
+    [clampTranslate, scale, translateX, translateY],
+  );
 
   const panResponder = useMemo(
     () =>
@@ -343,6 +351,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             translateY.setValue(next.y);
           } else {
             translateY.setValue(gesture.dy);
+            dismissTranslateY.setValue(gesture.dy);
           }
         },
         onPanResponderRelease: (evt, gesture) => {
@@ -366,6 +375,10 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
                 toValue: 0,
                 useNativeDriver: true,
               }).start();
+              Animated.spring(dismissTranslateY, {
+                toValue: 0,
+                useNativeDriver: false,
+              }).start();
             }
           }
 
@@ -384,11 +397,16 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           if (isTap) {
             const { locationX, locationY } = evt.nativeEvent;
             const layout = getImageLayout();
+            // 命中检测需还原缩放和平移，不能继续使用放大前的图片边界。
+            const imageX =
+              (locationX - width / 2 - currentTranslate.current.x) / currentScale.current + width / 2;
+            const imageY =
+              (locationY - height / 2 - currentTranslate.current.y) / currentScale.current + height / 2;
             const isInside =
-              locationX >= layout.x &&
-              locationX <= layout.x + layout.w &&
-              locationY >= layout.y &&
-              locationY <= layout.y + layout.h;
+              imageX >= layout.x &&
+              imageX <= layout.x + layout.w &&
+              imageY >= layout.y &&
+              imageY <= layout.y + layout.h;
 
             if (!isInside) {
               onClose();
@@ -403,8 +421,20 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
                   currentScale.current = MIN_SCALE;
                   currentTranslate.current = { x: 0, y: 0 };
                 } else {
-                  Animated.spring(scale, { toValue: 3, useNativeDriver: true }).start();
-                  currentScale.current = 3;
+                  const nextScale = 3;
+                  // 默认绕容器中心缩放，用位移补偿让双击处的图片内容留在原位。
+                  const next = clampTranslate(
+                    (width / 2 - locationX) * (nextScale - 1),
+                    (height / 2 - locationY) * (nextScale - 1),
+                    nextScale,
+                  );
+                  currentScale.current = nextScale;
+                  currentTranslate.current = next;
+                  Animated.parallel([
+                    Animated.spring(scale, { toValue: nextScale, useNativeDriver: true }),
+                    Animated.spring(translateX, { toValue: next.x, useNativeDriver: true }),
+                    Animated.spring(translateY, { toValue: next.y, useNativeDriver: true }),
+                  ]).start();
                 }
                 lastTapTime.current = 0;
               } else {
@@ -421,6 +451,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           moved.current = false;
           if (currentScale.current === MIN_SCALE) {
             Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+            Animated.spring(dismissTranslateY, { toValue: 0, useNativeDriver: false }).start();
           }
         },
       }),
@@ -429,12 +460,15 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
       canSave,
       clampTranslate,
       clearLongPress,
+      dismissTranslateY,
       getImageLayout,
       handleSaveImage,
+      height,
       onClose,
       scale,
       translateX,
       translateY,
+      width,
     ],
   );
 
@@ -452,7 +486,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     return null;
   }
 
-  const backgroundColor = translateY.interpolate({
+  const backgroundColor = dismissTranslateY.interpolate({
     inputRange: [-height / 2, 0, height / 2],
     outputRange: ['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.96)', 'rgba(0,0,0,0.5)'],
     extrapolate: 'clamp',
