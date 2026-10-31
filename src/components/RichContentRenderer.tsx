@@ -9,7 +9,7 @@ import { truncateListText } from '../utils/text';
 import { ContentCardImage } from './ContentCardImage';
 import { ExternalOpenCard } from './ExternalOpenCard';
 import { RefQuoteCard } from './RefQuoteCard';
-import { openImageLightbox } from './ImageLightbox';
+import { openImageLightbox, type ImageLightboxItem } from './ImageLightbox';
 import { SelectableText } from './SelectableText';
 import { isHttpUrl, isImageMime } from '../utils/attachment';
 
@@ -31,6 +31,27 @@ export const RichContentRenderer: React.FC<Props> = ({
   const [saving, setSaving] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  const galleryImages: ImageLightboxItem[] = [];
+  const galleryIndexByItem = new Map<number, number>();
+  items.forEach((item, index) => {
+    if (item.type !== 'image' && !(item.type === 'link' && isImageMime(item.mime))) return;
+    const uri = item.type === 'image' ? item.data : item.href;
+    const mimeType = item.type === 'link'
+      ? item.mime
+      : isHttpUrl(uri) ? 'image/png' : /^data:([^;,]+)/i.exec(uri)?.[1];
+    galleryIndexByItem.set(index, galleryImages.length);
+    galleryImages.push({ uri, cachedUri: cacheMap?.[uri], mimeType });
+  });
+
+  const handlePreviewImage = (itemIndex: number, resolvedUri?: string) => {
+    const initialIndex = galleryIndexByItem.get(itemIndex);
+    if (initialIndex === undefined) return;
+    const images = galleryImages.map((image, index) => (
+      index === initialIndex && resolvedUri ? { ...image, cachedUri: resolvedUri } : image
+    ));
+    openImageLightbox(images[initialIndex].uri, { images, initialIndex });
+  };
 
   const handleSaveImage = useCallback(async (imageUri: string) => {
     if (saving) return;
@@ -90,6 +111,7 @@ export const RichContentRenderer: React.FC<Props> = ({
                 mime="image/png"
                 label={item.alt || item.data}
                 cacheMap={cacheMap}
+                onPreviewImage={(resolvedUri) => handlePreviewImage(index, resolvedUri)}
                 onOpen={() => handleOpenUrl(item.data)}
                 onSaveImage={() => handleSaveImage(item.data)}
               />
@@ -99,7 +121,7 @@ export const RichContentRenderer: React.FC<Props> = ({
             <ContentCardImage
               key={index}
               uri={item.data}
-              onPress={() => openImageLightbox(item.data)}
+              onPress={() => handlePreviewImage(index)}
               onLongPress={() => handleSaveImage(item.data)}
             />
           );
@@ -113,6 +135,7 @@ export const RichContentRenderer: React.FC<Props> = ({
               label={item.label}
               download={item.download}
               cacheMap={cacheMap}
+              onPreviewImage={(resolvedUri) => handlePreviewImage(index, resolvedUri)}
               onOpen={() => handleOpenUrl(item.href)}
               onSaveImage={() => handleSaveImage(item.href)}
             />
@@ -143,6 +166,7 @@ function LinkAttachment({
   label,
   download,
   cacheMap,
+  onPreviewImage,
   onOpen,
   onSaveImage,
 }: {
@@ -151,6 +175,7 @@ function LinkAttachment({
   label: string;
   download?: boolean;
   cacheMap?: Record<string, string>;
+  onPreviewImage: (resolvedUri: string) => void;
   onOpen: () => void;
   onSaveImage: () => void;
 }) {
@@ -166,7 +191,7 @@ function LinkAttachment({
         uri={href}
         mimeType={mime}
         cacheMap={cacheMap}
-        onPressWithUri={(resolvedUri) => openImageLightbox(resolvedUri)}
+        onPressWithUri={onPreviewImage}
         onLongPress={onSaveImage}
         onError={() => setImageFailed(true)}
       />

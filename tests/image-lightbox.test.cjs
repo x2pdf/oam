@@ -4,7 +4,11 @@ const loadTypeScript = require('./helpers/load-typescript.cjs');
 
 // Exercise the real component's responder callbacks without a native renderer.
 // Only React hooks, native animation, image loading and device services are stubbed.
-function lightbox({ width = 400, height = 800, imageWidth = width, imageHeight = height } = {}) {
+function lightbox({
+  width = 400, height = 800, imageWidth = width, imageHeight = height,
+  platform = 'web', onNavigate, canGoPrevious = true, canGoNext = true,
+  uri = 'file:///photo.jpg', cachedUri, mimeType,
+} = {}) {
   const hooks = [];
   const effects = [];
   let cursor = 0;
@@ -13,6 +17,9 @@ function lightbox({ width = 400, height = 800, imageWidth = width, imageHeight =
   let now = 1000;
   let closes = 0;
   let saves = 0;
+  let savedUri;
+  let cacheOptions;
+  let cacheSource;
   let nextTimer = 1;
   const timers = new Map();
   const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
@@ -57,14 +64,14 @@ function lightbox({ width = 400, height = 800, imageWidth = width, imageHeight =
     parallel: (animations) => ({ start: () => animations.forEach((item) => item.start()) }),
   };
   const jsx = (type, props) => ({ type, props });
-  const { ImageLightbox } = loadTypeScript('src/components/ImageLightbox.tsx', {
+  const lightboxModule = loadTypeScript('src/components/ImageLightbox.tsx', {
     imports: {
       react,
       'react/jsx-runtime': { jsx, jsxs: jsx },
       'react-native': {
         Animated, BackHandler: { addEventListener: () => ({ remove() {} }) },
         Image: { getSize: (_uri, callback) => callback(imageWidth, imageHeight) },
-        Modal: 'Modal', View: 'View', Platform: { OS: 'web' },
+        Modal: 'Modal', View: 'View', Platform: { OS: platform },
         PanResponder: { create: (handlers) => ({ panHandlers: handlers }) },
         StyleSheet: { create: (styles) => styles, absoluteFillObject: {} },
         useWindowDimensions: () => ({ width, height }),
@@ -77,10 +84,14 @@ function lightbox({ width = 400, height = 800, imageWidth = width, imageHeight =
       '../adapter': {
         getImageRendererAdapter: () => ({ Image: 'PlatformImage' }),
         peekCachedImagePath: () => null,
-        saveImageToAlbum: async () => { saves++; },
+        saveImageToAlbum: async (source) => { saves++; savedUri = source; },
       },
       '../hooks/useCachedRemoteImage': {
-        useCachedRemoteImage: (uri) => ({ displayUri: uri, loading: false, failed: false }),
+        useCachedRemoteImage: (source, options) => {
+          cacheSource = source;
+          cacheOptions = options;
+          return { displayUri: options?.cacheMap?.[source] ?? source, loading: false, failed: false };
+        },
       },
       '../utils/attachment': { isHttpUrl: (uri) => /^https?:/.test(uri) },
     },
@@ -90,12 +101,13 @@ function lightbox({ width = 400, height = 800, imageWidth = width, imageHeight =
       clearTimeout: (id) => timers.delete(id),
     },
   });
+  const ImageLightbox = lightboxModule.ImageLightboxSlide ?? lightboxModule.ImageLightbox;
   const onClose = () => { closes++; };
   function render() {
     do {
       dirty = false;
       cursor = 0;
-      tree = ImageLightbox({ uri: 'file:///photo.jpg', onClose });
+      tree = ImageLightbox({ uri, cachedUri, mimeType, onClose, onNavigate, canGoPrevious, canGoNext });
       effects.splice(0).forEach((effect) => effect());
     } while (dirty);
   }
@@ -149,6 +161,10 @@ function lightbox({ width = 400, height = 800, imageWidth = width, imageHeight =
     },
     get closes() { return closes; },
     get saves() { return saves; },
+    get savedUri() { return savedUri; },
+    get cacheOptions() { return cacheOptions; },
+    get cacheSource() { return cacheSource; },
+    get displayUri() { return find(tree, (node) => node.type === 'PlatformImage')?.props.uri; },
     get backdropDragOffset() {
       return backdrop().props.style.find((style) => style?.backgroundColor?.source).backgroundColor.source.value;
     },
@@ -288,4 +304,48 @@ test('long press still saves without closing or counting as a double tap', () =>
   assert.equal(viewer.saves, 1);
   assert.equal(viewer.closes, 0);
   assert.equal(viewer.transform().scale, 1);
+});
+
+test('an unzoomed mobile horizontal swipe navigates instead of dismissing diagonally', () => {
+  const directions = [];
+  const viewer = lightbox({ platform: 'ios', onNavigate: (direction) => directions.push(direction) });
+  assert.equal(viewer.drag(-180, 110), 0);
+  assert.deepEqual(directions, [1]);
+  assert.equal(viewer.closes, 0);
+  viewer.drag(180, 0);
+  assert.deepEqual(directions, [1, -1]);
+});
+
+test('mobile gallery keeps short swipes and boundary swipes on the current image', () => {
+  const directions = [];
+  const viewer = lightbox({ platform: 'android', onNavigate: (direction) => directions.push(direction), canGoPrevious: false });
+  viewer.drag(-30, 0);
+  viewer.drag(180, 110);
+  assert.deepEqual(directions, []);
+  assert.equal(viewer.closes, 0);
+  assert.deepEqual(viewer.transform(), { translateX: 0, translateY: 0, scale: 1 });
+  viewer.drag(-180, 0);
+  assert.deepEqual(directions, [1]);
+});
+
+test('zoomed mobile dragging pans rather than navigating, while vertical swipes still dismiss', () => {
+  const directions = [];
+  const viewer = lightbox({ platform: 'ios', onNavigate: (direction) => directions.push(direction) });
+  viewer.doubleTap(200, 400);
+  viewer.drag(-180, 120);
+  assert.deepEqual(directions, []);
+  assert.equal(viewer.closes, 0);
+  viewer.doubleTap(200, 400);
+  viewer.drag(60, 130);
+  assert.deepEqual(directions, []);
+  assert.equal(viewer.closes, 1);
+});
+
+test('resolved cached image hints reach the image hook without losing the original save URI', () => {
+  const viewer = lightbox({ uri: 'https://source.test/photo', cachedUri: 'file:///cached.jpg', mimeType: 'image/jpeg' });
+  assert.equal(viewer.displayUri, 'file:///cached.jpg');
+  assert.equal(viewer.cacheSource, 'file:///cached.jpg');
+  assert.equal(viewer.cacheOptions.mimeHint, 'image/jpeg');
+  viewer.longPress(200, 400);
+  assert.equal(viewer.savedUri, 'https://source.test/photo');
 });

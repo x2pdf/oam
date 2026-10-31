@@ -6,11 +6,12 @@ import {
   Modal,
   PanResponder,
   Platform,
+  Pressable,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
-import { ActivityIndicator, Snackbar, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Icon, Snackbar, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { getImageRendererAdapter, peekCachedImagePath, saveImageToAlbum } from '../adapter';
 import { useCachedRemoteImage } from '../hooks/useCachedRemoteImage';
@@ -23,6 +24,7 @@ const MAX_SCALE = 6;
 const TAP_MOVE_THRESHOLD = 12;
 const LONG_PRESS_MS = 400;
 const FADE_IN_MS = 180;
+const CONTROLS_HIDE_MS = 2000;
 /** 图片 onLoad 迟迟不触发时的兜底显示时间，避免一直不可见。 */
 const REVEAL_FALLBACK_MS = 800;
 
@@ -39,53 +41,240 @@ function pinchDistance(touches: readonly { pageX: number; pageY: number }[]): nu
   return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
 }
 
+export type ImageLightboxItem = {
+  uri: string;
+  cachedUri?: string;
+  mimeType?: string;
+};
+
+type GalleryOptions = {
+  images: readonly ImageLightboxItem[];
+  initialIndex: number;
+};
+
 type Props = {
   uri: string | null;
+  images?: readonly ImageLightboxItem[];
+  initialIndex?: number;
   onClose: () => void;
 };
 
-let openLightbox: ((uri: string) => void) | null = null;
+type SlideProps = {
+  uri: string | null;
+  cachedUri?: string;
+  mimeType?: string;
+  onClose: () => void;
+  onNavigate?: (direction: -1 | 1) => void;
+  canGoPrevious?: boolean;
+  canGoNext?: boolean;
+};
 
-export function openImageLightbox(uri: string) {
-  const cached = isHttpUrl(uri) ? peekCachedImagePath(uri) : null;
-  openLightbox?.(cached ?? uri);
+type LightboxSession = { uri: string } & Partial<GalleryOptions>;
+let openLightbox: ((session: LightboxSession) => void) | null = null;
+
+export function openImageLightbox(uri: string, options?: GalleryOptions) {
+  openLightbox?.({ uri, ...options });
 }
 
 export function ImageLightboxHost() {
-  const [uri, setUri] = useState<string | null>(null);
+  const [session, setSession] = useState<LightboxSession | null>(null);
 
   useEffect(() => {
-    openLightbox = setUri;
+    openLightbox = setSession;
     return () => {
-      if (openLightbox === setUri) {
+      if (openLightbox === setSession) {
         openLightbox = null;
       }
     };
   }, []);
 
-  const handleClose = useCallback(() => setUri(null), []);
+  const handleClose = useCallback(() => setSession(null), []);
 
-  // 仅在有 uri 时才挂载，并以 uri 作 key：
-  // useCachedRemoteImage 的 useState 初始值才能在首帧就拿到本地路径，
-  // 避免“先渲染空黑屏、effect 后才出图”造成的闪屏。
-  if (!uri) {
+  if (!session) {
     return null;
   }
-  return <ImageLightbox key={uri} uri={uri} onClose={handleClose} />;
+  return <ImageLightbox {...session} onClose={handleClose} />;
 }
 
-export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
+export const ImageLightbox: React.FC<Props> = ({
+  uri, images, initialIndex = 0, onClose,
+}) => {
+  const { t } = useTranslation();
+  const gallery = useMemo(() => images?.length ? images : uri ? [{ uri }] : [], [images, uri]);
+  const [index, setIndex] = useState(() => clamp(initialIndex, 0, Math.max(0, gallery.length - 1)));
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const current = gallery[index];
+  const hasMultiple = gallery.length > 1;
+  const desktopControls = Platform.OS === 'web' && hasMultiple;
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsOpacity = useRef(new Animated.Value(1)).current;
+  const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const controlsHovered = useRef(false);
+  const controlsFocused = useRef(false);
+  const keyboardFocus = useRef(false);
+  const clearControlsTimer = useCallback(() => {
+    if (controlsTimer.current !== null) {
+      clearTimeout(controlsTimer.current);
+      controlsTimer.current = null;
+    }
+  }, []);
+  const showControls = useCallback(() => {
+    if (!desktopControls) return;
+    setControlsVisible(true);
+    clearControlsTimer();
+    if (!controlsHovered.current && !controlsFocused.current) {
+      controlsTimer.current = setTimeout(() => {
+        controlsTimer.current = null;
+        setControlsVisible(false);
+      }, CONTROLS_HIDE_MS);
+    }
+  }, [clearControlsTimer, desktopControls]);
+  const showPointerControls = useCallback(() => {
+    keyboardFocus.current = false;
+    controlsFocused.current = false;
+    showControls();
+  }, [showControls]);
+  const onNavigate = useCallback((direction: -1 | 1) => {
+    setIndex((previous) => clamp(previous + direction, 0, gallery.length - 1));
+    showControls();
+  }, [gallery.length, showControls]);
+
+  useEffect(() => {
+    showControls();
+    return clearControlsTimer;
+  }, [showControls, clearControlsTimer]);
+
+  useEffect(() => {
+    Animated.timing(controlsOpacity, {
+      toValue: controlsVisible ? 1 : 0,
+      duration: FADE_IN_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [controlsOpacity, controlsVisible]);
+
+  // 切图只重挂载图片层；Modal 和遮罩始终保留，不再重复淡入。
+  useEffect(() => {
+    Animated.timing(overlayOpacity, {
+      toValue: 1,
+      duration: FADE_IN_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [overlayOpacity]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!hasMultiple || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === 'Tab') {
+        keyboardFocus.current = true;
+        showControls();
+      }
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        event.stopPropagation();
+        onNavigate(event.key === 'ArrowRight' ? 1 : -1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasMultiple, onNavigate, showControls]);
+
+  if (!current) return null;
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      onRequestClose={onClose}
+      supportedOrientations={['portrait', 'landscape']}
+    >
+      <Animated.View
+        testID="image-lightbox-overlay"
+        style={[styles.fill, { opacity: overlayOpacity }]}
+        {...(Platform.OS === 'web' ? ({ onMouseMove: showPointerControls } as object) : {})}
+      >
+        <ImageLightboxSlide
+          key={`${index}:${current.uri}`}
+          {...current}
+          onClose={onClose}
+          onNavigate={hasMultiple ? onNavigate : undefined}
+          canGoPrevious={index > 0}
+          canGoNext={index < gallery.length - 1}
+        />
+        {desktopControls && (
+          <Animated.View
+            testID="image-navigation"
+            pointerEvents={controlsVisible ? 'box-none' : 'none'}
+            style={[StyleSheet.absoluteFillObject, { opacity: controlsOpacity }]}
+          >
+            {([-1, 1] as const).map((direction) => (
+              <Pressable
+                key={direction}
+                testID={direction === -1 ? 'image-previous' : 'image-next'}
+                accessibilityRole="button"
+                accessibilityLabel={t(direction === -1 ? 'detail.previousImage' : 'detail.nextImage')}
+                accessibilityState={{ disabled: direction === -1 ? index === 0 : index === gallery.length - 1 }}
+                pointerEvents={controlsVisible ? 'auto' : 'none'}
+                disabled={direction === -1 ? index === 0 : index === gallery.length - 1}
+                style={[
+                  styles.arrow,
+                  direction === -1 ? styles.previousArrow : styles.nextArrow,
+                  {
+                    pointerEvents: controlsVisible ? 'auto' : 'none',
+                    opacity: (direction === -1 ? index === 0 : index === gallery.length - 1) ? 0.32 : 1,
+                  },
+                ]}
+                onHoverIn={() => { controlsHovered.current = true; showPointerControls(); }}
+                onHoverOut={() => { controlsHovered.current = false; showControls(); }}
+                // Modal 的自动聚焦不能让箭头常驻；只有用户按 Tab 聚焦才保持显示。
+                onFocus={() => { controlsFocused.current = keyboardFocus.current; showControls(); }}
+                onBlur={() => { controlsFocused.current = false; showControls(); }}
+                onPress={(event) => { event.stopPropagation(); onNavigate(direction); }}
+              >
+                <Icon source={direction === -1 ? 'chevron-left' : 'chevron-right'} size={32} color="#FFFFFF" />
+              </Pressable>
+            ))}
+            <Text testID="image-counter" pointerEvents="none" style={styles.counter}>
+              {`${index + 1} / ${gallery.length}`}
+            </Text>
+          </Animated.View>
+        )}
+        {hasMultiple && !desktopControls && (
+          <Text testID="image-counter" pointerEvents="none" style={styles.counter}>
+            {`${index + 1} / ${gallery.length}`}
+          </Text>
+        )}
+      </Animated.View>
+    </Modal>
+  );
+};
+
+export const ImageLightboxSlide: React.FC<SlideProps> = ({
+  uri, cachedUri, mimeType, onClose, onNavigate, canGoPrevious = false, canGoNext = false,
+}) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
-  const { displayUri, loading, failed } = useCachedRemoteImage(uri);
+  const cached = cachedUri ?? (uri && isHttpUrl(uri) ? peekCachedImagePath(uri) : undefined);
+  // 已解析的本地/blob 地址直接交给加载器，Web 异步解析不能再替换回远程 URL。
+  const { displayUri, loading, failed } = useCachedRemoteImage(cached || uri, {
+    mimeHint: mimeType,
+  });
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
   // 仅下拉关闭手势影响遮罩，焦点缩放产生的位移不应让背景变透明。
   const dismissTranslateY = useRef(new Animated.Value(0)).current;
-  /** 整体（遮罩 + 图片）淡入，取代 Modal 原生 fade。 */
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
   /** 图片加载完成后再淡入，避免黑屏后图片突然跳出。 */
   const imageOpacity = useRef(new Animated.Value(0)).current;
   const imageRevealed = useRef(false);
@@ -94,6 +283,8 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
   const pinchStartDistance = useRef(0);
   const pinchStartScale = useRef(1);
   const usedMultiTouch = useRef(false);
+  const gestureAxis = useRef<'x' | 'y' | null>(null);
+  const gestureStartedZoomed = useRef(false);
   const moved = useRef(false);
   const lastTapTime = useRef(0);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,19 +365,6 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     [revealImage],
   );
 
-  // 打开时统一淡入遮罩
-  useEffect(() => {
-    if (!uri) {
-      return;
-    }
-    overlayOpacity.setValue(0);
-    Animated.timing(overlayOpacity, {
-      toValue: 1,
-      duration: FADE_IN_MS,
-      useNativeDriver: true,
-    }).start();
-  }, [uri, overlayOpacity]);
-
   useEffect(() => {
     resetTransform();
     if (!displayUri) {
@@ -228,17 +406,6 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     handleImageLoadDimensions,
     revealImage,
   ]);
-
-  useEffect(() => {
-    if (!uri) {
-      return;
-    }
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
-      return true;
-    });
-    return () => sub.remove();
-  }, [uri, onClose]);
 
   const getImageLayout = useCallback(() => {
     const defaultLayout = { x: 0, y: 0, w: width, h: height };
@@ -303,6 +470,8 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (evt) => {
           usedMultiTouch.current = evt.nativeEvent.touches.length >= 2;
+          gestureAxis.current = null;
+          gestureStartedZoomed.current = currentScale.current > MIN_SCALE;
           moved.current = false;
           longPressTriggered.current = false;
           clearLongPress();
@@ -349,13 +518,41 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             );
             translateX.setValue(next.x);
             translateY.setValue(next.y);
-          } else {
+          } else if (!usedMultiTouch.current && !gestureStartedZoomed.current) {
+            if (onNavigate && Platform.OS !== 'web') {
+              if (!gestureAxis.current && moved.current) {
+                if (Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2) gestureAxis.current = 'x';
+                else if (Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.2) gestureAxis.current = 'y';
+              }
+              if (gestureAxis.current === 'x') {
+                const atBoundary = gesture.dx > 0 ? !canGoPrevious : !canGoNext;
+                translateX.setValue(gesture.dx * (atBoundary ? 0.25 : 1));
+                return;
+              }
+              if (gestureAxis.current !== 'y') return;
+            }
             translateY.setValue(gesture.dy);
             dismissTranslateY.setValue(gesture.dy);
           }
         },
         onPanResponderRelease: (evt, gesture) => {
           clearLongPress();
+
+          if (gestureAxis.current === 'x') {
+            const direction = gesture.dx < 0 ? 1 : -1;
+            const allowed = direction === 1 ? canGoNext : canGoPrevious;
+            if (
+              !usedMultiTouch.current && !gestureStartedZoomed.current &&
+              !longPressTriggered.current && currentScale.current === MIN_SCALE &&
+              Math.abs(gesture.dx) >= Math.max(50, width * 0.12) && allowed
+            ) {
+              onNavigate?.(direction);
+            }
+            Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+            gestureAxis.current = null;
+            lastTapTime.current = 0;
+            return;
+          }
 
           if (currentScale.current > MIN_SCALE) {
             const next = clampTranslate(
@@ -367,7 +564,11 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
             translateX.setValue(next.x);
             translateY.setValue(next.y);
           } else {
-            if (Math.abs(gesture.dy) > 100) {
+            if (
+              !usedMultiTouch.current && !gestureStartedZoomed.current &&
+              (!onNavigate || Platform.OS === 'web' || gestureAxis.current === 'y') &&
+              Math.abs(gesture.dy) > 100
+            ) {
               onClose();
               return;
             } else {
@@ -445,11 +646,13 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
         },
         onPanResponderTerminate: () => {
           clearLongPress();
+          gestureAxis.current = null;
           longPressTriggered.current = false;
           pinchStartDistance.current = 0;
           usedMultiTouch.current = false;
           moved.current = false;
           if (currentScale.current === MIN_SCALE) {
+            Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
             Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
             Animated.spring(dismissTranslateY, { toValue: 0, useNativeDriver: false }).start();
           }
@@ -458,6 +661,8 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
     [
       applyScale,
       canSave,
+      canGoPrevious,
+      canGoNext,
       clampTranslate,
       clearLongPress,
       dismissTranslateY,
@@ -465,6 +670,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
       handleSaveImage,
       height,
       onClose,
+      onNavigate,
       scale,
       translateX,
       translateY,
@@ -493,17 +699,7 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
   });
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType="none"
-      presentationStyle="overFullScreen"
-      statusBarTranslucent
-      onRequestClose={onClose}
-      supportedOrientations={['portrait', 'landscape']}
-    >
-      {/* opacity 用原生驱动，单独一层，避免与 backgroundColor(JS 驱动) 混用 */}
-      <Animated.View style={[styles.fill, { opacity: overlayOpacity }]}>
+    <>
       <Animated.View
         style={[styles.backdrop, { backgroundColor }]}
         {...panResponder.panHandlers}
@@ -544,7 +740,6 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
           </View>
         )}
       </Animated.View>
-      </Animated.View>
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -553,13 +748,41 @@ export const ImageLightbox: React.FC<Props> = ({ uri, onClose }) => {
       >
         {snackbarMessage}
       </Snackbar>
-    </Modal>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
   fill: {
     flex: 1,
+  },
+  arrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -24,
+    width: 48,
+    height: 48,
+    marginHorizontal: 6,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(32,32,32,0.65)',
+  },
+  previousArrow: {
+    left: 16,
+  },
+  nextArrow: {
+    right: 16,
+  },
+  counter: {
+    position: 'absolute',
+    bottom: 36,
+    alignSelf: 'center',
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(32,32,32,0.65)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   backdrop: {
     flex: 1,
