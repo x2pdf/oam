@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconButton, Text, useTheme } from 'react-native-paper';
 import { getImageRendererAdapter } from '../../../adapter';
+import { openImageLightbox } from '../../../components/ImageLightbox';
 import { formatUploadFileSize } from '../format';
 import { isUploadImageMime } from '../constants';
 import type { PickedUploadFile } from '../pickFile';
@@ -37,12 +38,14 @@ export function PickedFileCard({ file, onRemove }: Props) {
     >
       <View style={styles.content}>
         {showImage ? (
-          <PlatformImage
-            uri={buildImagePreviewUri(file)}
-            mimeType={file.mimeType}
-            style={styles.thumbnail}
-            resizeMode="contain"
-          />
+          <Pressable onPress={() => openImageLightbox(buildImagePreviewUri(file))}>
+            <PlatformImage
+              uri={buildImagePreviewUri(file)}
+              mimeType={file.mimeType}
+              style={styles.thumbnail}
+              resizeMode="contain"
+            />
+          </Pressable>
         ) : (
           <View style={[styles.filePreview, { borderColor }]}>
             <Icon source="file-document-outline" size={22} color={theme.colors.onSurfaceVariant} />
