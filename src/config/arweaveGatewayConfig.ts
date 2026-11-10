@@ -47,8 +47,8 @@ export const ARWEAVE_GRAPHQL_REQUEST_TIMEOUT_MS = 15000;
 /** Price / balance / anchor reads before upload. */
 export const ARWEAVE_READ_TIMEOUT_MS = 15000;
 
-/** Posting a signed transaction (may upload several chunks). */
-export const ARWEAVE_POST_TIMEOUT_MS = 120000;
+/** Posting a signed transaction (may upload several chunks). One gateway, then failover. */
+export const ARWEAVE_POST_TIMEOUT_MS = 360000;
 
 /** Serial attempts per operation (each attempt uses the next gateway). Keeps the worst case bounded. */
 export const ARWEAVE_MAX_GATEWAY_ATTEMPTS = 6;
