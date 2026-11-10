@@ -93,6 +93,10 @@
       "filterUTF8": "纯文本",
       "filterOAMP": "OAMP",
       "filterRAW": "原始数据",
+      "filterMediaText": "纯文本",
+      "filterMediaImage": "图片",
+      "filterMediaVideo": "视频",
+      "filterMediaOther": "其他",
       "filterSubscribed": "关注"
     },
     "noApiKeyWarning": "未设置 Etherscan API Key，部分数据可能无法获取",
@@ -223,6 +227,7 @@
     "favorited": "已加入本地收藏",
     "unfavorited": "已取消收藏",
     "loadingImage": "正在加载图片…",
+    "imageLoadFailed": "图片加载失败，点击重试",
     "previousImage": "上一张图片",
     "nextImage": "下一张图片",
     "savingImage": "正在保存图片…",

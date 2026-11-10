@@ -355,6 +355,10 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
                   typeof (entry as FavoriteItem).favoritedAt === 'number' &&
                   !!(entry as FavoriteItem).item &&
                   typeof (entry as FavoriteItem).item.id === 'string',
+              ).map((entry) =>
+                entry.item.cacheMap
+                  ? { ...entry, item: { ...entry.item, cacheMap: undefined } }
+                  : entry,
               )
             : [];
           dispatch({ type: 'SET_FAVORITES', payload: favorites });
@@ -496,7 +500,7 @@ export const AppProvider: React.FC<Props> = ({ children }) => {
   const addFavorite = useCallback(async (item: InputDataItem) => {
     dispatch({
       type: 'ADD_FAVORITE',
-      payload: { item, favoritedAt: Date.now() },
+      payload: { item: { ...item, cacheMap: undefined }, favoritedAt: Date.now() },
     });
   }, []);
 

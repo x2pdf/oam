@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { ActivityIndicator, Icon, Snackbar, Text, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { getImageRendererAdapter, peekCachedImagePath, saveImageToAlbum } from '../adapter';
+import { getImageRendererAdapter, saveImageToAlbum } from '../adapter';
 import { useCachedRemoteImage } from '../hooks/useCachedRemoteImage';
 import { isHttpUrl } from '../utils/attachment';
 import ImageGalleryPager from './ImageGalleryPager';
@@ -294,11 +294,27 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
   const { t } = useTranslation();
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
-  const cached = cachedUri ?? (uri && isHttpUrl(uri) ? peekCachedImagePath(uri) : undefined);
-  // 已解析的本地/blob 地址直接交给加载器，Web 异步解析不能再替换回远程 URL。
-  const { displayUri, loading, failed } = useCachedRemoteImage(cached || uri, {
+  // 远程图始终以原始 URL 交给加载器，cachedUri 只是线索：路径失效（容器变化、缓存被清）时
+  // 加载器会校验文件是否存在，并回退到目录查找或重新下载。
+  // Web 不落本地文件，已解析的地址直接交给加载器，避免异步解析把它替换回远程 URL。
+  const remote = !!uri && isHttpUrl(uri) && Platform.OS !== 'web';
+  const hintMap = useMemo(
+    () => (remote && uri && cachedUri ? { [uri]: cachedUri } : undefined),
+    [remote, uri, cachedUri],
+  );
+  const sourceUri = remote ? uri : (cachedUri ?? uri);
+  const { displayUri, loading, failed, retry } = useCachedRemoteImage(sourceUri, {
     mimeHint: mimeType,
+    cacheMap: hintMap,
   });
+  const autoRetried = useRef(false);
+  const handleImageError = useCallback(() => {
+    if (!remote || autoRetried.current) {
+      return;
+    }
+    autoRetried.current = true;
+    retry();
+  }, [remote, retry]);
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -741,22 +757,37 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
               resizeMode="contain"
               fadeDuration={0}
               onLoadDimensions={handleImageLoadDimensions}
+              onError={handleImageError}
             />
           ) : null}
         </Animated.View>
-        {(loading || failed) && (
+        {loading && (
           <View style={styles.loadingOverlay} pointerEvents="none">
-            {loading ? (
-              <>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-                <Text variant="bodyMedium" style={styles.loadingText}>
-                  {t('detail.loadingImage')}
-                </Text>
-              </>
-            ) : null}
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text variant="bodyMedium" style={styles.loadingText}>
+              {t('detail.loadingImage')}
+            </Text>
           </View>
         )}
       </Animated.View>
+      {failed && !loading && (
+        <View style={styles.loadingOverlay} pointerEvents="box-none">
+          <Pressable
+            testID="image-retry"
+            accessibilityRole="button"
+            style={styles.retryButton}
+            onPress={() => {
+              autoRetried.current = false;
+              retry();
+            }}
+          >
+            <Icon source="image-broken-variant" size={32} color="#FFFFFF" />
+            <Text variant="bodyMedium" style={styles.loadingText}>
+              {t('detail.imageLoadFailed')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -816,6 +847,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  retryButton: {
+    alignItems: 'center',
+    padding: 24,
   },
   loadingText: {
     color: '#FFFFFF',

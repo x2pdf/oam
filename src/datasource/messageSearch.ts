@@ -10,6 +10,38 @@ export interface SearchLocalMessagesParams {
   query: string;
   showSent: boolean;
   showReceived: boolean;
+  mediaTypes?: SearchMediaType[];
+}
+
+export type SearchMediaType = 'text' | 'image' | 'video' | 'other';
+
+export const ALL_SEARCH_MEDIA_TYPES: SearchMediaType[] = ['text', 'image', 'video', 'other'];
+
+export function getItemMediaTypes(item: InputDataItem): Set<SearchMediaType> {
+  const types = new Set<SearchMediaType>();
+  if (item.contentKind === 'UTF-8') {
+    types.add('text');
+  } else if (item.contentKind === 'OAMP' && Array.isArray(item.oampItems)) {
+    for (const oampItem of item.oampItems) {
+      if (oampItem.type === 'text') {
+        types.add('text');
+      } else if (oampItem.type === 'image') {
+        types.add('image');
+      } else if (oampItem.type === 'link') {
+        const mime = (oampItem.mime || '').toLowerCase();
+        if (mime.startsWith('image/')) types.add('image');
+        else if (mime.startsWith('video/')) types.add('video');
+        else types.add('other');
+      }
+    }
+  }
+  if (types.size === 0) types.add('other');
+  return types;
+}
+
+export function matchesMediaTypes(item: InputDataItem, selected: SearchMediaType[]): boolean {
+  const types = getItemMediaTypes(item);
+  return selected.some((t) => types.has(t));
 }
 
 function formatTimestamp(timestamp: number): string {
@@ -59,9 +91,11 @@ export async function searchLocalMessages(
   params: SearchLocalMessagesParams,
 ): Promise<InputDataItem[]> {
   const { userAddress, query, showSent, showReceived } = params;
+  const mediaTypes = params.mediaTypes ?? ALL_SEARCH_MEDIA_TYPES;
   const trimmedQuery = query.trim();
   if (!trimmedQuery || !userAddress) return [];
   if (!showSent && !showReceived) return [];
+  if (mediaTypes.length === 0) return [];
 
   const txs = await cacheService.getAllTransactions([userAddress]);
   const map = new Map<string, InputDataItem>();
@@ -92,6 +126,7 @@ export async function searchLocalMessages(
   const processed = await applyDisplayPipeline(items, { userAddress });
 
   return processed
+    .filter((item) => matchesMediaTypes(item, mediaTypes))
     .filter((item) => matchesMessageQuery(item, trimmedQuery))
     .sort((a, b) => b.timestamp - a.timestamp);
 }

@@ -28,7 +28,11 @@ import { useThemePreference } from '../context/ThemeContext';
 import { isBlackHoleAddress } from '../utils/address';
 import { cacheService } from '../datasource/cacheService';
 import { dataRepository } from '../datasource/DataRepository';
-import { searchLocalMessages } from '../datasource/messageSearch';
+import {
+  ALL_SEARCH_MEDIA_TYPES,
+  SearchMediaType,
+  searchLocalMessages,
+} from '../datasource/messageSearch';
 import { applyContentFilters } from '../utils/contentFilterApply';
 import {
   isDesktopLockPolicy,
@@ -111,6 +115,14 @@ export default function HomeScreen() {
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [messageSearchResults, setMessageSearchResults] = useState<InputDataItem[]>([]);
   const [messageSearchLoading, setMessageSearchLoading] = useState(false);
+
+  const [searchMediaTypes, setSearchMediaTypes] =
+    useState<SearchMediaType[]>(ALL_SEARCH_MEDIA_TYPES);
+  const toggleSearchMediaType = useCallback((type: SearchMediaType) => {
+    setSearchMediaTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+    );
+  }, []);
 
   const handleToggleMessageSearch = useCallback(() => {
     setMessageSearchVisible((prev) => {
@@ -262,6 +274,7 @@ export default function HomeScreen() {
         query: q,
         showSent: showFilterSent,
         showReceived: showFilterReceived,
+        mediaTypes: searchMediaTypes,
       })
         .then((results) => {
           if (!cancelled) {
@@ -288,6 +301,7 @@ export default function HomeScreen() {
     showFilterSent,
     showFilterReceived,
     messagesFiltersActive,
+    searchMediaTypes,
   ]);
   const prevMessagesFiltersActiveRef = useRef(messagesFiltersActive);
   const prevSquareFiltersActiveRef = useRef(squareFiltersActive);
@@ -841,6 +855,32 @@ export default function HomeScreen() {
                     loading={messageSearchLoading}
                     autoFocus
                   />
+                )}
+                {messageSearchVisible && (
+                  <View style={styles.filterRow}>
+                    {([
+                      ['text', 'home.tabs.filterMediaText'],
+                      ['image', 'home.tabs.filterMediaImage'],
+                      ['video', 'home.tabs.filterMediaVideo'],
+                      ['other', 'home.tabs.filterMediaOther'],
+                    ] as [SearchMediaType, string][]).map(([type, labelKey]) => {
+                      const checked = searchMediaTypes.includes(type);
+                      return (
+                        <TouchableOpacity
+                          key={type}
+                          style={styles.filterItem}
+                          onPress={() => toggleSearchMediaType(type)}
+                        >
+                          <Checkbox.Android
+                            status={checked ? 'checked' : 'unchecked'}
+                            onPress={() => toggleSearchMediaType(type)}
+                            uncheckedColor={theme.colors.outline}
+                          />
+                          <Text variant="labelMedium">{t(labelKey)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 )}
                 {!messagesFiltersActive && (
                   <Text

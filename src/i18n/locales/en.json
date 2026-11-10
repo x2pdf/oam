@@ -93,6 +93,10 @@
       "filterUTF8": "Plain Text",
       "filterOAMP": "OAMP",
       "filterRAW": "RAW",
+      "filterMediaText": "Plain Text",
+      "filterMediaImage": "Images",
+      "filterMediaVideo": "Videos",
+      "filterMediaOther": "Other",
       "filterSubscribed": "Subscribed"
     },
     "noApiKeyWarning": "Etherscan API Key not set, some data may be unavailable",
@@ -223,6 +227,7 @@
     "favorited": "Saved to local favorites",
     "unfavorited": "Removed from favorites",
     "loadingImage": "Loading image…",
+    "imageLoadFailed": "Failed to load image. Tap to retry",
     "previousImage": "Previous image",
     "nextImage": "Next image",
     "savingImage": "Saving image…",
