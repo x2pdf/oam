@@ -777,6 +777,7 @@
       "fabLabel": "Upload",
       "noWallet": "Please add an AR wallet first",
       "noteLabel": "Note",
+      "sizeLabel": "Size",
       "notePlaceholder": "Add a note for this file (optional)",
       "noNote": "(none)",
       "fileTypeLabel": "File Type",

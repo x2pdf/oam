@@ -12,6 +12,7 @@ query OwnerTransactions($address: String!, $first: Int!, $after: String) {
       node {
         id
         block { timestamp height }
+        data { size }
         tags { name value }
       }
     }

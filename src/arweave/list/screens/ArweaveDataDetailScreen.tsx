@@ -12,6 +12,7 @@ import { useThemePreference } from '../../../context/ThemeContext';
 import { ArweaveContentBody } from '../../../components/ArweaveContentBody';
 import { getArListDisplayTime } from '../utils/time';
 import { arweaveHref } from '../utils/mime';
+import { formatUploadFileSize } from '../../upload/format';
 
 type RouteProps = RouteProp<RootStackParamList, 'ArweaveDataDetail'>;
 
@@ -29,6 +30,7 @@ export default function ArweaveDataDetailScreen() {
 
   const displayTime = useMemo(() => getArListDisplayTime(item.timestamp, t), [item.timestamp, t]);
   const fileName = item.fileName ?? '';
+  const sizeDisplay = item.dataSize && item.dataSize > 0 ? formatUploadFileSize(item.dataSize) : '';
   const noteDisplay = (item.note ?? '').trim()
     ? (item.note ?? '').trim()
     : t('arweave.upload.noNote');
@@ -70,6 +72,12 @@ export default function ArweaveDataDetailScreen() {
     await Clipboard.setStringAsync(fileName);
     showCopiedSnackbar();
   }, [fileName, showCopiedSnackbar]);
+
+  const handleCopySize = useCallback(async () => {
+    if (!sizeDisplay) return;
+    await Clipboard.setStringAsync(sizeDisplay);
+    showCopiedSnackbar();
+  }, [sizeDisplay, showCopiedSnackbar]);
 
   const handleCopyNote = useCallback(async () => {
     const note = (item.note ?? '').trim();
@@ -201,6 +209,26 @@ export default function ArweaveDataDetailScreen() {
                     style={styles.copyIconBtn}
                     accessibilityLabel={t('common.copy')}
                     disabled={!fileName}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.metaRow}>
+                <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {t('arweave.upload.sizeLabel')}
+                </Text>
+                <View style={styles.valueRow}>
+                  <Text variant="bodyMedium" selectable style={styles.valueText}>
+                    {sizeDisplay || '—'}
+                  </Text>
+                  <IconButton
+                    icon="content-copy"
+                    size={18}
+                    onPress={handleCopySize}
+                    iconColor={theme.colors.primary}
+                    style={styles.copyIconBtn}
+                    accessibilityLabel={t('common.copy')}
+                    disabled={!sizeDisplay}
                   />
                 </View>
               </View>

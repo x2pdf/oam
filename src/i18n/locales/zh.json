@@ -777,6 +777,7 @@
       "fabLabel": "上传",
       "noWallet": "请先添加 AR 钱包",
       "noteLabel": "备注",
+      "sizeLabel": "大小",
       "notePlaceholder": "为上传的文件添加备注（可选）",
       "noNote": "（无）",
       "fileTypeLabel": "文件类型",

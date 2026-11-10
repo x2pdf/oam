@@ -20,6 +20,8 @@ export interface ArweaveListItem {
   fileName: string;
   /** 链上 Note 标签 */
   note: string;
+  /** 数据大小（字节）；未知为 0（旧缓存无此字段） */
+  dataSize?: number;
   contentItems: ArweaveContentItem[];
   /** key = 文本里的占位符原文，value = 本机全路径，可直接给 Image */
   cacheMap?: Record<string, string>;
@@ -33,5 +35,6 @@ export interface ArweaveGraphQLTag {
 export interface ArweaveGraphQLTransaction {
   id: string;
   block: { timestamp: number; height: number } | null;
+  data?: { size?: string | number } | null;
   tags: ArweaveGraphQLTag[];
 }

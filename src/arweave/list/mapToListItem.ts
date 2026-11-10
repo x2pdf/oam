@@ -87,6 +87,7 @@ export function mapTransactionToListItem(
     badgeLabel: mimeToBadgeLabel(contentType),
     fileName,
     note,
+    dataSize: Math.max(0, Math.floor(toFiniteNumber(tx.data?.size))),
     contentItems,
   };
 }
