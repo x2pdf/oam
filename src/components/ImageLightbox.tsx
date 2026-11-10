@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { getImageRendererAdapter, peekCachedImagePath, saveImageToAlbum } from '../adapter';
 import { useCachedRemoteImage } from '../hooks/useCachedRemoteImage';
 import { isHttpUrl } from '../utils/attachment';
+import ImageGalleryPager from './ImageGalleryPager';
 
 const PlatformImage = getImageRendererAdapter().Image;
 
@@ -64,9 +65,10 @@ type SlideProps = {
   cachedUri?: string;
   mimeType?: string;
   onClose: () => void;
-  onNavigate?: (direction: -1 | 1) => void;
-  canGoPrevious?: boolean;
-  canGoNext?: boolean;
+  /** 原生分页器接管水平滑动；此时未缩放的水平手势交给分页器，不在这里处理。 */
+  pagerSwipe?: boolean;
+  /** 缩放状态变化时通知外层，放大时需要锁住分页器。 */
+  onZoomChange?: (zoomed: boolean) => void;
 };
 
 type LightboxSession = { uri: string } & Partial<GalleryOptions>;
@@ -102,10 +104,17 @@ export const ImageLightbox: React.FC<Props> = ({
   const { t } = useTranslation();
   const gallery = useMemo(() => images?.length ? images : uri ? [{ uri }] : [], [images, uri]);
   const [index, setIndex] = useState(() => clamp(initialIndex, 0, Math.max(0, gallery.length - 1)));
+  const startIndex = useRef(index).current;
+  const [zoomed, setZoomed] = useState(false);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const current = gallery[index];
   const hasMultiple = gallery.length > 1;
   const desktopControls = Platform.OS === 'web' && hasMultiple;
+  const usePager = Platform.OS !== 'web' && hasMultiple;
+  const onPageSelected = useCallback((position: number) => {
+    setIndex(clamp(position, 0, gallery.length - 1));
+    setZoomed(false);
+  }, [gallery.length]);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -203,14 +212,34 @@ export const ImageLightbox: React.FC<Props> = ({
         style={[styles.fill, { opacity: overlayOpacity }]}
         {...(Platform.OS === 'web' ? ({ onMouseMove: showPointerControls } as object) : {})}
       >
-        <ImageLightboxSlide
-          key={`${index}:${current.uri}`}
-          {...current}
-          onClose={onClose}
-          onNavigate={hasMultiple ? onNavigate : undefined}
-          canGoPrevious={index > 0}
-          canGoNext={index < gallery.length - 1}
-        />
+        {usePager ? (
+          <ImageGalleryPager
+            initialPage={startIndex}
+            scrollEnabled={!zoomed}
+            onPageSelected={onPageSelected}
+          >
+            {gallery.map((item, i) => (
+              // 只挂载当前页和相邻页：相邻图提前加载，滑动时已拼接好。
+              Math.abs(i - index) <= 1 ? (
+                <ImageLightboxSlide
+                  key={`${i}:${item.uri}`}
+                  {...item}
+                  onClose={onClose}
+                  pagerSwipe
+                  onZoomChange={i === index ? setZoomed : undefined}
+                />
+              ) : (
+                <View key={`${i}:${item.uri}`} />
+              )
+            ))}
+          </ImageGalleryPager>
+        ) : (
+          <ImageLightboxSlide
+            key={`${index}:${current.uri}`}
+            {...current}
+            onClose={onClose}
+          />
+        )}
         {desktopControls && (
           <Animated.View
             testID="image-navigation"
@@ -260,7 +289,7 @@ export const ImageLightbox: React.FC<Props> = ({
 };
 
 export const ImageLightboxSlide: React.FC<SlideProps> = ({
-  uri, cachedUri, mimeType, onClose, onNavigate, canGoPrevious = false, canGoNext = false,
+  uri, cachedUri, mimeType, onClose, pagerSwipe = false, onZoomChange,
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -458,8 +487,9 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
       scale.setValue(clamped);
       translateX.setValue(position.x);
       translateY.setValue(position.y);
+      onZoomChange?.(clamped > MIN_SCALE);
     },
-    [clampTranslate, scale, translateX, translateY],
+    [clampTranslate, onZoomChange, scale, translateX, translateY],
   );
 
   const panResponder = useMemo(
@@ -519,16 +549,12 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
             translateX.setValue(next.x);
             translateY.setValue(next.y);
           } else if (!usedMultiTouch.current && !gestureStartedZoomed.current) {
-            if (onNavigate && Platform.OS !== 'web') {
+            if (pagerSwipe) {
               if (!gestureAxis.current && moved.current) {
                 if (Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2) gestureAxis.current = 'x';
                 else if (Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.2) gestureAxis.current = 'y';
               }
-              if (gestureAxis.current === 'x') {
-                const atBoundary = gesture.dx > 0 ? !canGoPrevious : !canGoNext;
-                translateX.setValue(gesture.dx * (atBoundary ? 0.25 : 1));
-                return;
-              }
+              // 水平滑动由原生分页器跟手滚动，这里不再平移图片。
               if (gestureAxis.current !== 'y') return;
             }
             translateY.setValue(gesture.dy);
@@ -539,16 +565,6 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
           clearLongPress();
 
           if (gestureAxis.current === 'x') {
-            const direction = gesture.dx < 0 ? 1 : -1;
-            const allowed = direction === 1 ? canGoNext : canGoPrevious;
-            if (
-              !usedMultiTouch.current && !gestureStartedZoomed.current &&
-              !longPressTriggered.current && currentScale.current === MIN_SCALE &&
-              Math.abs(gesture.dx) >= Math.max(50, width * 0.12) && allowed
-            ) {
-              onNavigate?.(direction);
-            }
-            Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
             gestureAxis.current = null;
             lastTapTime.current = 0;
             return;
@@ -566,7 +582,7 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
           } else {
             if (
               !usedMultiTouch.current && !gestureStartedZoomed.current &&
-              (!onNavigate || Platform.OS === 'web' || gestureAxis.current === 'y') &&
+              (!pagerSwipe || gestureAxis.current === 'y') &&
               Math.abs(gesture.dy) > 100
             ) {
               onClose();
@@ -621,6 +637,7 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
                   Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
                   currentScale.current = MIN_SCALE;
                   currentTranslate.current = { x: 0, y: 0 };
+                  onZoomChange?.(false);
                 } else {
                   const nextScale = 3;
                   // 默认绕容器中心缩放，用位移补偿让双击处的图片内容留在原位。
@@ -631,6 +648,7 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
                   );
                   currentScale.current = nextScale;
                   currentTranslate.current = next;
+                  onZoomChange?.(true);
                   Animated.parallel([
                     Animated.spring(scale, { toValue: nextScale, useNativeDriver: true }),
                     Animated.spring(translateX, { toValue: next.x, useNativeDriver: true }),
@@ -661,8 +679,6 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
     [
       applyScale,
       canSave,
-      canGoPrevious,
-      canGoNext,
       clampTranslate,
       clearLongPress,
       dismissTranslateY,
@@ -670,7 +686,8 @@ export const ImageLightboxSlide: React.FC<SlideProps> = ({
       handleSaveImage,
       height,
       onClose,
-      onNavigate,
+      onZoomChange,
+      pagerSwipe,
       scale,
       translateX,
       translateY,

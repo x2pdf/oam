@@ -6,7 +6,7 @@ const loadTypeScript = require('./helpers/load-typescript.cjs');
 // Only React hooks, native animation, image loading and device services are stubbed.
 function lightbox({
   width = 400, height = 800, imageWidth = width, imageHeight = height,
-  platform = 'web', onNavigate, canGoPrevious = true, canGoNext = true,
+  platform = 'web', pagerSwipe = false, onZoomChange,
   uri = 'file:///photo.jpg', cachedUri, mimeType,
 } = {}) {
   const hooks = [];
@@ -94,6 +94,7 @@ function lightbox({
         },
       },
       '../utils/attachment': { isHttpUrl: (uri) => /^https?:/.test(uri) },
+      './ImageGalleryPager': { default: 'ImageGalleryPager' },
     },
     globals: {
       Date: { now: () => now },
@@ -107,7 +108,7 @@ function lightbox({
     do {
       dirty = false;
       cursor = 0;
-      tree = ImageLightbox({ uri, cachedUri, mimeType, onClose, onNavigate, canGoPrevious, canGoNext });
+      tree = ImageLightbox({ uri, cachedUri, mimeType, onClose, pagerSwipe, onZoomChange });
       effects.splice(0).forEach((effect) => effect());
     } while (dirty);
   }
@@ -306,39 +307,42 @@ test('long press still saves without closing or counting as a double tap', () =>
   assert.equal(viewer.transform().scale, 1);
 });
 
-test('an unzoomed mobile horizontal swipe navigates instead of dismissing diagonally', () => {
-  const directions = [];
-  const viewer = lightbox({ platform: 'ios', onNavigate: (direction) => directions.push(direction) });
+test('an unzoomed pager horizontal swipe is left to the pager and never dismisses diagonally', () => {
+  const viewer = lightbox({ platform: 'ios', pagerSwipe: true });
   assert.equal(viewer.drag(-180, 110), 0);
-  assert.deepEqual(directions, [1]);
-  assert.equal(viewer.closes, 0);
-  viewer.drag(180, 0);
-  assert.deepEqual(directions, [1, -1]);
-});
-
-test('mobile gallery keeps short swipes and boundary swipes on the current image', () => {
-  const directions = [];
-  const viewer = lightbox({ platform: 'android', onNavigate: (direction) => directions.push(direction), canGoPrevious: false });
-  viewer.drag(-30, 0);
-  viewer.drag(180, 110);
-  assert.deepEqual(directions, []);
   assert.equal(viewer.closes, 0);
   assert.deepEqual(viewer.transform(), { translateX: 0, translateY: 0, scale: 1 });
-  viewer.drag(-180, 0);
-  assert.deepEqual(directions, [1]);
+  viewer.drag(180, 0);
+  assert.equal(viewer.closes, 0);
+  assert.deepEqual(viewer.transform(), { translateX: 0, translateY: 0, scale: 1 });
 });
 
-test('zoomed mobile dragging pans rather than navigating, while vertical swipes still dismiss', () => {
-  const directions = [];
-  const viewer = lightbox({ platform: 'ios', onNavigate: (direction) => directions.push(direction) });
+test('pager slide still dismisses on a mostly vertical swipe', () => {
+  const viewer = lightbox({ platform: 'android', pagerSwipe: true });
+  viewer.drag(10, 150);
+  assert.equal(viewer.closes, 1);
+});
+
+test('zoomed pager slide pans rather than paging, and vertical swipes still dismiss', () => {
+  const viewer = lightbox({ platform: 'ios', pagerSwipe: true });
   viewer.doubleTap(200, 400);
   viewer.drag(-180, 120);
-  assert.deepEqual(directions, []);
   assert.equal(viewer.closes, 0);
   viewer.doubleTap(200, 400);
   viewer.drag(60, 130);
-  assert.deepEqual(directions, []);
   assert.equal(viewer.closes, 1);
+});
+
+test('zoom changes are reported so the pager can lock while zoomed', () => {
+  const zooms = [];
+  const viewer = lightbox({ platform: 'ios', pagerSwipe: true, onZoomChange: (zoomed) => zooms.push(zoomed) });
+  viewer.doubleTap(200, 400);
+  viewer.doubleTap(200, 400);
+  assert.deepEqual(zooms, [true, false]);
+  viewer.pinch(3);
+  viewer.pinch(0.01);
+  assert.equal(zooms.at(-2), true);
+  assert.equal(zooms.at(-1), false);
 });
 
 test('resolved cached image hints reach the image hook without losing the original save URI', () => {

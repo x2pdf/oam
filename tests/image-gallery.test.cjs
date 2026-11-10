@@ -66,6 +66,7 @@ function gallery({ images = [{ uri: 'file:///a.jpg' }, { uri: 'file:///b.jpg' },
       '../adapter': { getImageRendererAdapter: () => ({ Image: 'PlatformImage' }), peekCachedImagePath: (uri) => uri === 'https://cached.test/image' ? 'file:///cached.jpg' : null },
       '../hooks/useCachedRemoteImage': { useCachedRemoteImage: (uri) => ({ displayUri: uri, loading: false, failed: false }) },
       '../utils/attachment': { isHttpUrl: (uri) => /^https?:/.test(uri) },
+      './ImageGalleryPager': { default: 'ImageGalleryPager' },
     },
     globals: {
       window: {
@@ -98,6 +99,8 @@ function gallery({ images = [{ uri: 'file:///a.jpg' }, { uri: 'file:///b.jpg' },
     get closes() { return closes; },
     get animations() { return animations; },
     find(id) { return find(tree, (node) => node.props?.testID === id); },
+    findBy(predicate) { return find(tree, predicate); },
+    rerender() { render(); },
     key(key) { let prevented = false; listeners.get('keydown')?.({ key, preventDefault() { prevented = true; }, stopPropagation() {} }); render(); return prevented; },
     click(id) { this.find(id)?.props.onPress({ stopPropagation() {} }); render(); },
     move() { this.find('image-lightbox-overlay')?.props.onMouseMove(); render(); },
@@ -182,12 +185,34 @@ test('mobile gallery has only a non-intercepting counter and single-image viewer
   assert.equal(mobile.find('image-next'), undefined);
   assert.equal(mobile.find('image-counter').props.children, '2 / 3');
   assert.equal(mobile.find('image-counter').props.pointerEvents, 'none');
-  assert.equal(typeof mobile.slide.props.onNavigate, 'function');
-  const single = gallery({ images: [{ uri: 'file:///only.jpg' }], initialIndex: 0 });
+  const single = gallery({ images: [{ uri: 'file:///only.jpg' }], initialIndex: 0, platform: 'ios' });
   assert.equal(single.find('image-counter'), undefined);
   assert.equal(single.find('image-navigation'), undefined);
-  assert.equal(single.slide.props.onNavigate, undefined);
+  assert.equal(single.slide.props.pagerSwipe, undefined);
   assert.equal(single.key('ArrowRight'), false);
+});
+
+test('mobile gallery pre-mounts neighbouring slides in a pager and locks paging while zoomed', () => {
+  const images = ['a', 'b', 'c', 'd', 'e'].map((name) => ({ uri: `file:///${name}.jpg` }));
+  const viewer = gallery({ images, initialIndex: 1, platform: 'ios' });
+  const pager = () => viewer.findBy((node) => node.type === 'ImageGalleryPager');
+  const slides = () => pager().props.children.filter((child) => child.type !== 'View');
+  assert.equal(pager().props.initialPage, 1);
+  assert.deepEqual(slides().map((slide) => slide.props.uri), ['file:///a.jpg', 'file:///b.jpg', 'file:///c.jpg']);
+  assert.ok(slides().every((slide) => slide.props.pagerSwipe));
+  assert.equal(pager().props.scrollEnabled, true);
+
+  slides()[1].props.onZoomChange(true);
+  viewer.rerender();
+  assert.equal(pager().props.scrollEnabled, false);
+  slides()[1].props.onZoomChange(false);
+  viewer.rerender();
+
+  pager().props.onPageSelected(3);
+  viewer.rerender();
+  assert.deepEqual(slides().map((slide) => slide.props.uri), ['file:///c.jpg', 'file:///d.jpg', 'file:///e.jpg']);
+  assert.equal(pager().props.initialPage, 1, 'the pager is uncontrolled after mount');
+  assert.equal(viewer.find('image-counter').props.children, '4 / 5');
 });
 
 test('host forwards a gallery session and still supports old single-image callers', () => {
