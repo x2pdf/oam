@@ -1355,6 +1355,12 @@ export default function SendDataScreen() {
           </HelperText>
         )}
 
+        {isBlackHoleRecipient && (
+          <HelperText type="info" visible style={{ marginTop: 4, paddingHorizontal: 0 }}>
+            {t('send.blackHoleNoteHint')}
+          </HelperText>
+        )}
+
         {canChooseEncrypt && (
           <View style={styles.encryptSection}>
             <Text

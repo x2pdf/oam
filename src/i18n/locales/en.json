@@ -539,6 +539,7 @@
     "recipientCustom": "Custom",
     "recipientPlaceholder": "Enter 0x recipient address",
     "selfNoteHint": "Data sent to yourself will be stored on the blockchain in ciphertext, and only your private key can decrypt it.",
+    "blackHoleNoteHint": "Data sent to the black hole address is plaintext, public, and stored on the blockchain permanently.",
     "modeSelfHint": "Encrypted. Only you can decrypt and read it.",
     "modeBroadcastHint": "Public broadcast to the square. Visible to everyone.",
     "modeCustomHint": "Sent in plaintext to this address. Public on-chain.",

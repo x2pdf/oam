@@ -57,6 +57,16 @@ type NavProp = NativeStackNavigationProp<RootStackParamList>;
 /*  主页屏幕                                                           */
 /* ------------------------------------------------------------------ */
 
+function FilterCheckbox(props: React.ComponentProps<typeof Checkbox.Android>) {
+  return (
+    <View style={styles.filterCheckboxBox}>
+      <View style={styles.filterCheckboxInner}>
+        <Checkbox.Android {...props} />
+      </View>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const theme = useTheme();
   const { fontScale } = useThemePreference();
@@ -809,30 +819,30 @@ export default function HomeScreen() {
                       style={styles.filterItem}
                       onPress={() => setShowFilterSent(prev => !prev)}
                     >
-                      <Checkbox.Android
+                      <FilterCheckbox
                         status={showFilterSent ? 'checked' : 'unchecked'}
                         onPress={() => setShowFilterSent(prev => !prev)}
                         uncheckedColor={theme.colors.outline}
                       />
-                      <Text variant="labelMedium">{t('home.tabs.filterSent')}</Text>
+                      <Text variant="labelSmall" style={{ fontSize: Math.round(11 * fontScale) }}>{t('home.tabs.filterSent')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.filterItem}
                       onPress={() => setShowFilterReceived(prev => !prev)}
                     >
-                      <Checkbox.Android
+                      <FilterCheckbox
                         status={showFilterReceived ? 'checked' : 'unchecked'}
                         onPress={() => setShowFilterReceived(prev => !prev)}
                         uncheckedColor={theme.colors.outline}
                       />
-                      <Text variant="labelMedium">{t('home.tabs.filterReceived')}</Text>
+                      <Text variant="labelSmall" style={{ fontSize: Math.round(11 * fontScale) }}>{t('home.tabs.filterReceived')}</Text>
                     </TouchableOpacity>
                   </View>
                   <View style={styles.messageSearchSide}>
                     <IconButton
                       icon={messageSearchVisible ? 'close' : 'magnify'}
                       iconColor={theme.colors.onSurface}
-                      size={22}
+                      size={18}
                       style={styles.messageSearchButton}
                       accessibilityLabel={t('home.messagesSearchPlaceholder')}
                       onPress={handleToggleMessageSearch}
@@ -871,12 +881,12 @@ export default function HomeScreen() {
                           style={styles.filterItem}
                           onPress={() => toggleSearchMediaType(type)}
                         >
-                          <Checkbox.Android
+                          <FilterCheckbox
                             status={checked ? 'checked' : 'unchecked'}
                             onPress={() => toggleSearchMediaType(type)}
                             uncheckedColor={theme.colors.outline}
                           />
-                          <Text variant="labelMedium">{t(labelKey)}</Text>
+                          <Text variant="labelSmall" style={{ fontSize: Math.round(11 * fontScale) }}>{t(labelKey)}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -899,45 +909,45 @@ export default function HomeScreen() {
                     style={styles.filterItem}
                     onPress={() => setShowSquareAll(prev => !prev)}
                   >
-                    <Checkbox.Android
+                    <FilterCheckbox
                       status={showSquareAll ? 'checked' : 'unchecked'}
                       onPress={() => setShowSquareAll(prev => !prev)}
                       uncheckedColor={theme.colors.outline}
                     />
-                    <Text variant="labelMedium">{t('home.tabs.filterAll')}</Text>
+                    <Text variant="labelSmall" style={{ fontSize: Math.round(11 * fontScale) }}>{t('home.tabs.filterAll')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.filterItem}
                     onPress={() => setShowSquareUtf8(prev => !prev)}
                   >
-                    <Checkbox.Android
+                    <FilterCheckbox
                       status={showSquareUtf8 ? 'checked' : 'unchecked'}
                       onPress={() => setShowSquareUtf8(prev => !prev)}
                       uncheckedColor={theme.colors.outline}
                     />
-                    <Text variant="labelMedium">{t('home.tabs.filterUTF8')}</Text>
+                    <Text variant="labelSmall" style={{ fontSize: Math.round(11 * fontScale) }}>{t('home.tabs.filterUTF8')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.filterItem}
                     onPress={() => setShowSquareOamp(prev => !prev)}
                   >
-                    <Checkbox.Android
+                    <FilterCheckbox
                       status={showSquareOamp ? 'checked' : 'unchecked'}
                       onPress={() => setShowSquareOamp(prev => !prev)}
                       uncheckedColor={theme.colors.outline}
                     />
-                    <Text variant="labelMedium">{t('home.tabs.filterOAMP')}</Text>
+                    <Text variant="labelSmall" style={{ fontSize: Math.round(11 * fontScale) }}>{t('home.tabs.filterOAMP')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.filterItem}
                     onPress={() => setShowSquareRaw(prev => !prev)}
                   >
-                    <Checkbox.Android
+                    <FilterCheckbox
                       status={showSquareRaw ? 'checked' : 'unchecked'}
                       onPress={() => setShowSquareRaw(prev => !prev)}
                       uncheckedColor={theme.colors.outline}
                     />
-                    <Text variant="labelMedium">{t('home.tabs.filterRAW')}</Text>
+                    <Text variant="labelSmall" style={{ fontSize: Math.round(11 * fontScale) }}>{t('home.tabs.filterRAW')}</Text>
                   </TouchableOpacity>
                 </View>
                 {!squareFiltersActive && (
@@ -1275,6 +1285,8 @@ const styles = StyleSheet.create({
   },
   messageSearchButton: {
     margin: 0,
+    width: 28,
+    height: 28,
   },
   messageSearchBar: {
     marginHorizontal: 4,
@@ -1287,6 +1299,15 @@ const styles = StyleSheet.create({
   filterItem: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  filterCheckboxBox: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCheckboxInner: {
+    transform: [{ scale: 0.75 }],
   },
   separator: {
     height: 12,
