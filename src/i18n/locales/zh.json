@@ -841,6 +841,7 @@
     }
   },
   "appInfo": {
+    "summary": "OAM 是一款去中心化的链上附言消息应用：把文字、图片等内容附在区块链交易中发送与读取，可选择加密保护隐私，并支持 Arweave 永久存储。",
     "disclaimerTitle": "免责声明",
     "disclaimerRiskHint": "风险提示：本项目涉及加密货币及其相关技术（如私钥管理、链上交易等）。加密货币市场具有极高的风险，可能导致资金完全损失。",
     "disclaimerNotAdvice": "非投资建议",

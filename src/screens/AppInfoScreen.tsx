@@ -69,6 +69,12 @@ export default function AppInfoScreen() {
                   {APP_FULL_NAME}
                 </Text>
               ) : null}
+              <Text
+                variant="bodyMedium"
+                style={{ color: theme.colors.onSurface, marginTop: 8, lineHeight: 22 }}
+              >
+                {t('appInfo.summary')}
+              </Text>
               <View style={styles.infoRow}>
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   {t('profile.appAuthor')}: Logan Cham

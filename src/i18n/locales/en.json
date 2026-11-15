@@ -841,6 +841,7 @@
     }
   },
   "appInfo": {
+    "summary": "OAM is a decentralized onchain messaging app: it attaches text, images and more to blockchain transactions for sending and reading, with optional encryption for privacy and permanent Arweave storage.",
     "disclaimerTitle": "Disclaimer",
     "disclaimerRiskHint": "Risk Notice: This project involves cryptocurrency and related technologies (e.g., private key management, on-chain transactions). The cryptocurrency market carries extremely high risk and may result in total loss of funds.",
     "disclaimerNotAdvice": "Not Investment Advice",
