@@ -12,6 +12,7 @@ const PlatformImage = getImageRendererAdapter().Image;
 type Props = {
   file: PickedUploadFile;
   onRemove: () => void;
+  displayName?: string;
 };
 
 function buildImagePreviewUri(file: PickedUploadFile): string {
@@ -21,7 +22,7 @@ function buildImagePreviewUri(file: PickedUploadFile): string {
   return `data:${file.mimeType};base64,${file.base64}`;
 }
 
-export function PickedFileCard({ file, onRemove }: Props) {
+export function PickedFileCard({ file, onRemove, displayName }: Props) {
   const theme = useTheme();
   const showImage = isUploadImageMime(file.mimeType);
   const borderColor = theme.colors.outline + (theme.dark ? '50' : '40');
@@ -53,7 +54,7 @@ export function PickedFileCard({ file, onRemove }: Props) {
         )}
         <View style={styles.info}>
           <Text variant="bodySmall" numberOfLines={2}>
-            {file.fileName}
+            {displayName ?? file.fileName}
           </Text>
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
             {formatUploadFileSize(file.sizeBytes)}

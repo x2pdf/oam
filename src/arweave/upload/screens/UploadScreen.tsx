@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   useTheme,
   Snackbar,
+  Checkbox,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -42,6 +43,7 @@ import {
   postUploadTransaction,
   uploadBase64ToUint8Array,
 } from '../transaction';
+import { LocationStripError } from '../../../privacy/sanitizeBase64';
 import { validatePaymentPasswordLength, PAYMENT_PASSWORD_MAX_LENGTH, PAYMENT_PASSWORD_KEYBOARD_TYPE } from '../../../wallet/passwordRules';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -61,6 +63,7 @@ export default function ArweaveUploadScreen() {
   const [note, setNote] = useState('');
   const [fileType, setFileType] = useState<UploadFileType>('other');
   const [pickedFile, setPickedFile] = useState<PickedUploadFile | null>(null);
+  const [useOriginalName, setUseOriginalName] = useState(false);
   const [fileSourceDialogVisible, setFileSourceDialogVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
@@ -159,6 +162,7 @@ export default function ArweaveUploadScreen() {
 
   const applyPickedFile = useCallback((file: PickedUploadFile) => {
     setPickedFile(file);
+    setUseOriginalName(false);
     setFileType(file.fileType);
   }, []);
 
@@ -198,7 +202,11 @@ export default function ArweaveUploadScreen() {
       }
     } catch (error) {
       console.error('File pick error:', error);
-      setSnackbarMessage(t('arweave.upload.pickFailed'));
+      setSnackbarMessage(
+        error instanceof LocationStripError
+          ? t('arweave.upload.privacyStripFailed')
+          : t('arweave.upload.pickFailed'),
+      );
       setSnackbarVisible(true);
     }
   }, [applyPickedFile, t]);
@@ -223,6 +231,10 @@ export default function ArweaveUploadScreen() {
     setPasswordError(null);
     setPasswordVisible(true);
   }, [insufficientBalance, feeLoading, balanceLoading, feeError]);
+
+  const uploadFileName = pickedFile
+    ? (useOriginalName ? pickedFile.fileName : pickedFile.genericFileName)
+    : '';
 
   const executeUpload = useCallback(async () => {
     if (passwordLocked) return;
@@ -264,7 +276,7 @@ export default function ArweaveUploadScreen() {
       const data = uploadBase64ToUint8Array(pickedFile.base64);
       const tags: { name: string; value: string }[] = [
         { name: 'Content-Type', value: UPLOAD_FILE_TYPE_TO_MIME[fileType] },
-        { name: 'File-Name', value: pickedFile.fileName },
+        { name: 'File-Name', value: uploadFileName },
       ];
       const trimmedNote = note.trim();
       if (trimmedNote) {
@@ -286,7 +298,7 @@ export default function ArweaveUploadScreen() {
           : t('arweave.upload.uploadFailed'),
       );
     }
-  }, [passwordLocked, password, pickedFile, arProfile, fileType, note, t]);
+  }, [passwordLocked, password, pickedFile, arProfile, fileType, note, uploadFileName, t]);
 
   const handleCancel = useCallback(() => {
     if (hasContent) {
@@ -338,7 +350,36 @@ export default function ArweaveUploadScreen() {
           </Button>
 
           {pickedFile ? (
-            <PickedFileCard file={pickedFile} onRemove={() => setPickedFile(null)} />
+            <PickedFileCard
+              file={pickedFile}
+              displayName={uploadFileName}
+              onRemove={() => setPickedFile(null)}
+            />
+          ) : null}
+          {pickedFile ? (
+            <>
+              <TouchableOpacity
+                style={styles.nameOption}
+                onPress={() => setUseOriginalName((v) => !v)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.checkboxBox}>
+                  <View style={styles.checkboxInner}>
+                    <Checkbox.Android
+                      status={useOriginalName ? 'checked' : 'unchecked'}
+                      onPress={() => setUseOriginalName((v) => !v)}
+                      uncheckedColor={theme.colors.outline}
+                    />
+                  </View>
+                </View>
+                <Text variant="labelSmall" style={styles.checkboxLabel}>
+                  {t('arweave.upload.useOriginalName')}
+                </Text>
+              </TouchableOpacity>
+              <HelperText type="info" visible>
+                {t('arweave.upload.originalNameHint')}
+              </HelperText>
+            </>
           ) : null}
           <HelperText type="info" visible>
             {t('arweave.upload.selectFileHint')}
@@ -351,6 +392,9 @@ export default function ArweaveUploadScreen() {
           </HelperText>
           <HelperText type="info" visible>
             {t('arweave.upload.submitDisclaimer')}
+          </HelperText>
+          <HelperText type="info" visible>
+            {t('arweave.upload.privacyNotice')}
           </HelperText>
           <HelperText type="info" visible>
             {t('arweave.upload.safetyTip')}
@@ -441,7 +485,7 @@ export default function ArweaveUploadScreen() {
             {t('arweave.upload.confirmFile')}
           </Text>
           <Text style={[styles.confirmValue, { fontSize: Math.round(14 * fontScale) }]}>
-            {pickedFile?.fileName ?? '—'}
+            {uploadFileName || '—'}
           </Text>
         </View>
 
@@ -661,6 +705,10 @@ const styles = StyleSheet.create({
   fieldLabel: { marginBottom: 6, fontWeight: '600' },
   textArea: { minHeight: 120, marginBottom: 16 },
   textAreaContent: { minHeight: 96, textAlignVertical: 'top', paddingTop: 8 },
+  nameOption: { flexDirection: 'row', alignItems: 'center' },
+  checkboxBox: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  checkboxInner: { transform: [{ scale: 0.75 }] },
+  checkboxLabel: { textAlign: 'left', fontSize: 12 },
   selectFileButton: { marginTop: 4, borderRadius: 8 },
   sourceButton: { marginTop: 8, borderRadius: 8 },
   buttonGroup: { marginTop: 32, gap: 12 },

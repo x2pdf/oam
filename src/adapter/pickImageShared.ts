@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { ImagePickerResult } from './ImagePickerAdapter';
 import { isGifBase64 } from './imageUri';
+import { stripLocationFromBase64 } from '../privacy/sanitizeBase64';
 
 type PickedImageInput = {
   uri: string;
@@ -88,6 +89,9 @@ export async function finalizePickedImage(
   if (type === 'image/gif' && !isGifBase64(rawBase64)) {
     return null;
   }
+
+  // Throws if location metadata cannot be removed and verified; the file is then refused.
+  rawBase64 = stripLocationFromBase64(rawBase64).base64;
 
   return {
     base64: rawBase64,

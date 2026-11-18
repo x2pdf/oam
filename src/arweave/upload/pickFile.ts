@@ -4,9 +4,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { base64ByteLength } from './format';
 import { inferUploadFileType, resolveMimeType } from './fileTypes';
 import type { UploadFileType } from './constants';
+import { generateGenericFileName } from './fileName';
+import { stripLocationFromBase64 } from '../../privacy/sanitizeBase64';
 
 export type PickedUploadFile = {
+  /** Original name; only uploaded when the user opts in. */
   fileName: string;
+  /** Generic random name that is uploaded by default. */
+  genericFileName: string;
   mimeType: string;
   base64: string;
   sizeBytes: number;
@@ -41,6 +46,12 @@ function isGifBase64(base64: string): boolean {
   }
 }
 
+/** GPS / location metadata must never be published; failure blocks the file. */
+function removeLocation(base64: string): { base64: string; sizeBytes: number } {
+  const result = stripLocationFromBase64(base64);
+  return { base64: result.base64, sizeBytes: result.sizeBytes };
+}
+
 function buildPickedUploadFile(
   fileName: string,
   mimeType: string,
@@ -48,18 +59,20 @@ function buildPickedUploadFile(
   previewUri: string,
 ): PickedUploadFile {
   const fileType = inferUploadFileType(mimeType, fileName);
+  const cleaned = removeLocation(base64);
   return {
     fileName,
+    genericFileName: generateGenericFileName(fileName),
     mimeType,
-    base64,
-    sizeBytes: base64ByteLength(base64),
+    base64: cleaned.base64,
+    sizeBytes: cleaned.sizeBytes,
     fileType,
     previewUri,
   };
 }
 
 /**
- * Gallery images: read original bytes only (no re-encode, no format conversion).
+ * Gallery images: original bytes, no re-encode or format conversion; only location metadata is removed.
  */
 async function finalizeGalleryImage(asset: {
   uri: string;
@@ -142,14 +155,15 @@ export async function pickUploadFileFromDocuments(): Promise<PickedUploadFile | 
     throw new Error('Failed to read selected file');
   }
 
-  const sizeBytes = asset.size ?? base64ByteLength(base64);
+  const cleaned = removeLocation(base64);
   const fileType = inferUploadFileType(mimeType, fileName);
 
   return {
     fileName,
+    genericFileName: generateGenericFileName(fileName),
     mimeType,
-    base64,
-    sizeBytes,
+    base64: cleaned.base64,
+    sizeBytes: cleaned.sizeBytes,
     fileType,
     previewUri: asset.uri,
   };
