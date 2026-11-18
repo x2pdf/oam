@@ -13,8 +13,12 @@ export type PickedUploadFile = {
   /** Generic random name that is uploaded by default. */
   genericFileName: string;
   mimeType: string;
+  /** Location metadata removed; uploaded by default. */
   base64: string;
   sizeBytes: number;
+  /** Untouched bytes; uploaded only when the user opts to keep location data. */
+  originalBase64: string;
+  originalSizeBytes: number;
   fileType: UploadFileType;
   previewUri?: string;
 };
@@ -66,6 +70,8 @@ function buildPickedUploadFile(
     mimeType,
     base64: cleaned.base64,
     sizeBytes: cleaned.sizeBytes,
+    originalBase64: base64,
+    originalSizeBytes: base64ByteLength(base64),
     fileType,
     previewUri,
   };
@@ -164,6 +170,8 @@ export async function pickUploadFileFromDocuments(): Promise<PickedUploadFile | 
     mimeType,
     base64: cleaned.base64,
     sizeBytes: cleaned.sizeBytes,
+    originalBase64: base64,
+    originalSizeBytes: base64ByteLength(base64),
     fileType,
     previewUri: asset.uri,
   };

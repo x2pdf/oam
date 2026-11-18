@@ -64,6 +64,7 @@ export default function ArweaveUploadScreen() {
   const [fileType, setFileType] = useState<UploadFileType>('other');
   const [pickedFile, setPickedFile] = useState<PickedUploadFile | null>(null);
   const [useOriginalName, setUseOriginalName] = useState(false);
+  const [keepLocation, setKeepLocation] = useState(false);
   const [fileSourceDialogVisible, setFileSourceDialogVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [cancelConfirmVisible, setCancelConfirmVisible] = useState(false);
@@ -111,7 +112,10 @@ export default function ArweaveUploadScreen() {
     quotedFeeWinstonRef.current = null;
 
     try {
-      const quote = await getUploadQuote(arProfile.address, pickedFile.sizeBytes);
+      const quote = await getUploadQuote(
+        arProfile.address,
+        keepLocation ? pickedFile.originalSizeBytes : pickedFile.sizeBytes,
+      );
       if (requestId !== quoteRequestRef.current) return;
       setBalanceDisplay(`${quote.balanceAr} ${t('arweave.upload.feeUnit')}`);
       setFeeDisplay(`${quote.feeAr} ${t('arweave.upload.feeUnit')}`);
@@ -129,7 +133,7 @@ export default function ArweaveUploadScreen() {
         setFeeLoading(false);
       }
     }
-  }, [arProfile, pickedFile, t]);
+  }, [arProfile, pickedFile, keepLocation, t]);
 
   useEffect(() => {
     if (confirmVisible) {
@@ -163,6 +167,7 @@ export default function ArweaveUploadScreen() {
   const applyPickedFile = useCallback((file: PickedUploadFile) => {
     setPickedFile(file);
     setUseOriginalName(false);
+    setKeepLocation(false);
     setFileType(file.fileType);
   }, []);
 
@@ -273,7 +278,7 @@ export default function ArweaveUploadScreen() {
     }
 
     try {
-      const data = uploadBase64ToUint8Array(pickedFile.base64);
+      const data = uploadBase64ToUint8Array(keepLocation ? pickedFile.originalBase64 : pickedFile.base64);
       const tags: { name: string; value: string }[] = [
         { name: 'Content-Type', value: UPLOAD_FILE_TYPE_TO_MIME[fileType] },
         { name: 'File-Name', value: uploadFileName },
@@ -298,7 +303,7 @@ export default function ArweaveUploadScreen() {
           : t('arweave.upload.uploadFailed'),
       );
     }
-  }, [passwordLocked, password, pickedFile, arProfile, fileType, note, uploadFileName, t]);
+  }, [passwordLocked, password, pickedFile, arProfile, fileType, note, uploadFileName, keepLocation, t]);
 
   const handleCancel = useCallback(() => {
     if (hasContent) {
@@ -379,27 +384,29 @@ export default function ArweaveUploadScreen() {
               <HelperText type="info" visible>
                 {t('arweave.upload.originalNameHint')}
               </HelperText>
+              <TouchableOpacity
+                style={styles.nameOption}
+                onPress={() => setKeepLocation((v) => !v)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.checkboxBox}>
+                  <View style={styles.checkboxInner}>
+                    <Checkbox.Android
+                      status={keepLocation ? 'checked' : 'unchecked'}
+                      onPress={() => setKeepLocation((v) => !v)}
+                      uncheckedColor={theme.colors.outline}
+                    />
+                  </View>
+                </View>
+                <Text variant="labelSmall" style={styles.checkboxLabel}>
+                  {t('arweave.upload.keepLocation')}
+                </Text>
+              </TouchableOpacity>
+              <HelperText type="info" visible>
+                {t('arweave.upload.keepLocationHint')}
+              </HelperText>
             </>
           ) : null}
-          <HelperText type="info" visible>
-            {t('arweave.upload.selectFileHint')}
-          </HelperText>
-          <HelperText type="info" visible>
-            {t('arweave.upload.fileSizeHint')}
-          </HelperText>
-          <HelperText type="info" visible>
-            {t('arweave.upload.feeDisclaimer')}
-          </HelperText>
-          <HelperText type="info" visible>
-            {t('arweave.upload.submitDisclaimer')}
-          </HelperText>
-          <HelperText type="info" visible>
-            {t('arweave.upload.privacyNotice')}
-          </HelperText>
-          <HelperText type="info" visible>
-            {t('arweave.upload.safetyTip')}
-          </HelperText>
-
           <View style={styles.buttonGroup}>
             <Button
               mode="contained"
@@ -418,6 +425,27 @@ export default function ArweaveUploadScreen() {
             >
               {t('arweave.upload.cancelButton')}
             </Button>
+          </View>
+
+          <View style={styles.disclaimers}>
+            <HelperText type="info" visible>
+              {t('arweave.upload.selectFileHint')}
+            </HelperText>
+            <HelperText type="info" visible>
+              {t('arweave.upload.fileSizeHint')}
+            </HelperText>
+            <HelperText type="info" visible>
+              {t('arweave.upload.feeDisclaimer')}
+            </HelperText>
+            <HelperText type="info" visible>
+              {t('arweave.upload.submitDisclaimer')}
+            </HelperText>
+            <HelperText type="info" visible>
+              {t('arweave.upload.privacyNotice')}
+            </HelperText>
+            <HelperText type="info" visible>
+              {t('arweave.upload.safetyTip')}
+            </HelperText>
           </View>
         </ListColumn>
       </ScrollView>
@@ -712,6 +740,7 @@ const styles = StyleSheet.create({
   selectFileButton: { marginTop: 4, borderRadius: 8 },
   sourceButton: { marginTop: 8, borderRadius: 8 },
   buttonGroup: { marginTop: 32, gap: 12 },
+  disclaimers: { marginTop: 40 },
   button: { borderRadius: 8 },
   buttonContent: { paddingVertical: 6 },
   confirmFrame: {
