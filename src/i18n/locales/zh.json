@@ -819,7 +819,7 @@
       "noFile": "请先选择要上传的文件",
       "pickFailed": "文件选择失败，请重试",
       "useOriginalName": "使用原始文件名上传",
-      "originalNameHint": "默认使用随机文件名（file-xxxxxxxx）上传，避免原文件名中的姓名等个人信息被公开。勾选后将公开原始文件名。",
+      "originalNameHint": "默认使用随机文件名（file-xxxxxxxxxxxxxxxx）上传，避免原文件名中的姓名等个人信息被公开。勾选后将公开原始文件名。",
       "keepLocation": "保留位置信息（不移除）",
       "keepLocationHint": "默认会在上传前移除照片和视频中的 GPS 位置信息。勾选后将按原样上传，拍摄地点等位置信息会永久公开保存在 Arweave 上。",
       "privacyNotice": "除非你选择保留，照片和视频中的 GPS 位置信息会在上传前被移除。画面内容本身（如可见的文字或地点）不会被移除。",

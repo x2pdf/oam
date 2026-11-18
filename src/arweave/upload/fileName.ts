@@ -1,5 +1,5 @@
 const GENERIC_PREFIX = 'file';
-const NAME_LENGTH = 8;
+const NAME_LENGTH = 16;
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
 
 function randomLetters(length: number): string {
@@ -20,7 +20,7 @@ function safeExtension(originalName: string): string {
   return match ? `.${match[1].toLowerCase()}` : '';
 }
 
-/** `file-` + 8 random lowercase letters, keeping only the original extension. */
+/** `file-` + 16 random lowercase letters, keeping only the original extension. */
 export function generateGenericFileName(originalName: string): string {
   return `${GENERIC_PREFIX}-${randomLetters(NAME_LENGTH)}${safeExtension(originalName)}`;
 }
